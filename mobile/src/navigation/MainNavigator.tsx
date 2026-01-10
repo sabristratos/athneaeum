@@ -1,25 +1,18 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { View } from 'react-native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { HugeiconsIcon } from '@hugeicons/react-native';
-import type { IconSvgElement } from '@hugeicons/react-native';
 import {
   Home01Icon,
   Search01Icon,
   Book02Icon,
   Analytics01Icon,
 } from '@hugeicons/core-free-icons';
-import Animated, {
-  useSharedValue,
-  useAnimatedStyle,
-  withSpring,
-  withSequence,
-} from 'react-native-reanimated';
 import { Text, ThemeToggle, SharedElementOverlay } from '@/components';
+import { AnimatedTabIcon } from '@/animations';
 import { useAuth } from '@/hooks/useAuth';
 import { useTheme } from '@/themes';
-import { iconSizes, sharedSpacing } from '@/themes/shared';
+import { sharedSpacing } from '@/themes/shared';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { SearchScreen } from '@/features/search/SearchScreen';
 import { LibraryScreen } from '@/features/library/LibraryScreen';
@@ -41,37 +34,6 @@ export type MainStackParamList = {
 
 const Tab = createBottomTabNavigator<MainTabParamList>();
 const Stack = createNativeStackNavigator<MainStackParamList>();
-
-interface AnimatedTabIconProps {
-  icon: IconSvgElement;
-  color: string;
-  focused: boolean;
-}
-
-function AnimatedTabIcon({ icon, color, focused }: AnimatedTabIconProps) {
-  const scale = useSharedValue(1);
-
-  useEffect(() => {
-    if (focused) {
-      scale.value = withSequence(
-        withSpring(1.2, { damping: 10, stiffness: 400 }),
-        withSpring(1.05, { damping: 15, stiffness: 300 })
-      );
-    } else {
-      scale.value = withSpring(1, { damping: 15, stiffness: 300 });
-    }
-  }, [focused, scale]);
-
-  const animatedStyle = useAnimatedStyle(() => ({
-    transform: [{ scale: scale.value }],
-  }));
-
-  return (
-    <Animated.View style={animatedStyle}>
-      <HugeiconsIcon icon={icon} size={iconSizes.lg} color={color} />
-    </Animated.View>
-  );
-}
 
 function HomeScreen() {
   const { theme } = useTheme();

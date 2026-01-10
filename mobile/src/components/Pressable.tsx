@@ -5,7 +5,6 @@ import {
   type ViewStyle,
   type StyleProp,
   type GestureResponderEvent,
-  StyleSheet,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -14,6 +13,7 @@ import Animated, {
   withTiming,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
+import { SPRINGS, TIMING } from '@/animations';
 
 export type HapticType = 'light' | 'medium' | 'heavy' | 'none';
 
@@ -34,12 +34,6 @@ const hapticMap: Record<Exclude<HapticType, 'none'>, Haptics.ImpactFeedbackStyle
   heavy: Haptics.ImpactFeedbackStyle.Heavy,
 };
 
-const SPRING_CONFIG = {
-  damping: 15,
-  stiffness: 400,
-  mass: 0.5,
-};
-
 export function Pressable({
   haptic = 'light',
   activeOpacity = 0.8,
@@ -58,11 +52,9 @@ export function Pressable({
   const handlePressIn = useCallback(
     (event: GestureResponderEvent) => {
       if (!disabled) {
-        // Animate scale and opacity
-        scale.value = withSpring(activeScale, SPRING_CONFIG);
-        opacity.value = withTiming(activeOpacity, { duration: 100 });
+        scale.value = withSpring(activeScale, SPRINGS.snappy);
+        opacity.value = withTiming(activeOpacity, TIMING.fast);
 
-        // Trigger haptic feedback
         if (haptic !== 'none') {
           Haptics.impactAsync(hapticMap[haptic]);
         }
@@ -74,9 +66,8 @@ export function Pressable({
 
   const handlePressOut = useCallback(
     (event: GestureResponderEvent) => {
-      // Spring back to normal
-      scale.value = withSpring(1, SPRING_CONFIG);
-      opacity.value = withTiming(1, { duration: 100 });
+      scale.value = withSpring(1, SPRINGS.snappy);
+      opacity.value = withTiming(1, TIMING.fast);
       onPressOut?.(event);
     },
     [onPressOut, scale, opacity]

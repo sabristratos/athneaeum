@@ -1,6 +1,8 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
-import { useInfiniteBookSearch, useLibrary } from '@/hooks/useBooks';
+import { useState, useCallback, useMemo } from 'react';
+import { useInfiniteBookSearchQuery } from '@/queries';
+import { useLibrary } from '@/hooks/useBooks';
 import type { SearchResult, BookStatus, SearchFilters } from '@/types';
+import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 
 const DEBOUNCE_MS = 400;
 
@@ -18,7 +20,7 @@ interface UseSearchControllerReturn {
   closeErrorModal: () => void;
   activeFilterCount: number;
   results: SearchResult[];
-  meta: ReturnType<typeof useInfiniteBookSearch>['meta'];
+  meta: { total: number; has_more: boolean; provider: string; start_index: number } | undefined;
   loading: boolean;
   loadingMore: boolean;
   error: string | null;
@@ -31,28 +33,34 @@ interface UseSearchControllerReturn {
 }
 
 export function useSearchController(): UseSearchControllerReturn {
-  const {
-    results,
-    meta,
-    loading,
-    loadingMore,
-    error,
-    filters,
-    search,
-    loadMore,
-    setFilters,
-    clearResults,
-    refresh,
-  } = useInfiniteBookSearch();
-  const { addToLibrary } = useLibrary();
-
   const [query, setQuery] = useState('');
+  const [filters, setFilters] = useState<SearchFilters>({});
   const [addingId, setAddingId] = useState<string | null>(null);
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
   const [errorModal, setErrorModal] = useState<ErrorModalState>({
     visible: false,
     message: '',
   });
+
+  const debouncedQuery = useDebouncedValue(query, DEBOUNCE_MS);
+
+  const {
+    data,
+    isLoading,
+    isFetchingNextPage,
+    error: queryError,
+    fetchNextPage,
+    hasNextPage,
+    refetch,
+  } = useInfiniteBookSearchQuery(debouncedQuery, filters);
+
+  const { addToLibrary } = useLibrary();
+
+  const results = data?.results ?? [];
+  const meta = data?.meta;
+  const loading = isLoading;
+  const loadingMore = isFetchingNextPage;
+  const error = queryError ? (queryError instanceof Error ? queryError.message : 'Search failed') : null;
 
   const activeFilterCount = useMemo(() => {
     let count = 0;
@@ -63,25 +71,9 @@ export function useSearchController(): UseSearchControllerReturn {
     return count;
   }, [filters]);
 
-  useEffect(() => {
-    if (!query.trim()) {
-      clearResults();
-      return;
-    }
-
-    const timer = setTimeout(() => {
-      search(query);
-    }, DEBOUNCE_MS);
-
-    return () => clearTimeout(timer);
-  }, [query, filters, search, clearResults]);
-
-  const handleFiltersChange = useCallback(
-    (newFilters: SearchFilters) => {
-      setFilters(newFilters);
-    },
-    [setFilters]
-  );
+  const handleFiltersChange = useCallback((newFilters: SearchFilters) => {
+    setFilters(newFilters);
+  }, []);
 
   const handleAddToLibrary = useCallback(
     async (book: SearchResult, status: BookStatus) => {
@@ -111,14 +103,18 @@ export function useSearchController(): UseSearchControllerReturn {
   );
 
   const handleEndReached = useCallback(() => {
-    if (!loadingMore && meta?.has_more) {
-      loadMore();
+    if (!isFetchingNextPage && hasNextPage) {
+      fetchNextPage();
     }
-  }, [loadMore, loadingMore, meta]);
+  }, [fetchNextPage, isFetchingNextPage, hasNextPage]);
 
   const closeErrorModal = useCallback(() => {
     setErrorModal({ visible: false, message: '' });
   }, []);
+
+  const refresh = useCallback(async () => {
+    await refetch();
+  }, [refetch]);
 
   return {
     query,

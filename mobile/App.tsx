@@ -37,6 +37,10 @@ console.log('[App] RootNavigator imported');
 import { DatabaseProvider } from './src/database/DatabaseProvider';
 console.log('[App] DatabaseProvider imported');
 
+import { QueryClientProvider } from '@tanstack/react-query';
+import { queryClient, setupQueryClientListeners } from './src/lib/queryClient';
+console.log('[App] QueryClientProvider imported');
+
 SplashScreen.preventAutoHideAsync();
 console.log('[App] SplashScreen.preventAutoHideAsync called');
 
@@ -76,6 +80,11 @@ export default function App() {
     console.log('[App] App mounted, fontsLoaded:', fontsLoaded);
   }, [fontsLoaded]);
 
+  useEffect(() => {
+    const cleanup = setupQueryClientListeners();
+    return cleanup;
+  }, []);
+
   const onLayoutRootView = useCallback(async () => {
     console.log('[App] onLayoutRootView called, fontsLoaded:', fontsLoaded);
     if (fontsLoaded) {
@@ -101,11 +110,13 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <ThemeProvider>
-          <DatabaseProvider>
-            <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
-              <AppContent />
-            </View>
-          </DatabaseProvider>
+          <QueryClientProvider client={queryClient}>
+            <DatabaseProvider>
+              <View style={{ flex: 1 }} onLayout={onLayoutRootView}>
+                <AppContent />
+              </View>
+            </DatabaseProvider>
+          </QueryClientProvider>
         </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>

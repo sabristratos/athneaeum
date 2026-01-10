@@ -116,6 +116,7 @@ export function SpineGridView({
       showsVerticalScrollIndicator={false}
       onScroll={scrollHandler as any}
       scrollEventThrottle={16}
+      removeClippedSubviews={true}
       refreshControl={
         onRefresh ? (
           <RefreshControl

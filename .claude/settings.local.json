@@ -28,7 +28,8 @@
       "Bash(npm ls:*)",
       "WebSearch",
       "WebFetch(domain:www.npmjs.com)",
-      "WebFetch(domain:hugeicons.com)"
+      "WebFetch(domain:hugeicons.com)",
+      "Bash(dir:*)"
     ]
   }
 }

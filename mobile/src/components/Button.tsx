@@ -8,6 +8,7 @@ import Animated, {
 import { Pressable } from '@/components/Pressable';
 import { Text } from '@/components/Text';
 import { useTheme } from '@/themes';
+import { SPRINGS } from '@/animations';
 
 type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'danger' | 'outline';
 type ButtonSize = 'sm' | 'md' | 'lg';
@@ -21,9 +22,6 @@ interface ButtonProps {
   onPress?: () => void;
   children: React.ReactNode;
 }
-
-// Spring config for press animation
-const PRESS_SPRING = { damping: 15, stiffness: 300, mass: 0.5 };
 
 export const Button = memo(function Button({
   variant = 'primary',
@@ -126,14 +124,13 @@ export const Button = memo(function Button({
 
   const has3DShadow = !isScholar && (variant === 'primary' || variant === 'danger') && variantStyles?.shadow;
 
-  // Animated style for press state - no re-renders needed
   const animatedContainerStyle = useAnimatedStyle(() => {
     const shadowOffset = has3DShadow ? (isPressed.value ? 0 : 4) : 0;
     const translateY = has3DShadow && isPressed.value ? 4 : 0;
 
     return {
       backgroundColor: isPressed.value ? variantStyles?.bgPressed : variantStyles?.bg,
-      transform: [{ translateY: withSpring(translateY, PRESS_SPRING) }],
+      transform: [{ translateY: withSpring(translateY, SPRINGS.responsive) }],
       shadowOffset: { width: 0, height: shadowOffset },
       elevation: shadowOffset,
     };

@@ -7,6 +7,7 @@ import {
   Extrapolation,
   type SharedValue,
 } from 'react-native-reanimated';
+import { SPRINGS } from '@/animations';
 
 interface ScrollAnimationsConfig {
   /** scrollY at which header title starts fading in (default: 150) */
@@ -75,13 +76,10 @@ export function useScrollAnimations(
 
       scrollY.value = y;
 
-      // FAB: hide on scroll down (after threshold), show on scroll up
       if (diff > 5 && y > fabHideThreshold) {
-        // Scrolling down fast enough
-        fabVisible.value = withSpring(0, { damping: 15, stiffness: 120 });
+        fabVisible.value = withSpring(0, SPRINGS.settle);
       } else if (diff < -5) {
-        // Scrolling up fast enough
-        fabVisible.value = withSpring(1, { damping: 15, stiffness: 120 });
+        fabVisible.value = withSpring(1, SPRINGS.settle);
       }
 
       // Header title: fade in as main title scrolls out of view

@@ -4,7 +4,6 @@ import {
   Pressable,
   LayoutChangeEvent,
   StyleSheet,
-  AccessibilityInfo,
 } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -15,6 +14,7 @@ import Animated, {
 import * as Haptics from 'expo-haptics';
 import { Text } from '@/components/Text';
 import { useTheme } from '@/themes';
+import { SPRINGS, TIMING, useReducedMotion } from '@/animations';
 
 export interface FilterDialOption {
   key: string;
@@ -29,11 +29,6 @@ interface FilterDialProps {
   showCounts?: boolean;
   disabled?: boolean;
 }
-
-const SPRING_CONFIG = {
-  damping: 20,
-  stiffness: 300,
-};
 
 interface LabelMeasurement {
   x: number;
@@ -52,40 +47,27 @@ export const FilterDial = memo(function FilterDial({
   disabled = false,
 }: FilterDialProps) {
   const { theme } = useTheme();
-  const [reduceMotion, setReduceMotion] = useState(false);
+  const reduceMotion = useReducedMotion();
   const [labelMeasurements, setLabelMeasurements] = useState<LabelMeasurement[]>([]);
 
-  // Animation values for indicator
   const indicatorX = useSharedValue(0);
   const indicatorWidth = useSharedValue(0);
 
-  // Find current selected index
   const selectedIndex = useMemo(
     () => options.findIndex((o) => o.key === selected),
     [options, selected]
   );
 
-  // Check for reduced motion preference
-  useEffect(() => {
-    AccessibilityInfo.isReduceMotionEnabled().then(setReduceMotion);
-    const subscription = AccessibilityInfo.addEventListener(
-      'reduceMotionChanged',
-      setReduceMotion
-    );
-    return () => subscription.remove();
-  }, []);
-
-  // Update indicator position when selection or measurements change
   useEffect(() => {
     if (labelMeasurements.length > 0 && selectedIndex >= 0) {
       const measurement = labelMeasurements[selectedIndex];
       if (measurement) {
         if (reduceMotion) {
-          indicatorX.value = withTiming(measurement.x, { duration: 150 });
-          indicatorWidth.value = withTiming(measurement.width, { duration: 150 });
+          indicatorX.value = withTiming(measurement.x, TIMING.fast);
+          indicatorWidth.value = withTiming(measurement.width, TIMING.fast);
         } else {
-          indicatorX.value = withSpring(measurement.x, SPRING_CONFIG);
-          indicatorWidth.value = withSpring(measurement.width, SPRING_CONFIG);
+          indicatorX.value = withSpring(measurement.x, SPRINGS.responsive);
+          indicatorWidth.value = withSpring(measurement.width, SPRINGS.responsive);
         }
       }
     }

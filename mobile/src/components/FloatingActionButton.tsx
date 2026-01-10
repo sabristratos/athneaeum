@@ -15,6 +15,7 @@ import { Icon } from '@/components/Icon';
 import { Text } from '@/components/Text';
 import { useTheme } from '@/themes';
 import { iconSizes } from '@/themes/shared';
+import { SPRINGS } from '@/animations';
 
 interface FloatingActionButtonProps {
   label: string;
@@ -38,12 +39,12 @@ export const FloatingActionButton = memo(function FloatingActionButton({
   const scale = useSharedValue(1);
 
   const handlePressIn = () => {
-    scale.value = withSpring(0.96, { damping: 15, stiffness: 400 });
+    scale.value = withSpring(0.96, SPRINGS.snappy);
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
   };
 
   const handlePressOut = () => {
-    scale.value = withSpring(1, { damping: 15, stiffness: 400 });
+    scale.value = withSpring(1, SPRINGS.snappy);
   };
 
   const animatedContainerStyle = useAnimatedStyle(() => {

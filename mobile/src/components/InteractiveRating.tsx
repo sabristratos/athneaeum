@@ -13,6 +13,7 @@ import Animated, {
 import * as Haptics from 'expo-haptics';
 import { Text } from '@/components/Text';
 import { useTheme } from '@/themes';
+import { SPRINGS } from '@/animations';
 
 interface InteractiveRatingProps {
   value: number;
@@ -150,21 +151,19 @@ function AnimatedRatingIcon({
   const isFilled = value > index;
 
   useEffect(() => {
-    // Pop animation when this icon becomes filled
     if (isFilled && !wasFilled) {
-      const delay = index * 30; // Stagger effect
+      const delay = index * 30;
       scale.value = withDelay(
         delay,
         withSequence(
-          withSpring(1.3, { damping: 8, stiffness: 400 }),
-          withSpring(1, { damping: 12, stiffness: 300 })
+          withSpring(1.3, SPRINGS.bouncy),
+          withSpring(1, SPRINGS.responsive)
         )
       );
     } else if (!isFilled && wasFilled) {
-      // Shrink when unfilled
       scale.value = withSequence(
-        withSpring(0.8, { damping: 15, stiffness: 400 }),
-        withSpring(1, { damping: 15, stiffness: 300 })
+        withSpring(0.8, SPRINGS.snappy),
+        withSpring(1, SPRINGS.responsive)
       );
     }
   }, [isFilled, wasFilled, index, scale]);

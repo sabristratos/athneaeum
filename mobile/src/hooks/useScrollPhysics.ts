@@ -8,20 +8,15 @@ import {
   type SharedValue,
 } from 'react-native-reanimated';
 import * as Haptics from 'expo-haptics';
+import { SPRINGS } from '@/animations';
 
-// Physics constants
-const MAX_TILT_ANGLE = 8; // degrees
-const VELOCITY_THRESHOLD = 50; // px/frame to start tilt
-const MAX_VELOCITY = 200; // px/frame for full tilt
-const SKEW_VELOCITY_THRESHOLD = 150; // Only skew at high speeds
-const MAX_SKEW_ANGLE = 3; // degrees
+const MAX_TILT_ANGLE = 8;
+const VELOCITY_THRESHOLD = 50;
+const MAX_VELOCITY = 200;
+const SKEW_VELOCITY_THRESHOLD = 150;
+const MAX_SKEW_ANGLE = 3;
 
-// Spring configurations
-const TILT_SPRING = { damping: 15, stiffness: 150, mass: 0.5 };
-const REST_SPRING = { damping: 20, stiffness: 120, mass: 0.8 };
-
-// Haptic debounce
-const MIN_HAPTIC_INTERVAL = 100; // ms
+const MIN_HAPTIC_INTERVAL = 100;
 
 interface SectionBoundary {
   letter: string;
@@ -87,9 +82,8 @@ export function useScrollPhysics(config: ScrollPhysicsConfig = {}): ScrollPhysic
     const velocity = scrollVelocity.value;
     const absVelocity = Math.abs(velocity);
 
-    // Dead zone for slow scrolls
     if (absVelocity < VELOCITY_THRESHOLD) {
-      return withSpring(0, REST_SPRING);
+      return withSpring(0, SPRINGS.settle);
     }
 
     // Map velocity to angle with non-linear response (easeOut feel)
@@ -109,7 +103,7 @@ export function useScrollPhysics(config: ScrollPhysicsConfig = {}): ScrollPhysic
     const absVelocity = Math.abs(scrollVelocity.value);
 
     if (absVelocity < SKEW_VELOCITY_THRESHOLD) {
-      return withSpring(0, REST_SPRING);
+      return withSpring(0, SPRINGS.settle);
     }
 
     // Linear map from threshold to max velocity
@@ -175,8 +169,7 @@ export function useScrollPhysics(config: ScrollPhysicsConfig = {}): ScrollPhysic
       prevTime.value = Date.now();
     },
     onMomentumEnd: () => {
-      // Spring velocity back to 0 when scroll ends
-      scrollVelocity.value = withSpring(0, REST_SPRING);
+      scrollVelocity.value = withSpring(0, SPRINGS.settle);
     },
   });
 

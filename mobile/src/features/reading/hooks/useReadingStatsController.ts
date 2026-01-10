@@ -1,6 +1,5 @@
 import { useState, useCallback } from 'react';
-import { useFocusEffect } from '@react-navigation/native';
-import { useReadingStats } from '@/hooks/useBooks';
+import { useReadingStatsQuery } from '@/queries';
 import type { ReadingStats, RecentSession } from '@/types';
 
 interface UseReadingStatsControllerReturn {
@@ -13,26 +12,27 @@ interface UseReadingStatsControllerReturn {
 }
 
 export function useReadingStatsController(): UseReadingStatsControllerReturn {
-  const { stats, loading, error, fetchStats } = useReadingStats();
+  const { data: stats, isLoading, error: queryError, refetch, isRefetching } = useReadingStatsQuery();
   const [refreshing, setRefreshing] = useState(false);
 
-  useFocusEffect(
-    useCallback(() => {
-      fetchStats();
-    }, [fetchStats])
-  );
+  const loading = isLoading;
+  const error = queryError ? (queryError instanceof Error ? queryError.message : 'Failed to load reading stats') : null;
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchStats();
+    await refetch();
     setRefreshing(false);
-  }, [fetchStats]);
+  }, [refetch]);
+
+  const fetchStats = useCallback(async () => {
+    await refetch();
+  }, [refetch]);
 
   return {
-    stats,
+    stats: stats ?? null,
     loading,
     error,
-    refreshing,
+    refreshing: refreshing || isRefetching,
     onRefresh,
     fetchStats,
   };
