@@ -1,0 +1,39 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm install:*)",
+      "Bash(npx tsc:*)",
+      "Bash(powershell -Command:*)",
+      "Bash(npx expo run:android)",
+      "Bash($env:ANDROID_HOME)",
+      "Bash($env:ANDROID_SDK_ROOT)",
+      "Bash($env:LOCALAPPDATA)",
+      "WebSearch",
+      "Bash(Get-ChildItem -Path \"C:\\\\Work\\\\Athenaeum\\\\mobile\\\\src\" -Recurse -Directory)",
+      "Bash(Select-Object FullName)",
+      "Bash(Sort-Object FullName)",
+      "Bash(npm uninstall:*)",
+      "Bash(Select-Object -First 30)",
+      "WebFetch(domain:github.com)",
+      "Bash(npx expo install react-native-reanimated)",
+      "Bash(if not exist \"C:\\\\Work\\\\Athenaeum\\\\mobile\\\\src\\\\hooks\" mkdir \"C:\\\\Work\\\\Athenaeum\\\\mobile\\\\src\\\\hooks\")",
+      "Bash(Remove-Item \"C:\\\\Work\\\\Athenaeum\\\\mobile\\\\src\\\\components\\\\ReadingTimer.tsx\")",
+      "Bash(Get-ChildItem -Path \"C:\\\\Work\\\\Athenaeum\\\\mobile\\\\src\" -Recurse -Include \"*.tsx\")",
+      "Bash(Select-String -Pattern \"createNativeStackNavigator|createBottomTabNavigator|Stack.Navigator\")",
+      "Bash(Select-Object -First 10 Path)",
+      "Bash(php artisan:*)",
+      "Bash(Get-ChildItem \"C:\\\\Work\\\\Athenaeum\\\\mobile\\\\src\\\\features\\\\reading\" -Force)",
+      "Bash(powershell -NoProfile -Command \"cd ''C:\\\\Work\\\\Athenaeum\\\\mobile''; npx tsc --noEmit --skipLibCheck 2>&1\")",
+      "Bash(npx expo install:*)",
+      "Bash(Select-String -Path \"node_modules/@shopify/flash-list/dist/*.d.ts\" -Pattern \"estimatedItemSize\" -CaseSensitive)",
+      "Bash(test:*)",
+      "Bash(Remove-Item -Recurse -Force \"C:\\\\Work\\\\Athenaeum\\\\mobile\\\\node_modules\\\\.cache\" -ErrorAction SilentlyContinue)",
+      "Bash(Remove-Item -Recurse -Force \"C:\\\\Work\\\\Athenaeum\\\\mobile\\\\.expo\" -ErrorAction SilentlyContinue)",
+      "Bash(Remove-Item -Recurse -Force \"$env:TEMP\\\\metro-*\" -ErrorAction SilentlyContinue)",
+      "Bash(Remove-Item -Recurse -Force \"$env:TEMP\\\\haste-*\" -ErrorAction SilentlyContinue)",
+      "Bash(Write-Host \"Caches cleared successfully\")",
+      "WebFetch(domain:www.npmjs.com)",
+      "Bash(npm ls:*)"
+    ]
+  }
+}

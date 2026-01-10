@@ -1,0 +1,75 @@
+import { useState, useCallback } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
+import { useReadingStats } from '@/hooks/useBooks';
+import type { ReadingStats, RecentSession } from '@/types';
+
+interface UseReadingStatsControllerReturn {
+  stats: ReadingStats | null;
+  loading: boolean;
+  error: string | null;
+  refreshing: boolean;
+  onRefresh: () => Promise<void>;
+  fetchStats: () => Promise<void>;
+}
+
+export function useReadingStatsController(): UseReadingStatsControllerReturn {
+  const { stats, loading, error, fetchStats } = useReadingStats();
+  const [refreshing, setRefreshing] = useState(false);
+
+  useFocusEffect(
+    useCallback(() => {
+      fetchStats();
+    }, [fetchStats])
+  );
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchStats();
+    setRefreshing(false);
+  }, [fetchStats]);
+
+  return {
+    stats,
+    loading,
+    error,
+    refreshing,
+    onRefresh,
+    fetchStats,
+  };
+}
+
+interface StatBoxProps {
+  label: string;
+  value: string | number;
+  accent?: boolean;
+}
+
+export function formatStatBox(label: string, value: string | number, accent?: boolean): StatBoxProps {
+  return { label, value, accent };
+}
+
+interface FormattedRecentSession {
+  id: number;
+  bookTitle: string;
+  bookAuthor: string;
+  coverUrl: string | null;
+  startPage: number;
+  endPage: number;
+  pagesRead: number;
+  formattedDate: string;
+  formattedDuration: string | null;
+}
+
+export function formatRecentSession(session: RecentSession): FormattedRecentSession {
+  return {
+    id: session.id,
+    bookTitle: session.book.title,
+    bookAuthor: session.book.author,
+    coverUrl: session.book.cover_url,
+    startPage: session.start_page,
+    endPage: session.end_page,
+    pagesRead: session.pages_read,
+    formattedDate: new Date(session.date).toLocaleDateString(),
+    formattedDuration: session.formatted_duration,
+  };
+}

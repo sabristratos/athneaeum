@@ -1,0 +1,379 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Controllers\Api;
+
+use App\Http\Controllers\Controller;
+use App\Models\Book;
+use App\Models\ReadingSession;
+use App\Models\UserBook;
+use Carbon\Carbon;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Storage;
+
+/**
+ * Handles synchronization between mobile app's local WatermelonDB and server.
+ */
+class SyncController extends Controller
+{
+    /**
+     * Pull changes from server since the given timestamp.
+     */
+    public function pull(Request $request): JsonResponse
+    {
+        $lastPulledAt = $request->integer('last_pulled_at', 0);
+        $timestamp = $lastPulledAt > 0
+            ? Carbon::createFromTimestampMs($lastPulledAt)
+            : null;
+
+        $userId = $request->user()->id;
+
+        $userBooks = UserBook::where('user_id', $userId)
+            ->when($timestamp, fn ($q) => $q->where('updated_at', '>', $timestamp))
+            ->with('book')
+            ->get();
+
+        $bookIds = $userBooks->pluck('book_id')->unique();
+        $books = Book::whereIn('id', $bookIds)
+            ->when($timestamp, fn ($q) => $q->where('updated_at', '>', $timestamp))
+            ->get();
+
+        $sessions = ReadingSession::whereHas('userBook', fn ($q) => $q->where('user_id', $userId))
+            ->when($timestamp, fn ($q) => $q->where('updated_at', '>', $timestamp))
+            ->get();
+
+        return response()->json([
+            'changes' => [
+                'books' => [
+                    'created' => $timestamp ? [] : $books->map(fn ($b) => $this->transformBook($b))->toArray(),
+                    'updated' => $timestamp ? $books->map(fn ($b) => $this->transformBook($b))->toArray() : [],
+                    'deleted' => [],
+                ],
+                'user_books' => [
+                    'created' => $timestamp ? [] : $userBooks->map(fn ($ub) => $this->transformUserBook($ub))->toArray(),
+                    'updated' => $timestamp ? $userBooks->map(fn ($ub) => $this->transformUserBook($ub))->toArray() : [],
+                    'deleted' => [],
+                ],
+                'reading_sessions' => [
+                    'created' => $timestamp ? [] : $sessions->map(fn ($s) => $this->transformSession($s))->toArray(),
+                    'updated' => $timestamp ? $sessions->map(fn ($s) => $this->transformSession($s))->toArray() : [],
+                    'deleted' => [],
+                ],
+            ],
+            'timestamp' => now()->getTimestampMs(),
+        ]);
+    }
+
+    /**
+     * Push local changes from mobile to server.
+     */
+    public function push(Request $request): JsonResponse
+    {
+        $idMappings = ['books' => [], 'user_books' => [], 'reading_sessions' => []];
+        $counts = ['books' => 0, 'user_books' => 0, 'reading_sessions' => 0];
+
+        DB::transaction(function () use ($request, &$idMappings, &$counts) {
+            $userId = $request->user()->id;
+            $data = $request->all();
+
+            // Process created books
+            foreach ($data['books']['created'] ?? [] as $bookData) {
+                $book = Book::updateOrCreate(
+                    [
+                        'external_id' => $bookData['external_id'],
+                        'external_provider' => $bookData['external_provider'] ?? 'google_books',
+                    ],
+                    [
+                        'title' => $bookData['title'],
+                        'author' => $bookData['author'],
+                        'cover_url' => $bookData['cover_url'] ?? null,
+                        'page_count' => $bookData['page_count'] ?? null,
+                        'isbn' => $bookData['isbn'] ?? null,
+                        'description' => $bookData['description'] ?? null,
+                        'genres' => $bookData['genres'] ?? [],
+                        'published_date' => $bookData['published_date'] ?? null,
+                    ]
+                );
+                $idMappings['books'][] = [
+                    'local_id' => $bookData['local_id'],
+                    'server_id' => $book->id,
+                ];
+                $counts['books']++;
+            }
+
+            // Process updated books
+            foreach ($data['books']['updated'] ?? [] as $bookData) {
+                if (! isset($bookData['server_id'])) {
+                    continue;
+                }
+                $book = Book::find($bookData['server_id']);
+                if ($book) {
+                    $book->update([
+                        'title' => $bookData['title'] ?? $book->title,
+                        'author' => $bookData['author'] ?? $book->author,
+                        'cover_url' => $bookData['cover_url'] ?? $book->cover_url,
+                    ]);
+                }
+            }
+
+            // Process created user_books
+            foreach ($data['user_books']['created'] ?? [] as $ubData) {
+                $bookId = $this->resolveBookId($ubData, $idMappings);
+                if (! $bookId) {
+                    continue;
+                }
+
+                $userBook = UserBook::updateOrCreate(
+                    [
+                        'user_id' => $userId,
+                        'book_id' => $bookId,
+                    ],
+                    [
+                        'status' => $ubData['status'],
+                        'rating' => $ubData['rating'] ?? null,
+                        'current_page' => $ubData['current_page'] ?? 0,
+                        'is_dnf' => $ubData['is_dnf'] ?? false,
+                        'dnf_reason' => $ubData['dnf_reason'] ?? null,
+                        'started_at' => $ubData['started_at'] ?? null,
+                        'finished_at' => $ubData['finished_at'] ?? null,
+                        'custom_cover_url' => $ubData['custom_cover_url'] ?? null,
+                    ]
+                );
+                $idMappings['user_books'][] = [
+                    'local_id' => $ubData['local_id'],
+                    'server_id' => $userBook->id,
+                    'server_book_id' => $bookId,
+                ];
+                $counts['user_books']++;
+            }
+
+            // Process updated user_books
+            foreach ($data['user_books']['updated'] ?? [] as $ubData) {
+                if (! isset($ubData['server_id'])) {
+                    continue;
+                }
+                $userBook = UserBook::where('id', $ubData['server_id'])
+                    ->where('user_id', $userId)
+                    ->first();
+
+                if ($userBook) {
+                    $updateData = [];
+                    if (isset($ubData['status'])) {
+                        $updateData['status'] = $ubData['status'];
+                    }
+                    if (array_key_exists('rating', $ubData)) {
+                        $updateData['rating'] = $ubData['rating'];
+                    }
+                    if (isset($ubData['current_page'])) {
+                        // Keep higher page count on conflict
+                        $updateData['current_page'] = max($ubData['current_page'], $userBook->current_page);
+                    }
+                    if (isset($ubData['is_dnf'])) {
+                        $updateData['is_dnf'] = $ubData['is_dnf'];
+                    }
+                    if (array_key_exists('dnf_reason', $ubData)) {
+                        $updateData['dnf_reason'] = $ubData['dnf_reason'];
+                    }
+                    if (array_key_exists('started_at', $ubData)) {
+                        $updateData['started_at'] = $ubData['started_at'];
+                    }
+                    if (array_key_exists('finished_at', $ubData)) {
+                        $updateData['finished_at'] = $ubData['finished_at'];
+                    }
+                    if (array_key_exists('custom_cover_url', $ubData)) {
+                        $updateData['custom_cover_url'] = $ubData['custom_cover_url'];
+                    }
+
+                    $userBook->update($updateData);
+                }
+            }
+
+            // Process deleted user_books
+            foreach ($data['user_books']['deleted'] ?? [] as $serverId) {
+                UserBook::where('id', $serverId)
+                    ->where('user_id', $userId)
+                    ->delete();
+            }
+
+            // Process created reading_sessions
+            foreach ($data['reading_sessions']['created'] ?? [] as $sessionData) {
+                $userBookId = $this->resolveUserBookId($sessionData, $idMappings, $userId);
+                if (! $userBookId) {
+                    continue;
+                }
+
+                $session = ReadingSession::create([
+                    'user_book_id' => $userBookId,
+                    'date' => $sessionData['date'],
+                    'pages_read' => $sessionData['pages_read'],
+                    'start_page' => $sessionData['start_page'],
+                    'end_page' => $sessionData['end_page'],
+                    'duration_seconds' => $sessionData['duration_seconds'] ?? null,
+                    'notes' => $sessionData['notes'] ?? null,
+                ]);
+                $idMappings['reading_sessions'][] = [
+                    'local_id' => $sessionData['local_id'],
+                    'server_id' => $session->id,
+                    'server_user_book_id' => $userBookId,
+                ];
+                $counts['reading_sessions']++;
+            }
+
+            // Process deleted reading_sessions
+            foreach ($data['reading_sessions']['deleted'] ?? [] as $serverId) {
+                ReadingSession::whereHas('userBook', fn ($q) => $q->where('user_id', $userId))
+                    ->where('id', $serverId)
+                    ->delete();
+            }
+        });
+
+        return response()->json([
+            'status' => 'success',
+            'id_mappings' => $idMappings,
+            'counts' => $counts,
+            'timestamp' => now()->getTimestampMs(),
+        ]);
+    }
+
+    /**
+     * Upload a custom cover image for a book.
+     */
+    public function uploadCover(Request $request): JsonResponse
+    {
+        $request->validate([
+            'cover' => 'required|image|max:5120',
+            'user_book_id' => 'required|integer',
+        ]);
+
+        $userBook = UserBook::where('id', $request->user_book_id)
+            ->where('user_id', $request->user()->id)
+            ->firstOrFail();
+
+        $path = $request->file('cover')->store('covers', 'public');
+        $url = Storage::disk('public')->url($path);
+
+        $userBook->update(['custom_cover_url' => $url]);
+
+        return response()->json([
+            'cover_url' => $url,
+            'user_book_id' => $userBook->id,
+        ]);
+    }
+
+    /**
+     * Resolve book ID from local ID using mappings.
+     */
+    private function resolveBookId(array $data, array $idMappings): ?int
+    {
+        // Check if server_book_id is provided
+        if (isset($data['server_book_id'])) {
+            return (int) $data['server_book_id'];
+        }
+
+        // Check if local book_id maps to a server ID
+        if (isset($data['book_local_id'])) {
+            foreach ($idMappings['books'] as $mapping) {
+                if ($mapping['local_id'] === $data['book_local_id']) {
+                    return $mapping['server_id'];
+                }
+            }
+        }
+
+        // Try to find by external_id if provided
+        if (isset($data['external_id'])) {
+            $book = Book::where('external_id', $data['external_id'])->first();
+            if ($book) {
+                return $book->id;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Resolve user_book ID from local ID using mappings.
+     */
+    private function resolveUserBookId(array $data, array $idMappings, int $userId): ?int
+    {
+        // Check if server_user_book_id is provided
+        if (isset($data['server_user_book_id'])) {
+            return (int) $data['server_user_book_id'];
+        }
+
+        // Check if local user_book_id maps to a server ID
+        if (isset($data['user_book_local_id'])) {
+            foreach ($idMappings['user_books'] as $mapping) {
+                if ($mapping['local_id'] === $data['user_book_local_id']) {
+                    return $mapping['server_id'];
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Transform book model for API response.
+     */
+    private function transformBook(Book $book): array
+    {
+        return [
+            'id' => $book->id,
+            'external_id' => $book->external_id,
+            'external_provider' => $book->external_provider,
+            'title' => $book->title,
+            'author' => $book->author,
+            'cover_url' => $book->cover_url,
+            'page_count' => $book->page_count,
+            'isbn' => $book->isbn,
+            'description' => $book->description,
+            'genres' => $book->genres,
+            'published_date' => $book->published_date?->toDateString(),
+            'created_at' => $book->created_at->toIso8601String(),
+            'updated_at' => $book->updated_at->toIso8601String(),
+        ];
+    }
+
+    /**
+     * Transform user_book model for API response.
+     */
+    private function transformUserBook(UserBook $userBook): array
+    {
+        return [
+            'id' => $userBook->id,
+            'book_id' => $userBook->book_id,
+            'status' => $userBook->status->value,
+            'rating' => $userBook->rating,
+            'current_page' => $userBook->current_page,
+            'is_dnf' => $userBook->is_dnf,
+            'dnf_reason' => $userBook->dnf_reason,
+            'started_at' => $userBook->started_at?->toDateString(),
+            'finished_at' => $userBook->finished_at?->toDateString(),
+            'custom_cover_url' => $userBook->custom_cover_url,
+            'created_at' => $userBook->created_at->toIso8601String(),
+            'updated_at' => $userBook->updated_at->toIso8601String(),
+        ];
+    }
+
+    /**
+     * Transform reading session model for API response.
+     */
+    private function transformSession(ReadingSession $session): array
+    {
+        return [
+            'id' => $session->id,
+            'user_book_id' => $session->user_book_id,
+            'date' => $session->date,
+            'pages_read' => $session->pages_read,
+            'start_page' => $session->start_page,
+            'end_page' => $session->end_page,
+            'duration_seconds' => $session->duration_seconds,
+            'notes' => $session->notes,
+            'created_at' => $session->created_at->toIso8601String(),
+            'updated_at' => $session->updated_at->toIso8601String(),
+        ];
+    }
+}

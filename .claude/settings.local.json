@@ -1,0 +1,34 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(powershell -Command \"composer create-project laravel/laravel backend\")",
+      "Bash(powershell -Command \"cd C:\\\\Work\\\\Athenaeum\\\\backend && composer require laravel/sanctum\")",
+      "Bash(powershell -Command \"cd C:\\\\Work\\\\Athenaeum\\\\mobile; npx expo install zustand @tanstack/react-query expo-secure-store expo-haptics\")",
+      "Bash(powershell -Command \"cd C:\\\\Work\\\\Athenaeum\\\\mobile; npx expo install react-native-svg\")",
+      "Bash(npm install:*)",
+      "Bash(Set-Location -Path \"C:\\\\Work\\\\Athenaeum\\\\mobile\")",
+      "Bash(powershell -Command \"cd ''C:\\\\Work\\\\Athenaeum\\\\mobile''; npx tsc --noEmit 2>&1\")",
+      "Bash(powershell -Command \"Get-ChildItem ''C:\\\\Work\\\\Athenaeum\\\\mobile\\\\src\\\\themes'' -Recurse | Select-Object FullName\")",
+      "Bash(powershell -Command:*)",
+      "Bash(Get-ChildItem C:WorkAthenaeumbackendapp)",
+      "Bash(php artisan migrate:fresh:*)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Work\\\\Athenaeum\\\\backend\\\\app\" -Recurse -Filter \"*.php\")",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "WebFetch(domain:developers.google.com)",
+      "Bash(Remove-Item -Path \"C:\\\\Work\\\\Athenaeum\\\\backend\\\\app\\\\Enums\\\\SearchOrderByEnum.php\", \"C:\\\\Work\\\\Athenaeum\\\\backend\\\\app\\\\Enums\\\\PrintTypeEnum.php\", \"C:\\\\Work\\\\Athenaeum\\\\backend\\\\app\\\\Enums\\\\EbookFilterEnum.php\" -Force)",
+      "Bash(powershell -NoProfile -Command \"Get-ChildItem ''C:\\\\Work\\\\Athenaeum\\\\mobile\\\\src'' -Directory | ForEach-Object { $_Name }\")",
+      "Bash(powershell -NoProfile -Command:*)",
+      "Bash(dir /s mobile)",
+      "Bash(Get-Process -Name \"node\" -ErrorAction SilentlyContinue)",
+      "Bash(Stop-Process -Force -ErrorAction SilentlyContinue)",
+      "Bash(Start-Sleep -Seconds 2)",
+      "Bash(Write-Host \"Node processes stopped\")",
+      "Bash(Remove-Item -Recurse -Force node_modules)",
+      "Bash(Remove-Item -Force package-lock.json)",
+      "Bash(npm ls:*)",
+      "WebSearch",
+      "WebFetch(domain:www.npmjs.com)",
+      "WebFetch(domain:hugeicons.com)"
+    ]
+  }
+}

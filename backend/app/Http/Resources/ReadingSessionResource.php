@@ -1,0 +1,28 @@
+<?php
+
+declare(strict_types=1);
+
+namespace App\Http\Resources;
+
+use Illuminate\Http\Request;
+use Illuminate\Http\Resources\Json\JsonResource;
+
+class ReadingSessionResource extends JsonResource
+{
+    public function toArray(Request $request): array
+    {
+        return [
+            'id' => $this->id,
+            'user_book_id' => $this->user_book_id,
+            'date' => $this->date->format('Y-m-d'),
+            'pages_read' => $this->pages_read,
+            'start_page' => $this->start_page,
+            'end_page' => $this->end_page,
+            'duration_seconds' => $this->duration_seconds,
+            'formatted_duration' => $this->formatted_duration,
+            'notes' => $this->notes,
+            'created_at' => $this->created_at,
+            'updated_at' => $this->updated_at,
+        ];
+    }
+}
