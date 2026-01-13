@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { View, Pressable, LayoutAnimation } from 'react-native';
-import { Text, Button, Badge, RadioGroup } from '@/components';
+import { View, LayoutAnimation } from 'react-native';
+import { Text, Button, Badge, RadioGroup, Pressable } from '@/components';
 import { useTheme } from '@/themes';
 import { GenreChips } from '@/features/search/components/GenreChips';
 import { YearRangeInput } from '@/features/search/components/YearRangeInput';
@@ -59,15 +59,27 @@ export function SearchFilterPanel({
     });
   };
 
+  const filterLabel = activeFilterCount > 0
+    ? `Filters (${activeFilterCount} active)`
+    : 'Filters';
+
   return (
     <View style={{ marginBottom: theme.spacing.sm }}>
-      <Pressable onPress={toggleExpand}>
+      <Pressable
+        onPress={toggleExpand}
+        haptic="light"
+        accessibilityLabel={filterLabel}
+        accessibilityHint={isExpanded ? 'Tap to collapse filter options' : 'Tap to expand filter options'}
+        accessibilityRole="button"
+        accessibilityState={{ expanded: isExpanded }}
+      >
         <View
           style={{
             flexDirection: 'row',
             alignItems: 'center',
             justifyContent: 'space-between',
             paddingVertical: theme.spacing.sm,
+            minHeight: 48,
           }}
         >
           <View
@@ -87,7 +99,7 @@ export function SearchFilterPanel({
             )}
           </View>
           <Text variant="caption" color="primary">
-            {isExpanded ? 'Hide' : 'Show'}
+            {isExpanded ? 'Hide Filters' : 'Show Filters'}
           </Text>
         </View>
       </Pressable>

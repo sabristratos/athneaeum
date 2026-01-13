@@ -13,12 +13,13 @@ export function GenreChips({ selected, onChange }: GenreChipsProps) {
   const { theme, themeName } = useTheme();
 
   const isScholar = themeName === 'scholar';
+  const safeSelected = selected ?? [];
 
   const toggleGenre = (genre: string) => {
-    if (selected.includes(genre)) {
-      onChange(selected.filter((g) => g !== genre));
+    if (safeSelected.includes(genre)) {
+      onChange(safeSelected.filter((g) => g !== genre));
     } else {
-      onChange([...selected, genre]);
+      onChange([...safeSelected, genre]);
     }
   };
 
@@ -32,50 +33,62 @@ export function GenreChips({ selected, onChange }: GenreChipsProps) {
     }
 
     return {
-      bg: isScholar ? 'transparent' : theme.colors.surfaceAlt,
-      border: isScholar ? theme.colors.border : 'transparent',
+      bg: isScholar ? theme.colors.surfaceAlt : theme.colors.surfaceAlt,
+      border: isScholar ? theme.colors.borderMuted : 'transparent',
       text: theme.colors.foregroundMuted,
     };
   };
 
+  const selectedCount = safeSelected.length;
+
   return (
-    <View>
+    <View
+      accessible
+      accessibilityLabel={`Genres filter${selectedCount > 0 ? `, ${selectedCount} selected` : ''}`}
+    >
       <Text variant="label" muted style={{ marginBottom: theme.spacing.xs }}>
-        Genres
+        Genres {selectedCount > 0 && `(${selectedCount})`}
       </Text>
       <ScrollView
         horizontal
-        showsHorizontalScrollIndicator={false}
+        showsHorizontalScrollIndicator={true}
         contentContainerStyle={{
           gap: theme.spacing.xs,
           paddingRight: theme.spacing.md,
         }}
+        indicatorStyle={isScholar ? 'white' : 'black'}
       >
         {GENRE_OPTIONS.map((option) => {
-          const isSelected = selected.includes(option.value);
-          const styles = getChipStyles(isSelected);
+          const isSelected = safeSelected.includes(option.value);
+          const chipStyles = getChipStyles(isSelected);
 
           return (
             <Pressable
               key={option.value}
               onPress={() => toggleGenre(option.value)}
               haptic="light"
+              accessibilityRole="checkbox"
+              accessibilityState={{ checked: isSelected }}
+              accessibilityLabel={option.label}
+              accessibilityHint={isSelected ? 'Tap to remove genre filter' : 'Tap to filter by this genre'}
             >
               <View
                 style={{
-                  backgroundColor: styles.bg,
-                  borderWidth: theme.borders.thin,
-                  borderColor: styles.border,
+                  backgroundColor: chipStyles.bg,
+                  borderWidth: isSelected ? 2 : theme.borders.thin,
+                  borderColor: chipStyles.border,
                   borderRadius: isScholar ? theme.radii.sm : theme.radii.full,
                   paddingHorizontal: 14,
-                  paddingVertical: 6,
+                  paddingVertical: 8,
+                  minHeight: 36,
+                  justifyContent: 'center',
                 }}
               >
                 <Text
                   style={{
                     fontSize: 14,
-                    color: styles.text,
-                    fontWeight: isScholar ? '400' : '600',
+                    color: chipStyles.text,
+                    fontWeight: isSelected ? '600' : (isScholar ? '400' : '600'),
                     textTransform: isScholar ? 'uppercase' : 'none',
                     letterSpacing: isScholar ? 0.5 : 0,
                     fontFamily: theme.fonts.body,

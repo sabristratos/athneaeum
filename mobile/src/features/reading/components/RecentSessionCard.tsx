@@ -3,6 +3,7 @@ import { View } from 'react-native';
 import { Image } from 'expo-image';
 import { Text, Card } from '@/components';
 import { useTheme } from '@/themes';
+import { formatDateFromString } from '@/utils/dateUtils';
 import type { RecentSession } from '@/types';
 
 interface RecentSessionCardProps {
@@ -12,13 +13,16 @@ interface RecentSessionCardProps {
 export function RecentSessionCard({ session }: RecentSessionCardProps) {
   const { theme } = useTheme();
 
-  const formattedDate = new Date(session.date).toLocaleDateString();
+  const formattedDate = formatDateFromString(session.date);
+  const accessibilityLabel = `${session.book.title}. Read pages ${session.start_page} to ${session.end_page}, ${session.pages_read} pages. ${formattedDate}${session.formatted_duration ? `. Duration: ${session.formatted_duration}` : ''}`;
 
   return (
     <Card
       variant="outlined"
       padding="sm"
       style={{ marginBottom: theme.spacing.sm }}
+      accessible={true}
+      accessibilityLabel={accessibilityLabel}
     >
       <View style={{ flexDirection: 'row', gap: theme.spacing.sm }}>
         {session.book.cover_url ? (

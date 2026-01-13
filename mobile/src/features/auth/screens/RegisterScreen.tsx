@@ -33,7 +33,11 @@ export function RegisterScreen({ navigation }: RegisterScreenProps) {
   } = useRegisterController();
 
   return (
-    <AuthLayout title="Join the Athenaeum" subtitle="Create your reading sanctuary">
+    <AuthLayout
+      title="Join the Athenaeum"
+      subtitle="Create your reading sanctuary"
+      onBack={() => navigation.goBack()}
+    >
       <Card padding="lg">
         <View style={{ gap: theme.spacing.md }}>
           {errors.general && (

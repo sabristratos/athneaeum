@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/stores/toastStore';
 import { ApiRequestError } from '@/api/client';
 
 interface RegisterControllerState {
@@ -23,6 +24,7 @@ type RegisterControllerReturn = RegisterControllerState & RegisterControllerActi
 
 export function useRegisterController(): RegisterControllerReturn {
   const { register } = useAuth();
+  const toast = useToast();
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -31,7 +33,42 @@ export function useRegisterController(): RegisterControllerReturn {
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
 
+  const validateForm = (): boolean => {
+    const newErrors: Record<string, string> = {};
+
+    if (!name.trim()) {
+      newErrors.name = 'Name is required';
+    } else if (name.trim().length < 2) {
+      newErrors.name = 'Name must be at least 2 characters';
+    }
+
+    if (!email.trim()) {
+      newErrors.email = 'Email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      newErrors.email = 'Please enter a valid email address';
+    }
+
+    if (!password) {
+      newErrors.password = 'Password is required';
+    } else if (password.length < 8) {
+      newErrors.password = 'Password must be at least 8 characters';
+    }
+
+    if (!passwordConfirmation) {
+      newErrors.password_confirmation = 'Please confirm your password';
+    } else if (password !== passwordConfirmation) {
+      newErrors.password_confirmation = 'Passwords do not match';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleRegister = async () => {
+    if (!validateForm()) {
+      return;
+    }
+
     setLoading(true);
     setErrors({});
 
@@ -42,6 +79,7 @@ export function useRegisterController(): RegisterControllerReturn {
         password,
         password_confirmation: passwordConfirmation,
       });
+      toast.success('Account created!');
     } catch (error) {
       if (error instanceof ApiRequestError && error.errors) {
         const fieldErrors: Record<string, string> = {};

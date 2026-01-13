@@ -1,4 +1,8 @@
 export { Book } from '@/database/models/Book';
+export { Series } from '@/database/models/Series';
+export { Tag } from '@/database/models/Tag';
 export { UserBook } from '@/database/models/UserBook';
+export { UserBookTag } from '@/database/models/UserBookTag';
+export { ReadThrough } from '@/database/models/ReadThrough';
 export { ReadingSession } from '@/database/models/ReadingSession';
 export { SyncMetadata } from '@/database/models/SyncMetadata';

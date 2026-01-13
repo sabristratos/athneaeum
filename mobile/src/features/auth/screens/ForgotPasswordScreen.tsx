@@ -4,6 +4,7 @@ import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Text, Button, Input, Card } from '@/components';
 import { AuthLayout } from '@/features/auth/components/AuthLayout';
 import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/stores/toastStore';
 import { useTheme } from '@/themes';
 import { ApiRequestError } from '@/api/client';
 
@@ -20,6 +21,7 @@ interface ForgotPasswordScreenProps {
 export function ForgotPasswordScreen({ navigation }: ForgotPasswordScreenProps) {
   const { theme } = useTheme();
   const { forgotPassword } = useAuth();
+  const toast = useToast();
 
   const [email, setEmail] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -32,6 +34,7 @@ export function ForgotPasswordScreen({ navigation }: ForgotPasswordScreenProps) 
 
     try {
       await forgotPassword({ email });
+      toast.success('Reset email sent');
       setSuccess(true);
     } catch (error) {
       if (error instanceof ApiRequestError && error.errors) {
@@ -71,7 +74,11 @@ export function ForgotPasswordScreen({ navigation }: ForgotPasswordScreenProps) 
   }
 
   return (
-    <AuthLayout title="Reset Password" subtitle="We'll send you reset instructions">
+    <AuthLayout
+      title="Reset Password"
+      subtitle="We'll send you reset instructions"
+      onBack={() => navigation.goBack()}
+    >
       <Card padding="lg">
         <View style={{ gap: theme.spacing.md }}>
           {errors.general && (

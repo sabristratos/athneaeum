@@ -5,63 +5,69 @@ export const dreamerTheme: Theme = {
   name: 'dreamer',
   isDark: false,
   colors: {
-    // Base surfaces
-    canvas: '#fbfaf8',
-    surface: '#ffffff',
-    surfaceAlt: '#f3eff5',
-    surfaceHover: '#ece7f0',
+    // Base surfaces (warm cream/linen tones for cozy feel)
+    canvas: '#fdf8f4',
+    surface: '#fffbf7',
+    surfaceAlt: '#f7f0e8',
+    surfaceHover: '#f0e8dd',
+    muted: '#e5dcd0',
 
-    // Borders
-    border: '#ddd6e0',
-    borderHover: '#c9bfd0',
-    borderMuted: '#e8e3ec',
+    // Borders (warm taupe)
+    border: '#e5dcd0',
+    borderHover: '#d4c8b8',
+    borderMuted: '#ebe4da',
 
-    // Primary (Dusty Lavender)
-    primary: '#8b7a9e',
-    primaryHover: '#7a698d',
-    primaryDark: '#665878',
+    // Primary (Sage green - classic cottagecore)
+    primary: '#7d9a82',
+    primaryHover: '#6b8870',
+    primaryDark: '#5a7560',
+    primarySubtle: 'rgba(125,154,130,0.15)',
 
-    // Foreground/Text
-    foreground: '#4a4550',
-    foregroundMuted: '#6b6575',
-    foregroundSubtle: '#8b8095',
-    foregroundWarm: '#7a6b60',
+    // Foreground/Text (Warm brown-grays)
+    foreground: '#4a4540',
+    foregroundMuted: '#6b6560',
+    foregroundSubtle: '#8a8378',
+    foregroundWarm: '#7a6b5c',
 
-    // Accent (Sage/green complement)
-    accent: '#8aa090',
-    accentWarm: '#b5c9b0',
-    accentLight: '#dce8da',
+    // Accent (Dusty rose complement)
+    accent: '#c4a0a0',
+    accentWarm: '#d4b8b0',
+    accentLight: '#f0e0dc',
 
     // Semantic
-    success: '#6b9075',
-    danger: '#b86b78',
+    success: '#7d9a82',
+    successSubtle: 'rgba(125,154,130,0.15)',
+    danger: '#c48b8b',
+    dangerSubtle: 'rgba(196,139,139,0.15)',
     warning: '#d4a855',
+    warningSubtle: 'rgba(212,168,85,0.15)',
 
     // On-color (text on colored backgrounds)
     onPrimary: '#ffffff',
     onDanger: '#ffffff',
 
     // Special
-    paper: '#ffffff',
-    tintPrimary: '#f5f0f8',
-    tintAccent: '#f0f5f2',
-    tintGreen: '#f0f5f2',
-    tintYellow: '#f8f4e8',
-    tintPeach: '#fcf0ed',
-    tintBeige: '#f4f0e8',
+    paper: '#fffcf8',
+    tintPrimary: '#f0f5f0',
+    tintAccent: '#faf0f0',
+    tintGreen: '#f0f5f0',
+    tintYellow: '#faf5e8',
+    tintPeach: '#faf0ec',
+    tintBeige: '#f5f0e8',
 
     // Overlays & Shadows
-    overlay: 'rgba(0, 0, 0, 0.5)',
-    overlayDark: 'rgba(0, 0, 0, 0.6)',
-    overlayLight: 'rgba(255, 255, 255, 0.5)',
-    shadow: '#000000',
+    overlay: 'rgba(0, 0, 0, 0.4)',
+    overlayDark: 'rgba(0, 0, 0, 0.5)',
+    overlayLight: 'rgba(255, 255, 255, 0.6)',
+    shadow: '#8a8378',
   },
   fonts: {
     heading: 'Nunito_700Bold',
-    body: 'Nunito_600SemiBold',
+    body: 'Nunito_400Regular',
   },
   radii: {
     none: 0,
+    xs: 8,
     sm: 12,
     md: 16,
     lg: 24,
@@ -71,42 +77,42 @@ export const dreamerTheme: Theme = {
   },
   shadows: {
     sm: {
-      shadowColor: '#000000',
+      shadowColor: '#8a8378',
       shadowOffset: { width: 0, height: 2 },
-      shadowOpacity: 0.04,
+      shadowOpacity: 0.08,
       shadowRadius: 8,
       elevation: 2,
     },
     md: {
-      shadowColor: '#8b7a9e',
+      shadowColor: '#7d9a82',
       shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.15,
+      shadowOpacity: 0.12,
       shadowRadius: 15,
       elevation: 3,
     },
     lg: {
-      shadowColor: '#000000',
+      shadowColor: '#8a8378',
       shadowOffset: { width: 0, height: 8 },
-      shadowOpacity: 0.04,
-      shadowRadius: 30,
+      shadowOpacity: 0.1,
+      shadowRadius: 24,
       elevation: 4,
     },
   },
   spacing: sharedSpacing,
   borders: {
     thin: 1,
-    default: 2,
-    thick: 3,
+    default: 1.5,
+    thick: 2,
   },
   fontWeights: {
-    normal: '600',
-    medium: '600',
-    semibold: '700',
-    bold: '800',
+    normal: '400',
+    medium: '500',
+    semibold: '600',
+    bold: '700',
   },
   letterSpacing: {
     tight: 0,
-    normal: 0,
+    normal: 0.2,
     wide: 0.5,
   },
   lineHeights: {
@@ -117,5 +123,17 @@ export const dreamerTheme: Theme = {
   icons: {
     rating: 'heart',
     progress: 'liquid',
+  },
+  tagColors: {
+    primary: { bg: '#c8d8c8', text: '#4a5548' },
+    gold: { bg: '#f0e4c4', text: '#6b5c4a' },
+    green: { bg: '#c8d8c8', text: '#4a5548' },
+    purple: { bg: '#d8cce0', text: '#5a4a60' },
+    copper: { bg: '#e8d8c8', text: '#6b5548' },
+    blue: { bg: '#c8d8e0', text: '#4a5560' },
+    orange: { bg: '#f0dcc8', text: '#6b5548' },
+    teal: { bg: '#c8e0d8', text: '#4a5a55' },
+    rose: { bg: '#f0d8d8', text: '#6b4a4a' },
+    slate: { bg: '#d8d8d8', text: '#4a4a4a' },
   },
 };

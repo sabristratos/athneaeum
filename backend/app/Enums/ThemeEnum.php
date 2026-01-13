@@ -9,6 +9,7 @@ enum ThemeEnum: string
     case Scholar = 'scholar';
     case Dreamer = 'dreamer';
     case Wanderer = 'wanderer';
+    case Midnight = 'midnight';
 
     public function label(): string
     {
@@ -16,6 +17,7 @@ enum ThemeEnum: string
             self::Scholar => __('Scholar'),
             self::Dreamer => __('Dreamer'),
             self::Wanderer => __('Wanderer'),
+            self::Midnight => __('Midnight'),
         };
     }
 

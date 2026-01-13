@@ -10,8 +10,7 @@ interface StatBoxProps {
 }
 
 export function StatBox({ label, value, accent = false }: StatBoxProps) {
-  const { theme, themeName } = useTheme();
-  const isScholar = themeName === 'scholar';
+  const { theme } = useTheme();
 
   return (
     <View
@@ -23,13 +22,14 @@ export function StatBox({ label, value, accent = false }: StatBoxProps) {
         alignItems: 'center',
         minWidth: 80,
       }}
+      accessible={true}
+      accessibilityRole="text"
+      accessibilityLabel={`${label}: ${value}`}
     >
       <Text
         variant="h2"
         style={{
-          color: accent
-            ? (isScholar ? theme.colors.paper : '#ffffff')
-            : theme.colors.foreground,
+          color: accent ? theme.colors.onPrimary : theme.colors.foreground,
           fontSize: 24,
         }}
       >
@@ -38,9 +38,7 @@ export function StatBox({ label, value, accent = false }: StatBoxProps) {
       <Text
         variant="caption"
         style={{
-          color: accent
-            ? (isScholar ? theme.colors.paper : '#ffffff')
-            : theme.colors.foregroundMuted,
+          color: accent ? theme.colors.onPrimary : theme.colors.foregroundMuted,
           textAlign: 'center',
           marginTop: 2,
         }}

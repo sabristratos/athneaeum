@@ -12,13 +12,20 @@ import Animated from 'react-native-reanimated';
 import {
   Text,
   Card,
+  Chip,
+  Pressable,
+  Icon,
   FilterDial,
   AnimatedBookListItem,
   VignetteOverlay,
   SpineGridView,
+  TagFilterBar,
+  SwipeableViewContainer,
+  useTabScreenPadding,
 } from '@/components';
+import { Cancel01Icon, Layers01Icon } from '@hugeicons/core-free-icons';
 import { useTheme } from '@/themes';
-import { useScrollPhysics, buildSectionBoundaries } from '@/hooks';
+import { useScrollPhysics, buildSectionBoundaries, useNavBarScrollHandler } from '@/hooks';
 import { useLibraryController, useSearchLens } from '@/features/library/hooks';
 import {
   LibraryEmptyState,
@@ -27,9 +34,13 @@ import {
   ViewModeToggle,
   SearchLens,
   SearchLensButton,
+  SeriesGroupView,
   type ViewMode,
 } from '@/features/library/components';
 import type { UserBook, BookStatus } from '@/types';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const AnimatedFlashList = Animated.createAnimatedComponent(FlashList) as any;
 
 const TABS: { key: BookStatus | 'all'; label: string }[] = [
   { key: 'all', label: 'All' },
@@ -41,6 +52,7 @@ const TABS: { key: BookStatus | 'all'; label: string }[] = [
 
 export function LibraryScreen() {
   const { theme, themeName } = useTheme();
+  const tabPadding = useTabScreenPadding();
   const {
     activeTab,
     refreshing,
@@ -49,11 +61,24 @@ export function LibraryScreen() {
     setActiveTab,
     onRefresh,
     handleBookPress,
+    handleSeriesPress,
     fetchLibrary,
     updateBook,
     moveToEndOfList,
     filteredBooks,
     getTabCount,
+    tags,
+    selectedTagFilters,
+    filterMode,
+    toggleTagFilter,
+    clearTagFilters,
+    toggleFilterMode,
+    navigateToTagManagement,
+    filteredCount,
+    totalCount,
+    genreFilter,
+    genreFilterName,
+    clearGenreFilter,
   } = useLibraryController();
 
   // View mode state - default to stack for TBR, list for others
@@ -93,12 +118,24 @@ export function LibraryScreen() {
   );
 
   // Scroll physics for list view
-  const { scrollHandler, tiltAngle, skewAngle } = useScrollPhysics({
+  const { scrollHandler: physicsScrollHandler, tiltAngle, skewAngle } = useScrollPhysics({
     enableTilt: true,
     enableSkew: true,
     enableSectionHaptics: true,
     sectionBoundaries,
   });
+
+  // Nav bar hide/show on scroll
+  const { onScroll: navBarOnScroll } = useNavBarScrollHandler();
+
+  // Combined scroll handler
+  const scrollHandler = useCallback(
+    (event: any) => {
+      physicsScrollHandler(event);
+      navBarOnScroll(event);
+    },
+    [physicsScrollHandler, navBarOnScroll]
+  );
 
   // Filter books based on search lens
   const displayBooks = useMemo(() => {
@@ -147,8 +184,7 @@ export function LibraryScreen() {
     async (book: UserBook) => {
       try {
         await updateBook(book.id, { status: 'reading' });
-      } catch (err) {
-        console.error('Failed to start reading:', err);
+      } catch {
       }
     },
     [updateBook]
@@ -161,6 +197,39 @@ export function LibraryScreen() {
     },
     [moveToEndOfList]
   );
+
+  // Check if any books have series
+  const hasSeriesBooks = useMemo(() => {
+    return filteredBooks.some((ub) => ub.book.series_id);
+  }, [filteredBooks]);
+
+  // Available view modes for the current tab
+  const availableViewModes = useMemo((): ViewMode[] => {
+    const modes: ViewMode[] = ['list', 'grid', 'spines'];
+    if (hasSeriesBooks) {
+      modes.push('series');
+    }
+    if (activeTab === 'want_to_read') {
+      modes.push('stack');
+    }
+    return modes;
+  }, [activeTab, hasSeriesBooks]);
+
+  // Handle swipe to change view mode
+  const handleSwipeToNextView = useCallback(() => {
+    const currentIndex = availableViewModes.indexOf(viewMode);
+    const nextIndex = (currentIndex + 1) % availableViewModes.length;
+    setViewMode(availableViewModes[nextIndex]);
+  }, [viewMode, availableViewModes]);
+
+  const handleSwipeToPrevView = useCallback(() => {
+    const currentIndex = availableViewModes.indexOf(viewMode);
+    const prevIndex = currentIndex === 0 ? availableViewModes.length - 1 : currentIndex - 1;
+    setViewMode(availableViewModes[prevIndex]);
+  }, [viewMode, availableViewModes]);
+
+  // Disable view swipe when in stack mode (TBR has its own horizontal swipes)
+  const swipeEnabled = viewMode !== 'stack';
 
   // Render the appropriate view based on view mode
   const renderContent = () => {
@@ -213,6 +282,17 @@ export function LibraryScreen() {
       );
     }
 
+    // Series view
+    if (viewMode === 'series') {
+      return (
+        <SeriesGroupView
+          books={displayBooks}
+          onBookPress={handleBookPress}
+          onSeriesPress={handleSeriesPress}
+        />
+      );
+    }
+
     // Grid view
     if (viewMode === 'grid') {
       return (
@@ -230,14 +310,15 @@ export function LibraryScreen() {
 
     // Default list view
     return (
-      <FlashList
+      <AnimatedFlashList
         data={displayBooks}
-        keyExtractor={(item) => item.id.toString()}
+        keyExtractor={(item: UserBook) => item.id.toString()}
         renderItem={renderBookItem}
-        onScroll={scrollHandler as any}
+        estimatedItemSize={140}
+        onScroll={scrollHandler}
         scrollEventThrottle={16}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={{ paddingBottom: theme.spacing.xl }}
+        contentContainerStyle={{ paddingBottom: tabPadding.bottom }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -270,7 +351,7 @@ export function LibraryScreen() {
         </View>
 
         {/* Filter dial */}
-        <View style={{ marginBottom: theme.spacing.md }}>
+        <View style={{ marginBottom: theme.spacing.sm }}>
           <FilterDial
             options={filterOptions}
             selected={activeTab}
@@ -279,17 +360,60 @@ export function LibraryScreen() {
           />
         </View>
 
-        {/* Main content */}
-        <View style={styles.contentArea}>{renderContent()}</View>
-      </View>
+        {/* Genre filter chip */}
+        {genreFilter && genreFilterName && (
+          <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: theme.spacing.sm, gap: theme.spacing.xs }}>
+            <Icon icon={Layers01Icon} size={16} color={theme.colors.foregroundMuted} />
+            <Text variant="caption" style={{ color: theme.colors.foregroundMuted }}>
+              Filtered by:
+            </Text>
+            <Chip
+              label={genreFilterName}
+              variant="primary"
+              size="sm"
+              selected
+              onPress={clearGenreFilter}
+              icon={<Icon icon={Cancel01Icon} size={12} color={theme.colors.onPrimary} />}
+            />
+          </View>
+        )}
 
-      {/* Floating view mode toggle */}
-      <View style={[styles.floatingToggle, { bottom: theme.spacing.lg }]}>
-        <ViewModeToggle
-          currentMode={viewMode}
-          onModeChange={setViewMode}
-          showStackOption={showStackOption}
-        />
+        {/* Tag filter bar */}
+        {tags && tags.length > 0 && (
+          <View style={{ marginBottom: theme.spacing.sm }}>
+            <TagFilterBar
+              tags={tags}
+              selectedSlugs={selectedTagFilters}
+              onToggle={toggleTagFilter}
+              onClear={clearTagFilters}
+              onManageTags={navigateToTagManagement}
+              filterMode={filterMode}
+              onToggleFilterMode={toggleFilterMode}
+              filteredCount={filteredCount}
+              totalCount={totalCount}
+            />
+          </View>
+        )}
+
+        {/* View mode toggle - inline */}
+        <View style={{ marginBottom: theme.spacing.md }}>
+          <ViewModeToggle
+            currentMode={viewMode}
+            onModeChange={setViewMode}
+            showStackOption={showStackOption}
+            showSeriesOption={hasSeriesBooks}
+            variant="inline"
+          />
+        </View>
+
+        {/* Main content with swipe gesture for view switching */}
+        <SwipeableViewContainer
+          onSwipeLeft={handleSwipeToNextView}
+          onSwipeRight={handleSwipeToPrevView}
+          enabled={swipeEnabled}
+        >
+          <View style={styles.contentArea}>{renderContent()}</View>
+        </SwipeableViewContainer>
       </View>
 
       {/* Search lens overlay */}
@@ -320,13 +444,6 @@ const styles = StyleSheet.create({
   },
   contentArea: {
     flex: 1,
-  },
-  floatingToggle: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    alignItems: 'center',
-    zIndex: 50,
   },
   centered: {
     alignItems: 'center',

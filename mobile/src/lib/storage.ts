@@ -5,8 +5,7 @@ let storage: MMKV | null = null;
 
 try {
   storage = createMMKV({ id: 'athenaeum-storage' });
-} catch (e) {
-  console.warn('[Storage] MMKV initialization failed:', e);
+} catch {
 }
 
 export { storage };

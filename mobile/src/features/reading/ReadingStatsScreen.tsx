@@ -19,6 +19,7 @@ export function ReadingStatsScreen() {
     loading,
     error,
     refreshing,
+    isLocalOnly,
     onRefresh,
   } = useReadingStatsController();
 
@@ -52,9 +53,12 @@ export function ReadingStatsScreen() {
           />
         }
       >
-        <Text variant="h2" style={{ marginBottom: theme.spacing.lg }}>
-          Reading Stats
-        </Text>
+        <View style={[styles.titleRow, { marginBottom: theme.spacing.lg }]}>
+          <Text variant="h2">Reading Stats</Text>
+          {isLocalOnly && (
+            <Badge variant="muted">Offline</Badge>
+          )}
+        </View>
 
         {error && (
           <Card variant="outlined" padding="lg" style={{ marginBottom: theme.spacing.lg }}>
@@ -154,7 +158,7 @@ export function ReadingStatsScreen() {
             </Card>
 
             {/* Recent Sessions */}
-            {stats.recent_sessions.length > 0 && (
+            {Array.isArray(stats.recent_sessions) && stats.recent_sessions.length > 0 && (
               <Card variant="elevated" padding="lg" style={{ marginBottom: theme.spacing.xl }}>
                 <Text variant="h3" style={{ marginBottom: theme.spacing.md }}>
                   Recent Sessions
@@ -201,6 +205,11 @@ const styles = StyleSheet.create({
   },
   centerText: {
     textAlign: 'center',
+  },
+  titleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   statRow: {
     flexDirection: 'row',

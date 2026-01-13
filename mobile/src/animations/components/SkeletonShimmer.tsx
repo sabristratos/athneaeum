@@ -11,7 +11,7 @@ import Animated, {
 import { LinearGradient } from 'expo-linear-gradient';
 import { useTheme } from '@/themes';
 import { useReducedMotion } from '../hooks/useReducedMotion';
-import { OPACITIES } from '../constants';
+import { OPACITIES, TIMING } from '../constants';
 
 interface SkeletonShimmerProps {
   width: number | `${number}%`;
@@ -45,7 +45,7 @@ export const SkeletonShimmer = memo(function SkeletonShimmer({
 
     translateX.value = withRepeat(
       withTiming(1, {
-        duration: 1200,
+        ...TIMING.shimmer,
         easing: Easing.inOut(Easing.ease),
       }),
       -1,
@@ -76,6 +76,9 @@ export const SkeletonShimmer = memo(function SkeletonShimmer({
           },
           style,
         ]}
+        accessible={true}
+        accessibilityLabel="Loading"
+        accessibilityRole="progressbar"
       />
     );
   }
@@ -92,6 +95,9 @@ export const SkeletonShimmer = memo(function SkeletonShimmer({
         },
         style,
       ]}
+      accessible={true}
+      accessibilityLabel="Loading"
+      accessibilityRole="progressbar"
     >
       <Animated.View style={[StyleSheet.absoluteFill, animatedStyle]}>
         <LinearGradient

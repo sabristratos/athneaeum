@@ -36,6 +36,14 @@ class ReadingSession extends Model
     }
 
     /**
+     * Get the read-through this session belongs to (optional for backward compatibility).
+     */
+    public function readThrough(): BelongsTo
+    {
+        return $this->belongsTo(ReadThrough::class);
+    }
+
+    /**
      * Get formatted duration string.
      */
     protected function formattedDuration(): Attribute

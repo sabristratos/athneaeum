@@ -1,14 +1,17 @@
 import { Q } from '@nozbe/watermelondb';
 import { database } from '@/database/index';
 import { apiClient } from '@/api/client';
+import { toISODateString } from '@/utils/dateUtils';
 import type { Book } from '@/database/models/Book';
 import type { UserBook } from '@/database/models/UserBook';
+import type { ReadThrough } from '@/database/models/ReadThrough';
 import type { ReadingSession } from '@/database/models/ReadingSession';
 import type {
   PushPayload,
   PushResponse,
   BookPayload,
   UserBookPayload,
+  ReadThroughPayload,
   SessionPayload,
 } from '@/database/sync/types';
 
@@ -22,6 +25,9 @@ function transformBookForPush(book: Book): BookPayload {
     author: book.author,
     cover_url: book.coverUrl,
     page_count: book.pageCount,
+    height_cm: book.heightCm,
+    width_cm: book.widthCm,
+    thickness_cm: book.thicknessCm,
     isbn: book.isbn,
     description: book.description,
     genres: book.genres,
@@ -38,15 +44,41 @@ function transformUserBookForPush(userBook: UserBook): UserBookPayload {
     status: userBook.status,
     rating: userBook.rating,
     current_page: userBook.currentPage,
+    format: userBook.format,
+    price: userBook.price,
+    is_pinned: userBook.isPinned,
+    queue_position: userBook.queuePosition,
+    review: userBook.review,
     is_dnf: userBook.isDnf,
     dnf_reason: userBook.dnfReason,
     started_at: userBook.startedAt
-      ? new Date(userBook.startedAt).toISOString().split('T')[0]
+      ? toISODateString(new Date(userBook.startedAt))
       : null,
     finished_at: userBook.finishedAt
-      ? new Date(userBook.finishedAt).toISOString().split('T')[0]
+      ? toISODateString(new Date(userBook.finishedAt))
       : null,
     custom_cover_url: userBook.customCoverUrl,
+  };
+}
+
+function transformReadThroughForPush(readThrough: ReadThrough): ReadThroughPayload {
+  return {
+    local_id: readThrough.id,
+    server_id: readThrough.serverId ?? undefined,
+    user_book_local_id: readThrough.userBookId,
+    server_user_book_id: readThrough.serverUserBookId ?? undefined,
+    read_number: readThrough.readNumber,
+    status: readThrough.status,
+    rating: readThrough.rating,
+    review: readThrough.review,
+    is_dnf: readThrough.isDnf,
+    dnf_reason: readThrough.dnfReason,
+    started_at: readThrough.startedAt
+      ? toISODateString(new Date(readThrough.startedAt))
+      : null,
+    finished_at: readThrough.finishedAt
+      ? toISODateString(new Date(readThrough.finishedAt))
+      : null,
   };
 }
 
@@ -56,6 +88,8 @@ function transformSessionForPush(session: ReadingSession): SessionPayload {
     server_id: session.serverId ?? undefined,
     user_book_local_id: session.userBookId,
     server_user_book_id: session.serverUserBookId ?? undefined,
+    read_through_local_id: session.readThroughId ?? undefined,
+    server_read_through_id: session.serverReadThroughId ?? undefined,
     date: session.sessionDate,
     pages_read: session.pagesRead,
     start_page: session.startPage,
@@ -68,6 +102,7 @@ function transformSessionForPush(session: ReadingSession): SessionPayload {
 export async function pushChanges(): Promise<PushResponse> {
   const booksCollection = database.get<Book>('books');
   const userBooksCollection = database.get<UserBook>('user_books');
+  const readThroughsCollection = database.get<ReadThrough>('read_throughs');
   const sessionsCollection = database.get<ReadingSession>('reading_sessions');
 
   // Gather pending records (not deleted)
@@ -79,12 +114,20 @@ export async function pushChanges(): Promise<PushResponse> {
     .query(Q.where('is_pending_sync', true), Q.where('is_deleted', false))
     .fetch();
 
+  const pendingReadThroughs = await readThroughsCollection
+    .query(Q.where('is_pending_sync', true), Q.where('is_deleted', false))
+    .fetch();
+
   const pendingSessions = await sessionsCollection
     .query(Q.where('is_pending_sync', true), Q.where('is_deleted', false))
     .fetch();
 
   // Gather deleted records
   const deletedUserBooks = await userBooksCollection
+    .query(Q.where('is_deleted', true), Q.where('is_pending_sync', true))
+    .fetch();
+
+  const deletedReadThroughs = await readThroughsCollection
     .query(Q.where('is_deleted', true), Q.where('is_pending_sync', true))
     .fetch();
 
@@ -111,6 +154,17 @@ export async function pushChanges(): Promise<PushResponse> {
         .filter((ub) => ub.serverId)
         .map((ub) => ub.serverId!),
     },
+    read_throughs: {
+      created: pendingReadThroughs
+        .filter((rt) => !rt.serverId)
+        .map(transformReadThroughForPush),
+      updated: pendingReadThroughs
+        .filter((rt) => rt.serverId)
+        .map(transformReadThroughForPush),
+      deleted: deletedReadThroughs
+        .filter((rt) => rt.serverId)
+        .map((rt) => rt.serverId!),
+    },
     reading_sessions: {
       created: pendingSessions
         .filter((s) => !s.serverId)
@@ -131,14 +185,18 @@ export async function pushChanges(): Promise<PushResponse> {
     payload.user_books.created.length === 0 &&
     payload.user_books.updated.length === 0 &&
     payload.user_books.deleted.length === 0 &&
+    payload.read_throughs.created.length === 0 &&
+    payload.read_throughs.updated.length === 0 &&
+    payload.read_throughs.deleted.length === 0 &&
     payload.reading_sessions.created.length === 0 &&
     payload.reading_sessions.updated.length === 0 &&
     payload.reading_sessions.deleted.length === 0
   ) {
     return {
       status: 'success',
-      id_mappings: { books: [], user_books: [], reading_sessions: [] },
-      counts: { books: 0, user_books: 0, reading_sessions: 0 },
+      id_mappings: { books: [], user_books: [], read_throughs: [], reading_sessions: [] },
+      counts: { books: 0, user_books: 0, read_throughs: 0, reading_sessions: 0 },
+      skipped: { user_books: [], read_throughs: [], reading_sessions: [] },
       timestamp: Date.now(),
     };
   }
@@ -177,6 +235,22 @@ export async function pushChanges(): Promise<PushResponse> {
       }
     }
 
+    // Update read_throughs
+    for (const mapping of response.id_mappings.read_throughs ?? []) {
+      const readThrough = pendingReadThroughs.find(
+        (rt) => rt.id === mapping.local_id
+      );
+      if (readThrough) {
+        await readThrough.update((record) => {
+          record.serverId = mapping.server_id;
+          if (mapping.server_user_book_id) {
+            record.serverUserBookId = mapping.server_user_book_id;
+          }
+          record.isPendingSync = false;
+        });
+      }
+    }
+
     // Update reading_sessions
     for (const mapping of response.id_mappings.reading_sessions) {
       const session = pendingSessions.find((s) => s.id === mapping.local_id);
@@ -185,6 +259,9 @@ export async function pushChanges(): Promise<PushResponse> {
           record.serverId = mapping.server_id;
           if (mapping.server_user_book_id) {
             record.serverUserBookId = mapping.server_user_book_id;
+          }
+          if (mapping.server_read_through_id) {
+            record.serverReadThroughId = mapping.server_read_through_id;
           }
           record.isPendingSync = false;
         });
@@ -195,10 +272,25 @@ export async function pushChanges(): Promise<PushResponse> {
     for (const ub of deletedUserBooks.filter((ub) => ub.serverId)) {
       await ub.destroyPermanently();
     }
+    for (const rt of deletedReadThroughs.filter((rt) => rt.serverId)) {
+      await rt.destroyPermanently();
+    }
     for (const s of deletedSessions.filter((s) => s.serverId)) {
       await s.destroyPermanently();
     }
   });
+
+  // Log warning if any records were skipped (they'll retry on next sync)
+  const skippedCount =
+    response.skipped.user_books.length +
+    (response.skipped.read_throughs?.length ?? 0) +
+    response.skipped.reading_sessions.length;
+  if (skippedCount > 0) {
+    console.warn(
+      `[Sync] ${skippedCount} record(s) skipped due to missing dependencies:`,
+      response.skipped
+    );
+  }
 
   return response;
 }

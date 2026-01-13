@@ -2,74 +2,132 @@
 export { Box } from '@/components/layout/Box';
 export { Row } from '@/components/layout/Row';
 export { Column } from '@/components/layout/Column';
-
-// Base components
-export { Text } from '@/components/Text';
-export { Button } from '@/components/Button';
-export { Card } from '@/components/Card';
-export { Input } from '@/components/Input';
-export { Pressable } from '@/components/Pressable';
-export { ThemeToggle } from '@/components/ThemeToggle';
-export { Rating } from '@/components/Rating';
-export { Progress } from '@/components/Progress';
-export { Badge } from '@/components/Badge';
-export { RadioGroup } from '@/components/RadioGroup';
-export { Checkbox } from '@/components/Checkbox';
-export { CheckboxGroup } from '@/components/CheckboxGroup';
-export { Icon, type IconProps } from '@/components/Icon';
+export { TabScreenLayout, useTabScreenPadding } from '@/components/layout/TabScreenLayout';
 
 // Atoms
-export { Divider } from '@/components/Divider';
-export { Chip } from '@/components/Chip';
-export { CoverImage } from '@/components/CoverImage';
-export { IconButton } from '@/components/IconButton';
-export { SectionHeader } from '@/components/SectionHeader';
+export {
+  Text,
+  type TextProps,
+  type TextVariant,
+  Pressable,
+  type PressableProps,
+  Badge,
+  Icon,
+  type IconProps,
+  Divider,
+  Button,
+  type ButtonProps,
+  type ButtonVariant,
+  type ButtonSize,
+  IconButton,
+  type IconButtonProps,
+  type IconButtonVariant,
+  type IconButtonSize,
+  Progress,
+} from '@/components/atoms';
 
 // Molecules
-export { ChipGroup } from '@/components/ChipGroup';
-export { InteractiveRating } from '@/components/InteractiveRating';
-export { StatRow } from '@/components/StatRow';
-export { CollapsibleSection } from '@/components/CollapsibleSection';
+export {
+  Rating,
+  RatingInput,
+  QuickActionButton,
+  type QuickActionButtonProps,
+  QuickActionPill,
+  type QuickActionPillProps,
+  Chip,
+  type ChipProps,
+  type ChipVariant,
+  TagChip,
+  type TagChipProps,
+  DateSelector,
+  DurationInput,
+  PageRangeInput,
+  Input,
+  Checkbox,
+  RadioGroup,
+  CheckboxGroup,
+  SegmentedControl,
+  ProgressSlider,
+  ProgressModeToggle,
+  type ProgressMode,
+  ChipGroup,
+  MoodSelector,
+  ClassificationBadges,
+  type ClassificationBadgesProps,
+} from '@/components/molecules';
 
 // Organisms
-export { SessionCard } from '@/components/SessionCard';
-export { ReadingProgressCard } from '@/components/ReadingProgressCard';
-export { BookHero } from '@/components/BookHero';
-export { AnimatedBookHero } from '@/components/AnimatedBookHero';
-export { BookListItem } from '@/components/BookListItem';
-export { SharedElementOverlay } from '@/components/SharedElementOverlay';
+export {
+  BookHero,
+  AnimatedBookHero,
+  BookHeroContent,
+  type BookHeroContentProps,
+  BottomSheet,
+  ConfirmModal,
+  type ModalStatus,
+  DNFModal,
+  ReadingSessionModal,
+  QuickLogSheet,
+  EditSessionModal,
+  QuoteCaptureModal,
+  BarcodeScannerModal,
+  EditionPickerModal,
+  ManualBookEntryModal,
+  type ManualBookData,
+  ThemePreviewSheet,
+  EditionSelectorSheet,
+  ImportProgressModal,
+  type ImportStatus,
+  ImportOptionsModal,
+  PasswordConfirmModal,
+  SeriesSuggestModal,
+  SeriesAssignModal,
+  Card,
+  ControlDeckCard,
+  CoverImage,
+  FilterDial,
+  type FilterDialOption,
+  ToastContainer,
+  FloatingActionButton,
+  BookListItem,
+  BookCoverCard,
+} from '@/components/organisms';
 
-// Book Detail Components
-export { QuickActionButton } from '@/components/QuickActionButton';
+// Components that remain in root (not yet moved)
+export { ThemeToggle } from '@/components/ThemeToggle';
+export { AvatarPicker } from '@/components/AvatarPicker';
+export { FloatingTabBar } from '@/components/FloatingTabBar';
+export { FloatingNavBar, useFloatingNavBarHeight } from '@/components/FloatingNavBar';
+export { FloatingBottomBar } from '@/components/FloatingBottomBar';
+export { InlineProgressWidget } from '@/components/InlineProgressWidget';
+export { SectionHeader } from '@/components/SectionHeader';
+export { StatRow } from '@/components/StatRow';
+export { CollapsibleSection } from '@/components/CollapsibleSection';
+export { SessionCard } from '@/components/SessionCard';
+export { ReadThroughCard } from '@/components/ReadThroughCard';
+export { ReadingProgressCard } from '@/components/ReadingProgressCard';
+export { SharedElementOverlay } from '@/components/SharedElementOverlay';
 export { QuickActionsRow } from '@/components/QuickActionsRow';
-export { ControlDeckCard } from '@/components/ControlDeckCard';
 export { ExLibrisSection } from '@/components/ExLibrisSection';
-export { FloatingActionButton } from '@/components/FloatingActionButton';
 export { StickyHeader } from '@/components/StickyHeader';
 export { TextureBackground } from '@/components/TextureBackground';
 export { PaginationDots } from '@/components/PaginationDots';
-
-// Marginalia Components
-export { MoodSelector } from '@/components/MoodSelector';
 export { QuoteCard } from '@/components/QuoteCard';
 export { MarginaliaSection } from '@/components/MarginaliaSection';
-export { QuoteCaptureModal } from '@/components/QuoteCaptureModal';
-
-// Modals
-export { BottomSheet } from '@/components/BottomSheet';
-export { DNFModal } from '@/components/DNFModal';
-export { ConfirmModal, type ModalStatus } from '@/components/ConfirmModal';
-export { ReadingSessionModal } from '@/components/ReadingSessionModal';
-export { EditSessionModal } from '@/components/EditSessionModal';
-
-// Library Components
+export { TagList } from '@/components/TagList';
+export { TagPicker } from '@/components/TagPicker';
+export { TagEditor } from '@/components/TagEditor';
+export { TagColorPicker } from '@/components/TagColorPicker';
+export { TagFilterBar } from '@/components/TagFilterBar';
 export { ShelfRail } from '@/components/ShelfRail';
 export { ShelfRow } from '@/components/ShelfRow';
 export { VignetteOverlay } from '@/components/VignetteOverlay';
-export { FilterDial, type FilterDialOption } from '@/components/FilterDial';
 export { AnimatedBookListItem } from '@/components/AnimatedBookListItem';
-export { BookCoverCard } from '@/components/BookCoverCard';
 export { BookSpine, SpineGridView, SpineTexture, WearOverlay, getBookAge } from '@/components/SpineView';
-
-// Debug Components
 export { DebugOverlay } from '@/components/DebugOverlay';
+export { QueryErrorBoundary } from '@/components/QueryErrorBoundary';
+export { SwipeableRow } from '@/components/SwipeableRow';
+export { SwipeableViewContainer } from '@/components/SwipeableViewContainer';
+export { ThemedRefreshControl, useThemedRefreshControl } from '@/components/ThemedRefreshControl';
+export { PerformanceOverlay } from '@/components/PerformanceOverlay';
+export { SyncStatusBadge } from '@/components/SyncStatusBadge';

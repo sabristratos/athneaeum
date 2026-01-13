@@ -9,8 +9,7 @@ import Animated, {
   type SharedValue,
 } from 'react-native-reanimated';
 import { ArrowLeft02Icon, MoreVerticalIcon } from '@hugeicons/core-free-icons';
-import { Text } from '@/components/Text';
-import { IconButton } from '@/components/IconButton';
+import { Text, IconButton } from '@/components/atoms';
 import { useTheme } from '@/themes';
 
 interface StickyHeaderProps {

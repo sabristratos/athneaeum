@@ -1,8 +1,9 @@
 import React, { useCallback } from 'react';
 import { View, type ViewStyle } from 'react-native';
-import { Card } from '@/components/Card';
-import { Text } from '@/components/Text';
+import { Card } from '@/components/organisms';
+import { Text } from '@/components/atoms';
 import { useTheme } from '@/themes';
+import { formatShortDate } from '@/utils/dateUtils';
 import { MOOD_OPTIONS, type Quote } from '@/types/quote';
 
 interface QuoteCardProps {
@@ -27,12 +28,7 @@ export const QuoteCard = React.memo(function QuoteCard({
     ? MOOD_OPTIONS.find((m) => m.value === quote.mood)
     : null;
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-    });
-  };
+  const accessibilityLabel = `Quote: ${quote.text}${quote.pageNumber ? `. Page ${quote.pageNumber}` : ''}${moodOption ? `. Mood: ${moodOption.label}` : ''}`;
 
   return (
     <Card
@@ -40,6 +36,9 @@ export const QuoteCard = React.memo(function QuoteCard({
       padding="md"
       onPress={handlePress}
       style={style}
+      accessible={true}
+      accessibilityLabel={accessibilityLabel}
+      accessibilityHint="Tap to view or edit quote"
     >
       <View style={{ flex: 1, gap: theme.spacing.sm }}>
         <Text
@@ -125,7 +124,7 @@ export const QuoteCard = React.memo(function QuoteCard({
               fontSize: 10,
             }}
           >
-            {formatDate(quote.createdAt)}
+            {formatShortDate(quote.createdAt)}
           </Text>
         </View>
       </View>

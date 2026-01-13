@@ -14,11 +14,11 @@ import {
   Gesture,
   GestureDetector,
 } from 'react-native-gesture-handler';
-import * as Haptics from 'expo-haptics';
-import { CoverImage } from '@/components/CoverImage';
-import { Text } from '@/components/Text';
-import { Icon } from '@/components/Icon';
+import { triggerHaptic } from '@/hooks/useHaptic';
+import { CoverImage } from '@/components/organisms';
+import { Text, Icon } from '@/components/atoms';
 import { useTheme } from '@/themes';
+import { SPRINGS, TIMING } from '@/animations/constants';
 import type { UserBook } from '@/types';
 import { BookOpen01Icon, ArrowRight01Icon } from '@hugeicons/core-free-icons';
 
@@ -33,12 +33,6 @@ interface StackedBookProps {
   onSwipeRight?: (item: UserBook) => void;
   isTopBook: boolean;
 }
-
-const SPRING_CONFIG = {
-  damping: 15,
-  stiffness: 200,
-  mass: 0.8,
-};
 
 const SWIPE_THRESHOLD = SCREEN_WIDTH * 0.3;
 const STACK_OFFSET = 28;
@@ -80,32 +74,23 @@ export const StackedBook = memo(function StackedBook({
     return Math.min(Math.max(translateX.value / SWIPE_THRESHOLD, 0), 1);
   });
 
-  // Haptic feedback
-  const triggerHaptic = (type: 'light' | 'medium' | 'heavy') => {
-    const styles = {
-      light: Haptics.ImpactFeedbackStyle.Light,
-      medium: Haptics.ImpactFeedbackStyle.Medium,
-      heavy: Haptics.ImpactFeedbackStyle.Heavy,
-    };
-    Haptics.impactAsync(styles[type]);
-  };
 
   // Handle tap - pull out animation then navigate
   const handleTap = () => {
     triggerHaptic('medium');
 
     // Pull-out animation
-    translateX.value = withSpring(SCREEN_WIDTH * 0.15, SPRING_CONFIG);
-    scale.value = withSpring(1.05, SPRING_CONFIG);
-    rotateZ.value = withSpring(3, SPRING_CONFIG);
+    translateX.value = withSpring(SCREEN_WIDTH * 0.15, SPRINGS.cardStack);
+    scale.value = withSpring(1.05, SPRINGS.cardStack);
+    rotateZ.value = withSpring(3, SPRINGS.cardStack);
 
     // Navigate after animation
     setTimeout(() => {
       onPress(item);
       // Reset after navigation
-      translateX.value = withTiming(0, { duration: 200 });
-      scale.value = withTiming(1, { duration: 200 });
-      rotateZ.value = withTiming(0, { duration: 200 });
+      translateX.value = withTiming(0, TIMING.normal);
+      scale.value = withTiming(1, TIMING.normal);
+      rotateZ.value = withTiming(0, TIMING.normal);
     }, 200);
   };
 
@@ -115,7 +100,7 @@ export const StackedBook = memo(function StackedBook({
     onSwipeLeft?.(item);
 
     // Animate off screen to the left then reset
-    translateX.value = withTiming(-SCREEN_WIDTH, { duration: 250 }, () => {
+    translateX.value = withTiming(-SCREEN_WIDTH, TIMING.slow, () => {
       translateX.value = 0;
       scale.value = 1;
       rotateZ.value = 0;
@@ -128,7 +113,7 @@ export const StackedBook = memo(function StackedBook({
     onSwipeRight?.(item);
 
     // Animate off screen to the right then reset
-    translateX.value = withTiming(SCREEN_WIDTH, { duration: 250 }, () => {
+    translateX.value = withTiming(SCREEN_WIDTH, TIMING.slow, () => {
       translateX.value = 0;
       scale.value = 1;
       rotateZ.value = 0;
@@ -153,9 +138,9 @@ export const StackedBook = memo(function StackedBook({
         runOnJS(handleSwipeRightComplete)();
       } else {
         // Spring back
-        translateX.value = withSpring(0, SPRING_CONFIG);
-        rotateZ.value = withSpring(0, SPRING_CONFIG);
-        scale.value = withSpring(1, SPRING_CONFIG);
+        translateX.value = withSpring(0, SPRINGS.cardStack);
+        rotateZ.value = withSpring(0, SPRINGS.cardStack);
+        scale.value = withSpring(1, SPRINGS.cardStack);
       }
     });
 

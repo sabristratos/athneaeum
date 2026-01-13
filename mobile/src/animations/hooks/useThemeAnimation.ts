@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import { useTheme } from '@/themes';
 import { getThemeAnimation, type ThemeAnimationConfig } from '../themeAnimations';
 import { useReducedMotion } from './useReducedMotion';
-import { TIMING } from '../constants';
+import { SPRINGS, TIMING } from '../constants';
 
 export interface ThemeAnimationResult extends ThemeAnimationConfig {
   reducedMotion: boolean;
@@ -16,13 +16,12 @@ export function useThemeAnimation(): ThemeAnimationResult {
     const config = getThemeAnimation(themeName);
 
     if (reducedMotion) {
-      const instantSpring = { stiffness: 500, damping: 50, mass: 0.5 };
       return {
         ...config,
         spring: {
-          press: instantSpring,
-          emphasis: instantSpring,
-          scroll: instantSpring,
+          press: SPRINGS.reducedMotion,
+          emphasis: SPRINGS.reducedMotion,
+          scroll: SPRINGS.reducedMotion,
         },
         timing: {
           fade: TIMING.instant,

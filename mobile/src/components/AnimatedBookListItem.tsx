@@ -1,6 +1,6 @@
 import React, { memo } from 'react';
 import Animated, { useAnimatedStyle, type SharedValue } from 'react-native-reanimated';
-import { BookListItem } from '@/components/BookListItem';
+import { BookListItem } from '@/components/organisms';
 import type { UserBook } from '@/types';
 
 interface AnimatedBookListItemProps {

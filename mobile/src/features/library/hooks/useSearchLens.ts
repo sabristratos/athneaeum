@@ -1,5 +1,6 @@
 import { useState, useMemo, useCallback } from 'react';
 import { useSharedValue, withTiming, type SharedValue } from 'react-native-reanimated';
+import { TIMING } from '@/animations/constants';
 import type { UserBook } from '@/types';
 
 interface SearchLensResult {
@@ -26,12 +27,12 @@ export function useSearchLens(books: UserBook[]): SearchLensResult {
   // Open the lens overlay
   const openLens = useCallback(() => {
     setIsActive(true);
-    overlayOpacity.value = withTiming(1, { duration: 200 });
+    overlayOpacity.value = withTiming(1, TIMING.normal);
   }, [overlayOpacity]);
 
   // Close the lens overlay
   const closeLens = useCallback(() => {
-    overlayOpacity.value = withTiming(0, { duration: 200 });
+    overlayOpacity.value = withTiming(0, TIMING.normal);
     setTimeout(() => {
       setIsActive(false);
       setSearchQuery('');

@@ -2,6 +2,8 @@ import NetInfo from '@react-native-community/netinfo';
 import { pushChanges } from '@/database/sync/pushChanges';
 import { pullChanges, getLastPulledAt } from '@/database/sync/pullChanges';
 import { uploadPendingCovers } from '@/database/sync/coverSync';
+import { AuthenticationError } from '@/api/client';
+import { useAuthStore } from '@/stores/authStore';
 import type { SyncResult } from '@/database/sync/types';
 
 let isSyncing = false;
@@ -52,7 +54,16 @@ export async function syncWithServer(): Promise<SyncResult> {
     notifyListeners(result);
     return result;
   } catch (error) {
-    console.error('[Sync] Error:', error);
+    if (error instanceof AuthenticationError) {
+      await useAuthStore.getState().clearAuth();
+      const result: SyncResult = {
+        status: 'error',
+        error: 'Session expired. Please log in again.',
+      };
+      notifyListeners(result);
+      return result;
+    }
+
     const result: SyncResult = {
       status: 'error',
       error: error instanceof Error ? error.message : String(error),

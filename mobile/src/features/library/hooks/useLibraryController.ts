@@ -1,11 +1,16 @@
-import { useState, useCallback, useMemo } from 'react';
-import { useNavigation } from '@react-navigation/native';
+import { useState, useCallback, useMemo, useEffect } from 'react';
+import { useNavigation, useRoute, type RouteProp } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useLibrary } from '@/hooks/useBooks';
+import { useToast } from '@/stores/toastStore';
+import { useTagStore, useTagActions } from '@/stores/tagStore';
+import { apiClient } from '@/api/client';
 import type { UserBook, BookStatus, UpdateUserBookData } from '@/types';
-import type { MainStackParamList } from '@/navigation/MainNavigator';
+import type { Tag, TagFilterMode } from '@/types/tag';
+import type { MainStackParamList, MainTabParamList } from '@/navigation/MainNavigator';
 
 type NavigationProp = NativeStackNavigationProp<MainStackParamList>;
+type LibraryRouteProp = RouteProp<MainTabParamList, 'LibraryTab'>;
 
 export interface LibraryControllerState {
   activeTab: BookStatus | 'all';
@@ -13,20 +18,33 @@ export interface LibraryControllerState {
   books: UserBook[] | undefined;
   loading: boolean;
   error: string | null;
+  genreFilter: string | null;
 }
 
 export interface LibraryControllerActions {
   setActiveTab: (tab: BookStatus | 'all') => void;
   onRefresh: () => Promise<void>;
   handleBookPress: (book: UserBook) => void;
+  handleSeriesPress: (seriesId: number) => void;
   fetchLibrary: () => Promise<void>;
   updateBook: (id: number, data: UpdateUserBookData) => Promise<UserBook | null>;
   moveToEndOfList: (id: number) => void;
+  toggleTagFilter: (slug: string) => void;
+  clearTagFilters: () => void;
+  toggleFilterMode: () => void;
+  navigateToTagManagement: () => void;
+  clearGenreFilter: () => void;
 }
 
 export interface LibraryControllerComputed {
   filteredBooks: UserBook[];
   getTabCount: (key: BookStatus | 'all') => number;
+  tags: Tag[];
+  selectedTagFilters: string[];
+  filterMode: TagFilterMode;
+  filteredCount: number;
+  totalCount: number;
+  genreFilterName: string | null;
 }
 
 export interface LibraryControllerReturn
@@ -36,16 +54,56 @@ export interface LibraryControllerReturn
 
 export function useLibraryController(): LibraryControllerReturn {
   const navigation = useNavigation<NavigationProp>();
+  const route = useRoute<LibraryRouteProp>();
+  const toast = useToast();
   const { books, loading, error, fetchLibrary, updateBook, moveToEndOfList } = useLibrary();
+
+  const tags = useTagStore((s) => s.tags) ?? [];
+  const selectedTagFilters = useTagStore((s) => s.selectedTagFilters) ?? [];
+  const filterMode = useTagStore((s) => s.filterMode);
+  const { setTags, toggleTagFilter, clearTagFilters, setFilterMode } = useTagActions();
 
   const [activeTab, setActiveTab] = useState<BookStatus | 'all'>('all');
   const [refreshing, setRefreshing] = useState(false);
+  const [genreFilter, setGenreFilter] = useState<string | null>(route.params?.genreSlug ?? null);
+
+  useEffect(() => {
+    if (route.params?.genreSlug) {
+      setGenreFilter(route.params.genreSlug);
+    }
+  }, [route.params?.genreSlug]);
+
+  useEffect(() => {
+    const fetchTags = async () => {
+      try {
+        const tagsData = await apiClient<Tag[]>('/tags');
+        setTags(tagsData);
+      } catch {
+        // Silently fail - tags are not critical
+      }
+    };
+    fetchTags();
+  }, [setTags]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await fetchLibrary();
+    try {
+      await fetchLibrary();
+      const tagsData = await apiClient<Tag[]>('/tags');
+      setTags(tagsData);
+    } catch {
+      toast.danger('Failed to refresh library');
+    }
     setRefreshing(false);
-  }, [fetchLibrary]);
+  }, [fetchLibrary, setTags, toast]);
+
+  const navigateToTagManagement = useCallback(() => {
+    navigation.navigate('TagManagement');
+  }, [navigation]);
+
+  const toggleFilterMode = useCallback(() => {
+    setFilterMode(filterMode === 'any' ? 'all' : 'any');
+  }, [filterMode, setFilterMode]);
 
   // Compute all tab counts in a single pass (O(n) instead of O(n*m) for m tabs)
   const tabCounts = useMemo(() => {
@@ -64,12 +122,46 @@ export function useLibraryController(): LibraryControllerReturn {
   }, [books]);
 
   const filteredBooks = useMemo(() => {
-    const bookList = books ?? [];
-    if (activeTab === 'all') {
-      return bookList;
+    let bookList = books ?? [];
+
+    if (activeTab !== 'all') {
+      bookList = bookList.filter((b) => b.status === activeTab);
     }
-    return bookList.filter((b) => b.status === activeTab);
-  }, [books, activeTab]);
+
+    if (selectedTagFilters.length > 0) {
+      bookList = bookList.filter((b) => {
+        const bookTagSlugs = b.tags?.map((t) => t.slug) ?? [];
+        if (filterMode === 'any') {
+          return selectedTagFilters.some((slug) => bookTagSlugs.includes(slug));
+        } else {
+          return selectedTagFilters.every((slug) => bookTagSlugs.includes(slug));
+        }
+      });
+    }
+
+    if (genreFilter) {
+      bookList = bookList.filter((b) => {
+        const bookGenreSlugs = b.book.genres?.map((g) => g.slug) ?? [];
+        return bookGenreSlugs.includes(genreFilter);
+      });
+    }
+
+    return bookList;
+  }, [books, activeTab, selectedTagFilters, filterMode, genreFilter]);
+
+  const genreFilterName = useMemo(() => {
+    if (!genreFilter || !books) return null;
+    for (const userBook of books) {
+      const genre = userBook.book.genres?.find((g) => g.slug === genreFilter);
+      if (genre) return genre.name;
+    }
+    return genreFilter.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase());
+  }, [genreFilter, books]);
+
+  const clearGenreFilter = useCallback(() => {
+    setGenreFilter(null);
+    navigation.setParams({ genreSlug: undefined });
+  }, [navigation]);
 
   const handleBookPress = useCallback(
     (book: UserBook) => {
@@ -78,11 +170,23 @@ export function useLibraryController(): LibraryControllerReturn {
     [navigation]
   );
 
+  const handleSeriesPress = useCallback(
+    (seriesId: number) => {
+      const bookInSeries = (books ?? []).find((b) => b.book.series_id === seriesId);
+      const seriesTitle = bookInSeries?.book.series?.title ?? 'Series';
+      navigation.navigate('SeriesDetail', { seriesId, seriesTitle });
+    },
+    [books, navigation]
+  );
+
   // Use pre-computed counts for O(1) lookup
   const getTabCount = useCallback(
     (key: BookStatus | 'all') => tabCounts[key],
     [tabCounts]
   );
+
+  const totalCount = tabCounts[activeTab];
+  const filteredCount = filteredBooks.length;
 
   return {
     activeTab,
@@ -93,10 +197,23 @@ export function useLibraryController(): LibraryControllerReturn {
     setActiveTab,
     onRefresh,
     handleBookPress,
+    handleSeriesPress,
     fetchLibrary,
     updateBook,
     moveToEndOfList,
     filteredBooks,
     getTabCount,
+    tags,
+    selectedTagFilters,
+    filterMode,
+    toggleTagFilter,
+    clearTagFilters,
+    toggleFilterMode,
+    navigateToTagManagement,
+    filteredCount,
+    totalCount,
+    genreFilter,
+    genreFilterName,
+    clearGenreFilter,
   };
 }

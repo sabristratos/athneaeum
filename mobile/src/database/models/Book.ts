@@ -1,4 +1,4 @@
-import { Model, type Query } from '@nozbe/watermelondb';
+import { Model, type Query, type Relation } from '@nozbe/watermelondb';
 import {
   field,
   text,
@@ -6,25 +6,35 @@ import {
   readonly,
   children,
   writer,
+  relation,
 } from '@nozbe/watermelondb/decorators';
 import type { Associations } from '@nozbe/watermelondb/Model';
 import type { UserBook } from '@/database/models/UserBook';
+import type { Series } from '@/database/models/Series';
 
 export class Book extends Model {
   static table = 'books';
 
   static associations: Associations = {
     user_books: { type: 'has_many', foreignKey: 'book_id' },
+    series: { type: 'belongs_to', key: 'series_id' },
   };
 
   @field('server_id') serverId!: number | null;
   @text('external_id') externalId!: string | null;
   @text('external_provider') externalProvider!: string | null;
+  @text('series_id') seriesId!: string | null;
+  @field('server_series_id') serverSeriesId!: number | null;
+  @field('volume_number') volumeNumber!: number | null;
+  @text('volume_title') volumeTitle!: string | null;
   @text('title') title!: string;
   @text('author') author!: string;
   @text('cover_url') coverUrl!: string | null;
   @text('local_cover_path') localCoverPath!: string | null;
   @field('page_count') pageCount!: number | null;
+  @field('height_cm') heightCm!: number | null;
+  @field('width_cm') widthCm!: number | null;
+  @field('thickness_cm') thicknessCm!: number | null;
   @text('isbn') isbn!: string | null;
   @text('description') description!: string | null;
   @text('genres_json') genresJson!: string | null;
@@ -35,6 +45,7 @@ export class Book extends Model {
   @field('is_deleted') isDeleted!: boolean;
 
   @children('user_books') userBooks!: Query<UserBook>;
+  @relation('series', 'series_id') series!: Relation<Series>;
 
   get genres(): string[] {
     return this.genresJson ? JSON.parse(this.genresJson) : [];

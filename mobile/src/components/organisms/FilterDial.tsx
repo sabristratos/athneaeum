@@ -1,0 +1,200 @@
+﻿import React, { useCallback, useEffect, useState, useMemo, memo } from 'react';
+import {
+  View,
+  Pressable,
+  LayoutChangeEvent,
+  StyleSheet,
+} from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withSpring,
+  withTiming,
+} from 'react-native-reanimated';
+import { triggerHaptic } from '@/hooks/useHaptic';
+import { Text } from '@/components/atoms';
+import { useTheme } from '@/themes';
+import { SPRINGS, TIMING, useReducedMotion } from '@/animations';
+
+export interface FilterDialOption {
+  key: string;
+  label: string;
+  count?: number;
+}
+
+interface FilterDialProps {
+  options: FilterDialOption[];
+  selected: string;
+  onSelect: (key: string) => void;
+  showCounts?: boolean;
+  disabled?: boolean;
+}
+
+interface LabelMeasurement {
+  x: number;
+  width: number;
+}
+
+/**
+ * A tab-style filter with animated underline indicator.
+ * Tap any label to select that filter.
+ */
+export const FilterDial = memo(function FilterDial({
+  options,
+  selected,
+  onSelect,
+  showCounts = true,
+  disabled = false,
+}: FilterDialProps) {
+  const { theme } = useTheme();
+  const reduceMotion = useReducedMotion();
+  const [labelMeasurements, setLabelMeasurements] = useState<LabelMeasurement[]>([]);
+  const safeOptions = options ?? [];
+
+  const indicatorX = useSharedValue(0);
+  const indicatorWidth = useSharedValue(0);
+
+  const selectedIndex = useMemo(
+    () => safeOptions.findIndex((o) => o.key === selected),
+    [safeOptions, selected]
+  );
+
+  useEffect(() => {
+    if (labelMeasurements.length > 0 && selectedIndex >= 0) {
+      const measurement = labelMeasurements[selectedIndex];
+      if (measurement) {
+        if (reduceMotion) {
+          indicatorX.value = withTiming(measurement.x, TIMING.fast);
+          indicatorWidth.value = withTiming(measurement.width, TIMING.fast);
+        } else {
+          indicatorX.value = withSpring(measurement.x, SPRINGS.responsive);
+          indicatorWidth.value = withSpring(measurement.width, SPRINGS.responsive);
+        }
+      }
+    }
+  }, [selectedIndex, labelMeasurements, reduceMotion, indicatorX, indicatorWidth]);
+
+  // Handle label layout to measure positions
+  const handleLabelLayout = useCallback(
+    (index: number, event: LayoutChangeEvent) => {
+      const { x, width } = event.nativeEvent.layout;
+      setLabelMeasurements((prev) => {
+        const updated = [...prev];
+        updated[index] = { x, width };
+        return updated;
+      });
+    },
+    []
+  );
+
+  // Handle selection
+  const handleSelect = useCallback(
+    (key: string) => {
+      if (disabled || key === selected) return;
+      triggerHaptic('medium');
+      onSelect(key);
+    },
+    [disabled, selected, onSelect]
+  );
+
+  // Animated styles for indicator
+  const indicatorStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: indicatorX.value }],
+    width: indicatorWidth.value,
+  }));
+
+  return (
+    <View
+      style={[styles.container, { opacity: disabled ? 0.5 : 1 }]}
+      accessible={true}
+      accessibilityRole="tablist"
+      accessibilityLabel="Filter options"
+    >
+      {/* Labels row */}
+      <View style={styles.labelsRow}>
+        {safeOptions.map((option, index) => {
+          const isSelected = index === selectedIndex;
+          return (
+            <Pressable
+              key={option.key}
+              onLayout={(e) => handleLabelLayout(index, e)}
+              onPress={() => handleSelect(option.key)}
+              disabled={disabled}
+              style={({ pressed }) => [
+                styles.labelButton,
+                pressed && styles.labelButtonPressed,
+              ]}
+              accessibilityRole="tab"
+              accessibilityState={{ selected: isSelected }}
+              accessibilityLabel={`${option.label}${showCounts && option.count !== undefined ? `, ${option.count} items` : ''}`}
+            >
+              <Text
+                variant="caption"
+                style={[
+                  styles.label,
+                  {
+                    color: isSelected
+                      ? theme.colors.foreground
+                      : theme.colors.foregroundMuted,
+                    fontFamily: theme.fonts.body,
+                  },
+                  isSelected && styles.labelActive,
+                ]}
+              >
+                {option.label}
+                {showCounts && option.count !== undefined ? ` (${option.count})` : ''}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+
+      {/* Animated underline indicator */}
+      {labelMeasurements.length > 0 && (
+        <Animated.View
+          style={[
+            styles.indicator,
+            {
+              backgroundColor: theme.colors.primary,
+            },
+            indicatorStyle,
+          ]}
+        />
+      )}
+    </View>
+  );
+});
+
+const styles = StyleSheet.create({
+  container: {
+    width: '100%',
+    position: 'relative',
+  },
+  labelsRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingBottom: 8,
+  },
+  labelButton: {
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+  },
+  labelButtonPressed: {
+    opacity: 0.7,
+  },
+  label: {
+    fontSize: 13,
+    textAlign: 'center',
+  },
+  labelActive: {
+    fontWeight: '600',
+  },
+  indicator: {
+    position: 'absolute',
+    bottom: 0,
+    height: 3,
+    borderRadius: 1.5,
+  },
+});
+

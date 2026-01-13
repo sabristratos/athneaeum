@@ -19,9 +19,14 @@ return new class extends Migration
             $table->integer('current_page')->default(0);
             $table->boolean('is_dnf')->default(false);
             $table->text('dnf_reason')->nullable();
+            $table->text('review')->nullable();
             $table->date('started_at')->nullable();
             $table->date('finished_at')->nullable();
             $table->string('custom_cover_url')->nullable();
+            $table->string('format')->nullable();
+            $table->decimal('price', 8, 2)->nullable();
+            $table->boolean('is_pinned')->default(false);
+            $table->unsignedInteger('queue_position')->nullable();
             $table->timestamps();
 
             $table->unique(['user_id', 'book_id']);

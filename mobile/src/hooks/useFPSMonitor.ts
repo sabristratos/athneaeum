@@ -110,7 +110,6 @@ export function useFPSLogger(options: {
         if (fps < threshold) {
           lowFpsCountRef.current++;
           if (lowFpsCountRef.current >= 5) {
-            console.warn(`[${label}] Low FPS detected: ${fps}`);
             lowFpsCountRef.current = 0;
           }
         } else {
@@ -136,26 +135,12 @@ export function useFPSLogger(options: {
  * Hook to measure performance of a specific operation.
  * Returns a function to wrap operations for timing.
  */
-export function usePerformanceTimer(label: string) {
+export function usePerformanceTimer(_label: string) {
   const measure = useCallback(
     async <T>(operation: () => T | Promise<T>): Promise<T> => {
-      const start = performance.now();
-      try {
-        const result = await operation();
-        const duration = performance.now() - start;
-        if (__DEV__) {
-          console.log(`[Perf] ${label}: ${duration.toFixed(1)}ms`);
-        }
-        return result;
-      } catch (error) {
-        const duration = performance.now() - start;
-        if (__DEV__) {
-          console.error(`[Perf] ${label} failed after ${duration.toFixed(1)}ms`);
-        }
-        throw error;
-      }
+      return operation();
     },
-    [label]
+    []
   );
 
   return measure;

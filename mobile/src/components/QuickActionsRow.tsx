@@ -1,7 +1,7 @@
 import React from 'react';
 import { View } from 'react-native';
 import { PencilEdit01Icon, Share01Icon, Cancel01Icon } from '@hugeicons/core-free-icons';
-import { QuickActionButton } from '@/components/QuickActionButton';
+import { QuickActionButton } from '@/components/molecules';
 import { useTheme } from '@/themes';
 
 interface QuickActionsRowProps {

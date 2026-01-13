@@ -1,5 +1,6 @@
 import { useState, useCallback } from 'react';
-import { useReadingStatsQuery } from '@/queries';
+import { useLocalStats } from '@/hooks';
+import { formatDateFromString } from '@/utils/dateUtils';
 import type { ReadingStats, RecentSession } from '@/types';
 
 interface UseReadingStatsControllerReturn {
@@ -7,32 +8,31 @@ interface UseReadingStatsControllerReturn {
   loading: boolean;
   error: string | null;
   refreshing: boolean;
+  isLocalOnly: boolean;
   onRefresh: () => Promise<void>;
   fetchStats: () => Promise<void>;
 }
 
 export function useReadingStatsController(): UseReadingStatsControllerReturn {
-  const { data: stats, isLoading, error: queryError, refetch, isRefetching } = useReadingStatsQuery();
+  const { stats, loading, error, isLocalOnly, refresh } = useLocalStats();
   const [refreshing, setRefreshing] = useState(false);
-
-  const loading = isLoading;
-  const error = queryError ? (queryError instanceof Error ? queryError.message : 'Failed to load reading stats') : null;
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    await refetch();
+    await refresh();
     setRefreshing(false);
-  }, [refetch]);
+  }, [refresh]);
 
   const fetchStats = useCallback(async () => {
-    await refetch();
-  }, [refetch]);
+    await refresh();
+  }, [refresh]);
 
   return {
-    stats: stats ?? null,
+    stats,
     loading,
     error,
-    refreshing: refreshing || isRefetching,
+    refreshing,
+    isLocalOnly,
     onRefresh,
     fetchStats,
   };
@@ -69,7 +69,7 @@ export function formatRecentSession(session: RecentSession): FormattedRecentSess
     startPage: session.start_page,
     endPage: session.end_page,
     pagesRead: session.pages_read,
-    formattedDate: new Date(session.date).toLocaleDateString(),
+    formattedDate: formatDateFromString(session.date),
     formattedDuration: session.formatted_duration,
   };
 }

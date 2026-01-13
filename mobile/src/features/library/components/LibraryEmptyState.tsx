@@ -2,7 +2,7 @@ import React from 'react';
 import { View, StyleSheet } from 'react-native';
 import Svg, { Path, Circle, Line, Rect, G, Defs, LinearGradient, Stop, Text as SvgText } from 'react-native-svg';
 import Animated, { FadeIn } from 'react-native-reanimated';
-import { Text } from '@/components/Text';
+import { Text } from '@/components/atoms';
 import { useTheme } from '@/themes';
 import type { BookStatus } from '@/types';
 
@@ -344,8 +344,11 @@ export function LibraryEmptyState({ activeTab }: LibraryEmptyStateProps) {
     <Animated.View
       entering={FadeIn.duration(400)}
       style={[styles.container, { paddingVertical: theme.spacing.xl }]}
+      accessible={true}
+      accessibilityRole="text"
+      accessibilityLabel={`${content.title} ${content.subtitle}`}
     >
-      <View style={styles.illustrationContainer}>
+      <View style={styles.illustrationContainer} accessibilityElementsHidden={true}>
         <Illustration />
       </View>
 

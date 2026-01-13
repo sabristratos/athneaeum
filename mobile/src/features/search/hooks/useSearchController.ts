@@ -1,14 +1,26 @@
-import { useState, useCallback, useMemo } from 'react';
-import { useInfiniteBookSearchQuery } from '@/queries';
+import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
+import { triggerHaptic } from '@/hooks/useHaptic';
+import { useInfiniteBookSearchQuery, useLibraryExternalIdsQuery } from '@/queries';
+import { queryKeys } from '@/lib/queryKeys';
 import { useLibrary } from '@/hooks/useBooks';
-import type { SearchResult, BookStatus, SearchFilters } from '@/types';
+import { useToast } from '@/stores/toastStore';
+import { useRecentSearchActions } from '@/stores/recentSearchesStore';
+import type { SearchResult, BookStatus, SearchFilters, LibraryExternalIdEntry, UserBook } from '@/types';
 import { useDebouncedValue } from '@/hooks/useDebouncedValue';
 
 const DEBOUNCE_MS = 400;
 
-interface ErrorModalState {
-  visible: boolean;
-  message: string;
+interface PendingSeriesSuggestion {
+  seriesName: string;
+  volumeNumber: number;
+  bookId: number;
+  bookTitle: string;
+  bookAuthor: string;
+}
+
+interface UseSearchControllerOptions {
+  onNavigateToBook?: (userBook: UserBook) => void;
 }
 
 interface UseSearchControllerReturn {
@@ -16,8 +28,7 @@ interface UseSearchControllerReturn {
   setQuery: (query: string) => void;
   addingId: string | null;
   addedIds: Set<string>;
-  errorModal: ErrorModalState;
-  closeErrorModal: () => void;
+  libraryMap: Record<string, LibraryExternalIdEntry>;
   activeFilterCount: number;
   results: SearchResult[];
   meta: { total: number; has_more: boolean; provider: string; start_index: number } | undefined;
@@ -30,19 +41,25 @@ interface UseSearchControllerReturn {
   handleFiltersChange: (filters: SearchFilters) => void;
   handleEndReached: () => void;
   refresh: () => Promise<void>;
+  pendingSeriesSuggestion: PendingSeriesSuggestion | null;
+  clearSeriesSuggestion: () => void;
 }
 
-export function useSearchController(): UseSearchControllerReturn {
+export function useSearchController(options: UseSearchControllerOptions = {}): UseSearchControllerReturn {
+  const { onNavigateToBook } = options;
   const [query, setQuery] = useState('');
   const [filters, setFilters] = useState<SearchFilters>({});
   const [addingId, setAddingId] = useState<string | null>(null);
   const [addedIds, setAddedIds] = useState<Set<string>>(new Set());
-  const [errorModal, setErrorModal] = useState<ErrorModalState>({
-    visible: false,
-    message: '',
-  });
+  const [pendingSeriesSuggestion, setPendingSeriesSuggestion] = useState<PendingSeriesSuggestion | null>(null);
 
+  const queryClient = useQueryClient();
+  const toast = useToast();
+  const { addSearch } = useRecentSearchActions();
   const debouncedQuery = useDebouncedValue(query, DEBOUNCE_MS);
+  const lastSavedQueryRef = useRef<string | null>(null);
+
+  const { data: libraryMap = {} } = useLibraryExternalIdsQuery();
 
   const {
     data,
@@ -62,6 +79,17 @@ export function useSearchController(): UseSearchControllerReturn {
   const loadingMore = isFetchingNextPage;
   const error = queryError ? (queryError instanceof Error ? queryError.message : 'Search failed') : null;
 
+  useEffect(() => {
+    if (
+      results.length > 0 &&
+      debouncedQuery.trim().length >= 2 &&
+      debouncedQuery !== lastSavedQueryRef.current
+    ) {
+      lastSavedQueryRef.current = debouncedQuery;
+      addSearch(debouncedQuery);
+    }
+  }, [results.length, debouncedQuery, addSearch]);
+
   const activeFilterCount = useMemo(() => {
     let count = 0;
     if (filters.language) count++;
@@ -79,12 +107,16 @@ export function useSearchController(): UseSearchControllerReturn {
     async (book: SearchResult, status: BookStatus) => {
       setAddingId(book.external_id);
       try {
-        await addToLibrary({
+        const userBook = await addToLibrary({
           external_id: book.external_id,
+          external_provider: 'google_books',
           title: book.title,
           author: book.author,
           cover_url: book.cover_url,
           page_count: book.page_count,
+          height_cm: book.height_cm,
+          width_cm: book.width_cm,
+          thickness_cm: book.thickness_cm,
           isbn: book.isbn,
           description: book.description,
           genres: book.genres,
@@ -92,37 +124,63 @@ export function useSearchController(): UseSearchControllerReturn {
           status,
         });
         setAddedIds((prev) => new Set(prev).add(book.external_id));
+        queryClient.invalidateQueries({ queryKey: queryKeys.library.externalIds() });
+        triggerHaptic('success');
+
+        if (book.series_name && book.volume_number && userBook?.book_id) {
+          setPendingSeriesSuggestion({
+            seriesName: book.series_name,
+            volumeNumber: book.volume_number,
+            bookId: userBook.book_id,
+            bookTitle: book.title,
+            bookAuthor: book.author,
+          });
+        } else {
+          toast.success('Added to library', {
+            action: userBook && onNavigateToBook ? {
+              label: 'View',
+              onPress: () => onNavigateToBook(userBook),
+            } : undefined,
+          });
+        }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to add book';
-        setErrorModal({ visible: true, message });
+        triggerHaptic('error');
+        toast.danger(message);
       } finally {
         setAddingId(null);
       }
     },
-    [addToLibrary]
+    [addToLibrary, queryClient, toast, onNavigateToBook]
   );
 
-  const handleEndReached = useCallback(() => {
+  const handleEndReached = useCallback(async () => {
     if (!isFetchingNextPage && hasNextPage) {
-      fetchNextPage();
+      try {
+        const result = await fetchNextPage();
+        if (result.isError) {
+          toast.warning('Failed to load more results');
+        }
+      } catch {
+        toast.warning('Failed to load more results');
+      }
     }
-  }, [fetchNextPage, isFetchingNextPage, hasNextPage]);
-
-  const closeErrorModal = useCallback(() => {
-    setErrorModal({ visible: false, message: '' });
-  }, []);
+  }, [fetchNextPage, isFetchingNextPage, hasNextPage, toast]);
 
   const refresh = useCallback(async () => {
     await refetch();
   }, [refetch]);
+
+  const clearSeriesSuggestion = useCallback(() => {
+    setPendingSeriesSuggestion(null);
+  }, []);
 
   return {
     query,
     setQuery,
     addingId,
     addedIds,
-    errorModal,
-    closeErrorModal,
+    libraryMap,
     activeFilterCount,
     results,
     meta,
@@ -135,5 +193,7 @@ export function useSearchController(): UseSearchControllerReturn {
     handleFiltersChange,
     handleEndReached,
     refresh,
+    pendingSeriesSuggestion,
+    clearSeriesSuggestion,
   };
 }

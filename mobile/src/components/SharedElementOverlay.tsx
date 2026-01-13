@@ -1,20 +1,21 @@
 import React, { useEffect } from 'react';
-import { StyleSheet, useWindowDimensions } from 'react-native';
+import { StyleSheet } from 'react-native';
 import { Image } from 'expo-image';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  withTiming,
-  Easing,
-  interpolate,
+  withSpring,
   runOnJS,
+  withTiming,
+  useReducedMotion,
 } from 'react-native-reanimated';
 import { useTheme } from '@/themes';
 import { useSharedElementStore } from '@/stores/sharedElementStore';
+import { SPRINGS } from '@/animations/constants';
 
 export function SharedElementOverlay() {
   const { theme, themeName } = useTheme();
-  const { width: screenWidth } = useWindowDimensions();
+  const reducedMotion = useReducedMotion();
   const isScholar = themeName === 'scholar';
 
   const {
@@ -26,69 +27,69 @@ export function SharedElementOverlay() {
     completeTransition,
   } = useSharedElementStore();
 
-  const progress = useSharedValue(0);
+  const animatedX = useSharedValue(0);
+  const animatedY = useSharedValue(0);
+  const animatedWidth = useSharedValue(0);
+  const animatedHeight = useSharedValue(0);
+  const opacity = useSharedValue(0);
 
   useEffect(() => {
     if (isTransitioning && sourcePosition && targetPosition) {
-      // Reset progress
-      progress.value = 0;
+      const isForward = direction === 'forward';
+      const spring = isForward ? SPRINGS.sharedElement : SPRINGS.sharedElementFast;
 
-      // Animate to target
-      const duration = direction === 'forward' ? 450 : 350;
-      progress.value = withTiming(
-        1,
-        {
-          duration,
-          easing: Easing.bezier(0.25, 0.1, 0.25, 1),
-        },
-        (finished) => {
+      animatedX.value = sourcePosition.x;
+      animatedY.value = sourcePosition.y;
+      animatedWidth.value = sourcePosition.width;
+      animatedHeight.value = sourcePosition.height;
+      opacity.value = 1;
+
+      if (reducedMotion) {
+        animatedX.value = withTiming(targetPosition.x, { duration: 200 }, (finished) => {
           if (finished) {
-            runOnJS(completeTransition)();
+            opacity.value = withTiming(0, { duration: 100 }, () => {
+              runOnJS(completeTransition)();
+            });
           }
-        }
-      );
+        });
+        animatedY.value = withTiming(targetPosition.y, { duration: 200 });
+        animatedWidth.value = withTiming(targetPosition.width, { duration: 200 });
+        animatedHeight.value = withTiming(targetPosition.height, { duration: 200 });
+      } else {
+        animatedX.value = withSpring(targetPosition.x, spring);
+        animatedY.value = withSpring(targetPosition.y, spring);
+        animatedWidth.value = withSpring(targetPosition.width, spring);
+        animatedHeight.value = withSpring(targetPosition.height, spring, (finished) => {
+          if (finished) {
+            opacity.value = withTiming(0, { duration: 80 }, () => {
+              runOnJS(completeTransition)();
+            });
+          }
+        });
+      }
+    } else if (!isTransitioning) {
+      opacity.value = 0;
     }
-  }, [isTransitioning, sourcePosition, targetPosition, direction]);
+  }, [isTransitioning, sourcePosition, targetPosition, direction, reducedMotion]);
 
   const borderRadius = isScholar ? theme.radii.sm : theme.radii.lg;
 
   const animatedStyle = useAnimatedStyle(() => {
-    if (!sourcePosition || !targetPosition) {
+    if (opacity.value === 0) {
       return { opacity: 0 };
     }
 
-    const left = interpolate(
-      progress.value,
-      [0, 1],
-      [sourcePosition.x, targetPosition.x]
-    );
-    const top = interpolate(
-      progress.value,
-      [0, 1],
-      [sourcePosition.y, targetPosition.y]
-    );
-    const width = interpolate(
-      progress.value,
-      [0, 1],
-      [sourcePosition.width, targetPosition.width]
-    );
-    const height = interpolate(
-      progress.value,
-      [0, 1],
-      [sourcePosition.height, targetPosition.height]
-    );
-
     return {
       position: 'absolute',
-      left,
-      top,
-      width,
-      height,
-      opacity: 1,
+      left: animatedX.value,
+      top: animatedY.value,
+      width: animatedWidth.value,
+      height: animatedHeight.value,
+      opacity: opacity.value,
     };
   });
 
-  if (!isTransitioning || !coverUri || !sourcePosition || !targetPosition) {
+  if (!coverUri || !sourcePosition || !targetPosition) {
     return null;
   }
 
@@ -106,6 +107,7 @@ export function SharedElementOverlay() {
                 borderColor: theme.colors.border,
               }
             : {}),
+          ...theme.shadows.lg,
         },
         animatedStyle,
       ]}
@@ -116,6 +118,7 @@ export function SharedElementOverlay() {
         style={styles.image}
         contentFit="cover"
         transition={0}
+        cachePolicy="memory-disk"
       />
     </Animated.View>
   );

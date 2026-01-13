@@ -1,13 +1,14 @@
 import { useCallback, useRef } from 'react';
 import {
   useSharedValue,
-  useAnimatedScrollHandler,
   useDerivedValue,
   withSpring,
   runOnJS,
+  runOnUI,
   type SharedValue,
 } from 'react-native-reanimated';
-import * as Haptics from 'expo-haptics';
+import type { NativeSyntheticEvent, NativeScrollEvent } from 'react-native';
+import { triggerHaptic } from '@/hooks/useHaptic';
 import { SPRINGS } from '@/animations';
 
 const MAX_TILT_ANGLE = 8;
@@ -32,12 +33,14 @@ interface ScrollPhysicsConfig {
   itemHeight?: number;
 }
 
+type ScrollHandler = (event: NativeSyntheticEvent<NativeScrollEvent>) => void;
+
 interface ScrollPhysicsResult {
   scrollY: SharedValue<number>;
   scrollVelocity: SharedValue<number>;
   tiltAngle: SharedValue<number>;
   skewAngle: SharedValue<number>;
-  scrollHandler: ReturnType<typeof useAnimatedScrollHandler>;
+  scrollHandler: ScrollHandler;
 }
 
 /**
@@ -70,7 +73,7 @@ export function useScrollPhysics(config: ScrollPhysicsConfig = {}): ScrollPhysic
   const triggerSectionHaptic = useCallback(() => {
     const now = Date.now();
     if (now - lastHapticTimeRef.current > MIN_HAPTIC_INTERVAL) {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      triggerHaptic('heavy');
       lastHapticTimeRef.current = now;
     }
   }, []);
@@ -114,13 +117,12 @@ export function useScrollPhysics(config: ScrollPhysicsConfig = {}): ScrollPhysic
     return clampedFactor * MAX_SKEW_ANGLE;
   }, [enableSkew]);
 
-  // Check section boundary crossing
-  const checkSectionBoundary = useCallback(
+  // Check section boundary crossing (runs on UI thread)
+  const checkSectionBoundaryWorklet = useCallback(
     (currentY: number) => {
       'worklet';
       if (!enableSectionHaptics || sectionBoundaries.length === 0) return;
 
-      // Find current section based on scroll position
       let currentSection = -1;
       for (let i = sectionBoundaries.length - 1; i >= 0; i--) {
         if (currentY >= sectionBoundaries[i].offsetY - 50) {
@@ -130,7 +132,6 @@ export function useScrollPhysics(config: ScrollPhysicsConfig = {}): ScrollPhysic
       }
 
       if (currentSection !== lastSectionIndex.value && lastSectionIndex.value !== -1) {
-        // Crossed a boundary - trigger haptic on JS thread
         runOnJS(triggerSectionHaptic)();
       }
 
@@ -139,21 +140,14 @@ export function useScrollPhysics(config: ScrollPhysicsConfig = {}): ScrollPhysic
     [enableSectionHaptics, sectionBoundaries, triggerSectionHaptic]
   );
 
-  // Animated scroll handler
-  const scrollHandler = useAnimatedScrollHandler({
-    onScroll: (event) => {
-      const currentY = event.contentOffset.y;
-      const currentTime = Date.now();
-
-      // Calculate velocity (pixels per millisecond)
+  // UI thread worklet to process scroll data
+  const processScrollOnUI = useCallback(
+    (currentY: number, currentTime: number) => {
+      'worklet';
       const timeDelta = currentTime - prevTime.value;
       if (timeDelta > 0 && timeDelta < 100) {
-        // Ignore large time gaps (e.g., after pause)
         const positionDelta = currentY - prevScrollY.value;
-        // Velocity in px/ms, multiply by 16 to approximate px/frame at 60fps
         const newVelocity = (positionDelta / timeDelta) * 16;
-
-        // Smooth velocity changes
         scrollVelocity.value = scrollVelocity.value * 0.7 + newVelocity * 0.3;
       }
 
@@ -161,17 +155,20 @@ export function useScrollPhysics(config: ScrollPhysicsConfig = {}): ScrollPhysic
       prevTime.value = currentTime;
       scrollY.value = currentY;
 
-      // Check section boundaries for haptics
-      checkSectionBoundary(currentY);
+      checkSectionBoundaryWorklet(currentY);
     },
-    onBeginDrag: () => {
-      // Reset timing on new gesture
-      prevTime.value = Date.now();
+    [scrollY, scrollVelocity, prevScrollY, prevTime, checkSectionBoundaryWorklet]
+  );
+
+  // Regular scroll handler compatible with FlashList v2
+  const scrollHandler: ScrollHandler = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const currentY = event.nativeEvent.contentOffset.y;
+      const currentTime = Date.now();
+      runOnUI(processScrollOnUI)(currentY, currentTime);
     },
-    onMomentumEnd: () => {
-      scrollVelocity.value = withSpring(0, SPRINGS.settle);
-    },
-  });
+    [processScrollOnUI]
+  );
 
   return {
     scrollY,

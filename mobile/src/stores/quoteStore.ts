@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+import { useShallow } from 'zustand/react/shallow';
 import { mmkvStorage } from '@/lib/storage';
 import type { Quote, QuoteMood } from '@/types/quote';
 
@@ -17,7 +18,7 @@ function generateId(): string {
   return `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`;
 }
 
-export const useQuoteStore = create<QuoteStore>()(
+const useQuoteStoreBase = create<QuoteStore>()(
   persist(
     (set, get) => ({
       quotes: [],
@@ -62,3 +63,19 @@ export const useQuoteStore = create<QuoteStore>()(
     }
   )
 );
+
+export const useQuoteStore = useQuoteStoreBase;
+
+export const useQuoteActions = () =>
+  useQuoteStoreBase(
+    useShallow((state) => ({
+      addQuote: state.addQuote,
+      updateQuote: state.updateQuote,
+      deleteQuote: state.deleteQuote,
+    }))
+  );
+
+export const useQuotes = () => useQuoteStoreBase((state) => state.quotes);
+
+export const useQuotesForBook = (userBookId: number) =>
+  useQuoteStoreBase((state) => state.getQuotesForBook(userBookId));

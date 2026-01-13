@@ -36,6 +36,7 @@
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
+      "./plugins/withShareIntent",
       "expo-secure-store",
       [
         "expo-camera",
@@ -57,6 +58,8 @@
         {
           "android": {
             "newArchEnabled": true,
+            "enableProguardInReleaseBuilds": true,
+            "enableShrinkResourcesInReleaseBuilds": true,
             "packagingOptions": {
               "pickFirst": [
                 "**/libc++_shared.so"
@@ -67,7 +70,8 @@
             "newArchEnabled": true
           }
         }
-      ]
+      ],
+      "expo-web-browser"
     ],
     "extra": {
       "eas": {

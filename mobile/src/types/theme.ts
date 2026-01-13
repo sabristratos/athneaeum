@@ -1,4 +1,4 @@
-export type ThemeName = 'scholar' | 'dreamer' | 'wanderer';
+export type ThemeName = 'scholar' | 'dreamer' | 'wanderer' | 'midnight';
 
 export interface ThemeColors {
   // Base surfaces
@@ -6,6 +6,7 @@ export interface ThemeColors {
   surface: string;
   surfaceAlt: string;
   surfaceHover: string;
+  muted: string;
 
   // Borders
   border: string;
@@ -17,6 +18,7 @@ export interface ThemeColors {
   primaryHover: string;
   primaryDark?: string;      // Dreamer: deepest green
   primaryGlow?: string;      // Scholar: for glow effects
+  primarySubtle: string;
 
   // Foreground/Text
   foreground: string;
@@ -32,8 +34,11 @@ export interface ThemeColors {
 
   // Semantic
   success: string;
+  successSubtle: string;
   danger: string;
+  dangerSubtle: string;
   warning: string;
+  warningSubtle: string;
 
   // On-color (text on colored backgrounds)
   onPrimary: string;
@@ -62,6 +67,7 @@ export interface ThemeFonts {
 
 export interface ThemeRadii {
   none: number;
+  xs: number;
   sm: number;
   md: number;
   lg: number;
@@ -130,8 +136,26 @@ export interface ThemeLineHeights {
 }
 
 export interface ThemeIcons {
-  rating: 'star' | 'heart' | 'compass';
+  rating: 'star' | 'heart' | 'compass' | 'moon';
   progress: 'ink' | 'liquid' | 'trail';
+}
+
+export interface TagColorValue {
+  bg: string;
+  text: string;
+}
+
+export interface ThemeTagColors {
+  primary: TagColorValue;
+  gold: TagColorValue;
+  green: TagColorValue;
+  purple: TagColorValue;
+  copper: TagColorValue;
+  blue: TagColorValue;
+  orange: TagColorValue;
+  teal: TagColorValue;
+  rose: TagColorValue;
+  slate: TagColorValue;
 }
 
 export interface Theme {
@@ -146,6 +170,7 @@ export interface Theme {
   letterSpacing: ThemeLetterSpacing;
   lineHeights: ThemeLineHeights;
   icons: ThemeIcons;
+  tagColors: ThemeTagColors;
   isDark: boolean;
 }
 

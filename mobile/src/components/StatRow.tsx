@@ -1,8 +1,7 @@
 import React from 'react';
 import { View } from 'react-native';
 import type { IconSvgElement } from '@hugeicons/react-native';
-import { Text } from '@/components/Text';
-import { Icon } from '@/components/Icon';
+import { Text, Icon } from '@/components/atoms';
 import { useTheme } from '@/themes';
 
 interface StatRowProps {
@@ -17,7 +16,12 @@ export function StatRow({ label, value, icon, variant = 'inline' }: StatRowProps
 
   if (variant === 'stacked') {
     return (
-      <View style={{ alignItems: 'center', gap: theme.spacing.xs }}>
+      <View
+        style={{ alignItems: 'center', gap: theme.spacing.xs }}
+        accessible={true}
+        accessibilityRole="text"
+        accessibilityLabel={`${label}: ${value}`}
+      >
         {icon && <Icon icon={icon} size={20} color={theme.colors.foregroundMuted} />}
         <Text variant="h3">{value}</Text>
         <Text variant="caption" muted>
@@ -35,6 +39,9 @@ export function StatRow({ label, value, icon, variant = 'inline' }: StatRowProps
         justifyContent: 'space-between',
         gap: theme.spacing.sm,
       }}
+      accessible={true}
+      accessibilityRole="text"
+      accessibilityLabel={`${label}: ${value}`}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: theme.spacing.sm }}>
         {icon && <Icon icon={icon} size={16} color={theme.colors.foregroundMuted} />}

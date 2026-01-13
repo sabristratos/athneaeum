@@ -48,6 +48,11 @@ return [
 
     'book_search' => [
         'provider' => env('BOOK_SEARCH_PROVIDER', 'google_books'),
+        'timeout' => (int) env('BOOK_SEARCH_TIMEOUT', 15),
+        'retry_attempts' => (int) env('BOOK_SEARCH_RETRY_ATTEMPTS', 3),
+        'retry_delay_ms' => (int) env('BOOK_SEARCH_RETRY_DELAY_MS', 500),
+        'circuit_breaker_threshold' => (int) env('BOOK_SEARCH_CIRCUIT_THRESHOLD', 5),
+        'circuit_breaker_decay_seconds' => (int) env('BOOK_SEARCH_CIRCUIT_DECAY', 60),
     ],
 
     'google_books' => [

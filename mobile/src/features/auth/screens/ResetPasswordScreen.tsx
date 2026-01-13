@@ -5,6 +5,7 @@ import type { RouteProp } from '@react-navigation/native';
 import { Text, Button, Input, Card } from '@/components';
 import { AuthLayout } from '@/features/auth/components/AuthLayout';
 import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/stores/toastStore';
 import { useTheme } from '@/themes';
 import { ApiRequestError } from '@/api/client';
 
@@ -23,6 +24,7 @@ interface ResetPasswordScreenProps {
 export function ResetPasswordScreen({ navigation, route }: ResetPasswordScreenProps) {
   const { theme } = useTheme();
   const { resetPassword } = useAuth();
+  const toast = useToast();
 
   const { token, email } = route.params;
 
@@ -43,6 +45,7 @@ export function ResetPasswordScreen({ navigation, route }: ResetPasswordScreenPr
         password,
         password_confirmation: passwordConfirmation,
       });
+      toast.success('Password updated');
       setSuccess(true);
     } catch (error) {
       if (error instanceof ApiRequestError && error.errors) {
@@ -82,7 +85,11 @@ export function ResetPasswordScreen({ navigation, route }: ResetPasswordScreenPr
   }
 
   return (
-    <AuthLayout title="Set New Password" subtitle="Choose a new password for your account">
+    <AuthLayout
+      title="Set New Password"
+      subtitle="Choose a new password for your account"
+      onBack={() => navigation.navigate('Login')}
+    >
       <Card padding="lg">
         <View style={{ gap: theme.spacing.md }}>
           {errors.general && (

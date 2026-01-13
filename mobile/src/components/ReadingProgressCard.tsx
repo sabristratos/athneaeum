@@ -1,9 +1,7 @@
 import React from 'react';
 import { View } from 'react-native';
-import { Card } from '@/components/Card';
-import { Text } from '@/components/Text';
-import { Button } from '@/components/Button';
-import { Progress } from '@/components/Progress';
+import { Card } from '@/components/organisms';
+import { Text, Button, Progress } from '@/components/atoms';
 import { useTheme } from '@/themes';
 
 interface ReadingProgressCardProps {

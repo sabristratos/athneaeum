@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/stores/toastStore';
 import { ApiRequestError } from '@/api/client';
 
 interface LoginControllerState {
@@ -20,6 +21,7 @@ type LoginControllerReturn = LoginControllerState & LoginControllerActions;
 
 export function useLoginController(): LoginControllerReturn {
   const { login } = useAuth();
+  const toast = useToast();
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -31,12 +33,36 @@ export function useLoginController(): LoginControllerReturn {
     setPassword('password');
   };
 
+  const validateForm = (): boolean => {
+    const newErrors: Record<string, string> = {};
+
+    if (!email.trim()) {
+      newErrors.email = 'Email is required';
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      newErrors.email = 'Please enter a valid email address';
+    }
+
+    if (!password) {
+      newErrors.password = 'Password is required';
+    } else if (password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
   const handleLogin = async () => {
+    if (!validateForm()) {
+      return;
+    }
+
     setLoading(true);
     setErrors({});
 
     try {
       await login({ email, password });
+      toast.success('Welcome back!');
     } catch (error) {
       if (error instanceof ApiRequestError && error.errors) {
         const fieldErrors: Record<string, string> = {};

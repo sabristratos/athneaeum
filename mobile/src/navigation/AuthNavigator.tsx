@@ -24,6 +24,8 @@ export function AuthNavigator() {
     <Stack.Navigator
       screenOptions={{
         headerShown: false,
+        freezeOnBlur: true,
+        animation: 'slide_from_right',
         contentStyle: { backgroundColor: theme.colors.canvas },
       }}
     >

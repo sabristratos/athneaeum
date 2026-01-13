@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+import { useShallow } from 'zustand/react/shallow';
 import { mmkvStorage } from '@/lib/storage';
 import { setToken, removeToken } from '@/api/client';
 import type { User } from '@/types';
@@ -14,7 +15,7 @@ interface AuthStore {
   setHydrated: (hydrated: boolean) => void;
 }
 
-export const useAuthStore = create<AuthStore>()(
+const useAuthStoreBase = create<AuthStore>()(
   persist(
     (set) => ({
       user: null,
@@ -48,3 +49,20 @@ export const useAuthStore = create<AuthStore>()(
     }
   )
 );
+
+export const useAuthStore = useAuthStoreBase;
+
+export const useAuthActions = () =>
+  useAuthStoreBase(
+    useShallow((state) => ({
+      setAuth: state.setAuth,
+      clearAuth: state.clearAuth,
+      setUser: state.setUser,
+    }))
+  );
+
+export const useUser = () => useAuthStoreBase((state) => state.user);
+
+export const useIsAuthenticated = () => useAuthStoreBase((state) => state.isAuthenticated);
+
+export const useAuthHydrated = () => useAuthStoreBase((state) => state.isHydrated);

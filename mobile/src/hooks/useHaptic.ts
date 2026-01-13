@@ -1,5 +1,6 @@
 import { useCallback } from 'react';
 import * as Haptics from 'expo-haptics';
+import { usePreferencesStore } from '@/stores/preferencesStore';
 
 export type HapticFeedback =
   | 'light'
@@ -21,9 +22,13 @@ const feedbackMap: Record<HapticFeedback, () => Promise<void>> = {
 };
 
 export function useHaptic() {
+  const hapticsEnabled = usePreferencesStore((state) => state.preferences.hapticsEnabled);
+
   const trigger = useCallback((type: HapticFeedback = 'light') => {
-    feedbackMap[type]();
-  }, []);
+    if (hapticsEnabled) {
+      feedbackMap[type]();
+    }
+  }, [hapticsEnabled]);
 
   return {
     trigger,
@@ -35,4 +40,15 @@ export function useHaptic() {
     error: () => trigger('error'),
     selection: () => trigger('selection'),
   };
+}
+
+/**
+ * Standalone haptic trigger for use outside of React components.
+ * Checks the preference store directly.
+ */
+export function triggerHaptic(type: HapticFeedback = 'light'): void {
+  const hapticsEnabled = usePreferencesStore.getState().preferences.hapticsEnabled;
+  if (hapticsEnabled) {
+    feedbackMap[type]();
+  }
 }

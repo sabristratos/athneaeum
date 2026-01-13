@@ -77,10 +77,18 @@ export function useLogSession() {
           record.isDeleted = false;
         });
 
-        // Update userBook's current page
+        // Update userBook's current page and auto-transition status
         await userBook.update((record) => {
           record.currentPage = data.endPage;
           record.isPendingSync = true;
+          record.updatedAt = new Date();
+
+          if (record.status === 'want_to_read') {
+            record.status = 'reading';
+            if (!record.startedAt) {
+              record.startedAt = new Date();
+            }
+          }
         });
 
         sessionId = session.id;

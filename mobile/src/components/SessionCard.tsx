@@ -1,8 +1,9 @@
 import React, { useCallback } from 'react';
-import { View, TouchableOpacity } from 'react-native';
-import { Card } from '@/components/Card';
-import { Text } from '@/components/Text';
+import { View } from 'react-native';
+import { Card } from '@/components/organisms';
+import { Text, Pressable } from '@/components/atoms';
 import { useTheme } from '@/themes';
+import { formatShortDateWithYear } from '@/utils/dateUtils';
 import type { ReadingSession } from '@/types';
 
 interface SessionCardProps {
@@ -22,11 +23,7 @@ export const SessionCard = React.memo(function SessionCard({
   const { theme, themeName } = useTheme();
   const isScholar = themeName === 'scholar';
 
-  const formattedDate = new Date(session.date + 'T00:00:00').toLocaleDateString(undefined, {
-    month: 'short',
-    day: 'numeric',
-    year: 'numeric',
-  });
+  const formattedDate = formatShortDateWithYear(session.date);
 
   const content = compact ? (
     <View
@@ -109,11 +106,18 @@ export const SessionCard = React.memo(function SessionCard({
     </Card>
   );
 
+  const accessibilityLabel = `Reading session on ${formattedDate}. Pages ${session.start_page} to ${session.end_page}, ${session.pages_read} pages read${session.formatted_duration ? `. Duration: ${session.formatted_duration}` : ''}${session.notes ? `. Note: ${session.notes}` : ''}`;
+
   if (onPress) {
     return (
-      <TouchableOpacity onPress={handlePress} activeOpacity={0.7}>
+      <Pressable
+        onPress={handlePress}
+        accessibilityRole="button"
+        accessibilityLabel={accessibilityLabel}
+        accessibilityHint="Tap to edit session"
+      >
         {content}
-      </TouchableOpacity>
+      </Pressable>
     );
   }
 

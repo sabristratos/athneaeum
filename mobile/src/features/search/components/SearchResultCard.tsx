@@ -1,16 +1,30 @@
 import React, { useState } from 'react';
 import { View, Pressable } from 'react-native';
 import { Image } from 'expo-image';
-import { Text, Card, Badge, Button, Rating } from '@/components';
+import { FavouriteIcon, Cancel01Icon } from '@hugeicons/core-free-icons';
+import { Text, Card, Badge, Button, Rating, Icon } from '@/components';
+import { STATUS_VARIANT_MAP } from '@/components/constants';
 import { useTheme } from '@/themes';
 import { coverSizes, sharedSpacing } from '@/themes/shared';
-import type { SearchResult, BookStatus } from '@/types';
+import type { SearchResult, BookStatus, LibraryExternalIdEntry } from '@/types';
+
+const STATUS_LABELS: Record<BookStatus, string> = {
+  want_to_read: 'Want to Read',
+  reading: 'Reading',
+  read: 'Read',
+  dnf: 'DNF',
+};
+
+export type AuthorPreferenceStatus = 'favorite' | 'excluded' | 'none';
 
 interface SearchResultCardProps {
   item: SearchResult;
   onAddToLibrary: (book: SearchResult, status: BookStatus) => void;
+  onPress?: (item: SearchResult, userBookId?: number) => void;
   isAdding: boolean;
   isAdded: boolean;
+  libraryInfo?: LibraryExternalIdEntry;
+  authorPreference?: AuthorPreferenceStatus;
 }
 
 const MAX_DESCRIPTION_LENGTH = 120;
@@ -18,10 +32,17 @@ const MAX_DESCRIPTION_LENGTH = 120;
 export function SearchResultCard({
   item,
   onAddToLibrary,
+  onPress,
   isAdding,
   isAdded,
+  libraryInfo,
+  authorPreference = 'none',
 }: SearchResultCardProps) {
   const { theme } = useTheme();
+
+  const handlePress = () => {
+    onPress?.(item, libraryInfo?.user_book_id);
+  };
   const [showFullDescription, setShowFullDescription] = useState(false);
 
   const hasRating =
@@ -37,49 +58,114 @@ export function SearchResultCard({
     ? new Date(item.published_date).getFullYear()
     : null;
 
+  const seriesLabel = item.series_name && item.volume_number
+    ? `. Part of ${item.series_name}, book ${item.volume_number}`
+    : '';
+
+  const cardAccessibilityLabel = `${item.title} by ${item.author}${
+    hasRating ? `. Rating: ${item.average_rating?.toFixed(1)} out of 5` : ''
+  }${item.page_count ? `. ${item.page_count} pages` : ''}${
+    publishYear ? `. Published ${publishYear}` : ''
+  }${seriesLabel}${libraryInfo ? `. In your library: ${STATUS_LABELS[libraryInfo.status]}` : ''}`;
+
   return (
     <Card
       variant="elevated"
       padding="md"
-      style={{ marginBottom: theme.spacing.md }}
+      style={{ marginBottom: theme.spacing.md, marginHorizontal: 2 }}
+      accessible={true}
+      accessibilityLabel={cardAccessibilityLabel}
     >
       <View style={{ flexDirection: 'row', gap: theme.spacing.md }}>
-        {item.cover_url ? (
-          <Image
-            source={{ uri: item.cover_url }}
-            style={{
-              width: coverSizes.md.width + sharedSpacing.sm + sharedSpacing.xxs,
-              height: coverSizes.lg.height + sharedSpacing.xl - sharedSpacing.xxs,
-              borderRadius: theme.radii.sm,
-              backgroundColor: theme.colors.surfaceAlt,
-            }}
-            contentFit="cover"
-            transition={200}
-          />
-        ) : (
-          <View
-            style={{
-              width: coverSizes.md.width + sharedSpacing.sm + sharedSpacing.xxs,
-              height: coverSizes.lg.height + sharedSpacing.xl - sharedSpacing.xxs,
-              borderRadius: theme.radii.sm,
-              backgroundColor: theme.colors.surfaceAlt,
-              alignItems: 'center',
-              justifyContent: 'center',
-            }}
-          >
-            <Text variant="caption" muted>
-              No Cover
-            </Text>
-          </View>
-        )}
+        <Pressable
+          onPress={handlePress}
+          style={{ flexShrink: 0 }}
+          accessibilityRole="button"
+          accessibilityLabel={`View details for ${item.title}`}
+        >
+          {item.cover_url ? (
+            <Image
+              source={{ uri: item.cover_url }}
+              style={{
+                width: coverSizes.lg.width,
+                height: coverSizes.lg.height,
+                borderRadius: theme.radii.sm,
+                backgroundColor: theme.colors.surfaceAlt,
+              }}
+              contentFit="cover"
+              transition={200}
+              accessibilityLabel={`Cover of ${item.title}`}
+            />
+          ) : (
+            <View
+              style={{
+                width: coverSizes.lg.width,
+                height: coverSizes.lg.height,
+                borderRadius: theme.radii.sm,
+                backgroundColor: theme.colors.surfaceAlt,
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}
+              accessibilityLabel={`No cover available for ${item.title}`}
+            >
+              <Text variant="caption" muted>
+                No Cover
+              </Text>
+            </View>
+          )}
+        </Pressable>
 
         <View style={{ flex: 1, gap: theme.spacing.xs }}>
-          <Text variant="h3" numberOfLines={2}>
-            {item.title}
-          </Text>
-          <Text variant="body" muted numberOfLines={1}>
-            {item.author}
-          </Text>
+          <Pressable
+            onPress={handlePress}
+            accessibilityRole="button"
+            accessibilityLabel={`${item.title} by ${item.author}. Tap to view details`}
+          >
+            <Text variant="h3" numberOfLines={2}>
+              {item.title}
+            </Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: theme.spacing.xs, gap: sharedSpacing.xs }}>
+              <Text variant="body" muted numberOfLines={1} style={{ flex: 1 }}>
+                {item.author}
+              </Text>
+              {authorPreference === 'favorite' && (
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    backgroundColor: theme.colors.primarySubtle,
+                    paddingHorizontal: sharedSpacing.xs,
+                    paddingVertical: 2,
+                    borderRadius: theme.radii.sm,
+                    gap: 2,
+                  }}
+                >
+                  <Icon icon={FavouriteIcon} size={12} color={theme.colors.primary} />
+                  <Text variant="caption" style={{ color: theme.colors.primary, fontSize: 10 }}>
+                    Favorite Author
+                  </Text>
+                </View>
+              )}
+              {authorPreference === 'excluded' && (
+                <View
+                  style={{
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    backgroundColor: theme.colors.dangerSubtle,
+                    paddingHorizontal: sharedSpacing.xs,
+                    paddingVertical: 2,
+                    borderRadius: theme.radii.sm,
+                    gap: 2,
+                  }}
+                >
+                  <Icon icon={Cancel01Icon} size={12} color={theme.colors.danger} />
+                  <Text variant="caption" style={{ color: theme.colors.danger, fontSize: 10 }}>
+                    Excluded
+                  </Text>
+                </View>
+              )}
+            </View>
+          </Pressable>
 
           <View
             style={{
@@ -111,6 +197,18 @@ export function SearchResultCard({
                 {publishYear}
               </Text>
             )}
+
+            {item.edition_count != null && item.edition_count > 1 && (
+              <Badge variant="muted" size="sm">
+                {item.edition_count} editions
+              </Badge>
+            )}
+
+            {item.series_name && item.volume_number && (
+              <Badge variant="accent" size="sm">
+                {item.series_name} #{item.volume_number}
+              </Badge>
+            )}
           </View>
 
           {Array.isArray(item.genres) && item.genres.length > 0 && (
@@ -137,6 +235,8 @@ export function SearchResultCard({
             <Pressable
               onPress={() => setShowFullDescription(!showFullDescription)}
               style={{ marginTop: theme.spacing.xs }}
+              accessibilityRole="button"
+              accessibilityLabel={`Book description. ${showFullDescription ? 'Tap to show less' : 'Tap to read more'}`}
             >
               <Text
                 variant="caption"
@@ -145,7 +245,7 @@ export function SearchResultCard({
               >
                 {showFullDescription ? item.description : truncatedDescription}
               </Text>
-              {item.description!.length > MAX_DESCRIPTION_LENGTH && (
+              {(item.description?.length ?? 0) > MAX_DESCRIPTION_LENGTH && (
                 <Text
                   variant="caption"
                   color="primary"
@@ -165,7 +265,11 @@ export function SearchResultCard({
               paddingTop: theme.spacing.sm,
             }}
           >
-            {isAdded ? (
+            {libraryInfo ? (
+              <Badge variant={STATUS_VARIANT_MAP[libraryInfo.status]}>
+                {STATUS_LABELS[libraryInfo.status]}
+              </Badge>
+            ) : isAdded ? (
               <Badge variant="success">Added</Badge>
             ) : (
               <>

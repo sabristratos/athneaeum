@@ -155,6 +155,64 @@ export function getAccentColor(hex: string): string {
 }
 
 /**
+ * Get the saturation of a color (0-1)
+ */
+export function getSaturation(hex: string): number {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return 0;
+
+  const [r, g, b] = rgb.map((c) => c / 255);
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+
+  if (max === min) return 0;
+
+  const l = (max + min) / 2;
+  return l > 0.5 ? (max - min) / (2 - max - min) : (max - min) / (max + min);
+}
+
+/**
+ * Check if a color is "distinct" - not too close to black, white, or gray.
+ * Returns true if the color is suitable for use as a background accent.
+ */
+export function isDistinctColor(hex: string): boolean {
+  const luminance = getLuminance(hex);
+  const saturation = getSaturation(hex);
+
+  // Reject colors that are too light (close to white)
+  if (luminance > 0.92) return false;
+
+  // Reject colors that are too dark (close to black)
+  if (luminance < 0.03) return false;
+
+  // Reject colors with very low saturation (grays)
+  if (saturation < 0.1) return false;
+
+  return true;
+}
+
+/**
+ * Create a subtle gradient color from a cover color.
+ * Returns an array of colors suitable for a gradient overlay.
+ */
+export function createSubtleGradient(
+  coverColor: string,
+  canvasColor: string,
+  opacity: number = 0.15
+): string[] {
+  const rgb = hexToRgb(coverColor);
+  if (!rgb) return [canvasColor, canvasColor];
+
+  const [r, g, b] = rgb;
+
+  // Create a semi-transparent version of the cover color
+  const colorWithOpacity = `rgba(${r}, ${g}, ${b}, ${opacity})`;
+
+  // Return gradient from colored to transparent
+  return [colorWithOpacity, 'transparent'];
+}
+
+/**
  * Parse various color formats to hex
  */
 export function parseToHex(color: string): string {

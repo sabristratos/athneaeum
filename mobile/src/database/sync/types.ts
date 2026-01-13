@@ -8,6 +8,7 @@ export interface SyncResult {
 export interface SyncCounts {
   books: number;
   user_books: number;
+  read_throughs: number;
   reading_sessions: number;
 }
 
@@ -16,6 +17,7 @@ export interface IdMapping {
   server_id: number;
   server_book_id?: number;
   server_user_book_id?: number;
+  server_read_through_id?: number;
 }
 
 export interface PushPayload {
@@ -29,6 +31,11 @@ export interface PushPayload {
     updated: UserBookPayload[];
     deleted: number[];
   };
+  read_throughs: {
+    created: ReadThroughPayload[];
+    updated: ReadThroughPayload[];
+    deleted: number[];
+  };
   reading_sessions: {
     created: SessionPayload[];
     updated: SessionPayload[];
@@ -36,14 +43,27 @@ export interface PushPayload {
   };
 }
 
+export interface SkippedRecord {
+  local_id: string | null;
+  reason: 'book_not_found' | 'user_book_not_found' | 'read_through_not_found';
+}
+
+export interface SkippedRecords {
+  user_books: SkippedRecord[];
+  read_throughs: SkippedRecord[];
+  reading_sessions: SkippedRecord[];
+}
+
 export interface PushResponse {
   status: string;
   id_mappings: {
     books: IdMapping[];
     user_books: IdMapping[];
+    read_throughs: IdMapping[];
     reading_sessions: IdMapping[];
   };
   counts: SyncCounts;
+  skipped: SkippedRecords;
   timestamp: number;
 }
 
@@ -55,9 +75,19 @@ export interface PullResponse {
       updated: ServerUserBook[];
       deleted: number[];
     };
+    read_throughs: {
+      created: ServerReadThrough[];
+      updated: ServerReadThrough[];
+      deleted: number[];
+    };
     reading_sessions: {
       created: ServerSession[];
       updated: ServerSession[];
+      deleted: number[];
+    };
+    series: {
+      created: ServerSeries[];
+      updated: ServerSeries[];
       deleted: number[];
     };
   };
@@ -73,6 +103,9 @@ export interface BookPayload {
   author: string;
   cover_url: string | null;
   page_count: number | null;
+  height_cm: number | null;
+  width_cm: number | null;
+  thickness_cm: number | null;
   isbn: string | null;
   description: string | null;
   genres: string[];
@@ -88,6 +121,11 @@ export interface UserBookPayload {
   status: string;
   rating: number | null;
   current_page: number;
+  format: string | null;
+  price: number | null;
+  is_pinned: boolean;
+  queue_position: number | null;
+  review: string | null;
   is_dnf: boolean;
   dnf_reason: string | null;
   started_at: string | null;
@@ -95,11 +133,28 @@ export interface UserBookPayload {
   custom_cover_url: string | null;
 }
 
+export interface ReadThroughPayload {
+  local_id: string;
+  server_id?: number;
+  user_book_local_id: string;
+  server_user_book_id?: number;
+  read_number: number;
+  status: string;
+  rating: number | null;
+  review: string | null;
+  is_dnf: boolean;
+  dnf_reason: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+}
+
 export interface SessionPayload {
   local_id: string;
   server_id?: number;
   user_book_local_id: string;
   server_user_book_id?: number;
+  read_through_local_id?: string;
+  server_read_through_id?: number;
   date: string;
   pages_read: number;
   start_page: number;
@@ -112,10 +167,16 @@ export interface ServerBook {
   id: number;
   external_id: string | null;
   external_provider: string | null;
+  series_id: number | null;
+  volume_number: number | null;
+  volume_title: string | null;
   title: string;
   author: string;
   cover_url: string | null;
   page_count: number | null;
+  height_cm: number | null;
+  width_cm: number | null;
+  thickness_cm: number | null;
   isbn: string | null;
   description: string | null;
   genres: string[];
@@ -130,6 +191,11 @@ export interface ServerUserBook {
   status: string;
   rating: number | null;
   current_page: number;
+  format: string | null;
+  price: number | null;
+  is_pinned: boolean;
+  queue_position: number | null;
+  review: string | null;
   is_dnf: boolean;
   dnf_reason: string | null;
   started_at: string | null;
@@ -139,15 +205,44 @@ export interface ServerUserBook {
   updated_at: string;
 }
 
+export interface ServerReadThrough {
+  id: number;
+  user_book_id: number;
+  read_number: number;
+  status: string;
+  rating: number | null;
+  review: string | null;
+  is_dnf: boolean;
+  dnf_reason: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ServerSession {
   id: number;
   user_book_id: number;
+  read_through_id: number | null;
   date: string;
   pages_read: number;
   start_page: number;
   end_page: number;
   duration_seconds: number | null;
   notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ServerSeries {
+  id: number;
+  title: string;
+  author: string;
+  external_id: string | null;
+  external_provider: string | null;
+  total_volumes: number | null;
+  is_complete: boolean;
+  description: string | null;
   created_at: string;
   updated_at: string;
 }

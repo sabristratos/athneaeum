@@ -1,7 +1,6 @@
 import React from 'react';
 import { View } from 'react-native';
-import { Pressable } from '@/components/Pressable';
-import { Text } from '@/components/Text';
+import { Pressable, Text } from '@/components/atoms';
 import { useTheme } from '@/themes';
 import { sharedSpacing } from '@/themes/shared';
 import type { ThemeName } from '@/types/theme';
@@ -37,6 +36,8 @@ export function ThemeToggle({ showLabels = true }: ThemeToggleProps) {
           borderRadius: theme.radii.full,
           padding: sharedSpacing.xs,
         }}
+        accessibilityRole="radiogroup"
+        accessibilityLabel="Theme selection"
       >
         {themeOptions.map((option) => {
           const isActive = themeName === option.name;
@@ -52,6 +53,9 @@ export function ThemeToggle({ showLabels = true }: ThemeToggleProps) {
                 borderRadius: theme.radii.full,
                 backgroundColor: isActive ? theme.colors.primary : 'transparent',
               }}
+              accessibilityRole="radio"
+              accessibilityLabel={`${option.label} theme`}
+              accessibilityState={{ checked: isActive }}
             >
               <Text
                 variant="caption"

@@ -3,13 +3,20 @@
 declare(strict_types=1);
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\AuthorController;
 use App\Http\Controllers\Api\BookController;
+use App\Http\Controllers\Api\ImportController;
 use App\Http\Controllers\Api\LibraryController;
 use App\Http\Controllers\Api\PasswordResetController;
+use App\Http\Controllers\Api\ReadingGoalController;
+use App\Http\Controllers\Api\SeriesController;
 use App\Http\Controllers\Api\SessionController;
 use App\Http\Controllers\Api\StatsController;
 use App\Http\Controllers\Api\SyncController;
+use App\Http\Controllers\Api\TagController;
+use App\Http\Controllers\Api\UserBookTagController;
 use App\Http\Controllers\Api\UserController;
+use App\Http\Controllers\Api\UserPreferenceController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('auth')->group(function () {
@@ -22,20 +29,93 @@ Route::prefix('auth')->group(function () {
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', [UserController::class, 'show']);
+    Route::patch('/user', [UserController::class, 'update']);
+    Route::patch('/user/password', [UserController::class, 'changePassword']);
     Route::patch('/user/theme', [UserController::class, 'updateTheme']);
+    Route::post('/user/avatar', [UserController::class, 'uploadAvatar']);
+    Route::delete('/user/avatar', [UserController::class, 'removeAvatar']);
+    Route::patch('/user/preferences', [UserController::class, 'updatePreferences']);
+    Route::get('/user/export', [UserController::class, 'exportData']);
+    Route::post('/user/import', [ImportController::class, 'import']);
+    Route::get('/user/import/sources', [ImportController::class, 'sources']);
+    Route::delete('/user', [UserController::class, 'destroy']);
+
+    Route::get('/user/opds', [UserController::class, 'getOpdsSettings']);
+    Route::patch('/user/opds', [UserController::class, 'updateOpdsSettings']);
+    Route::post('/user/opds/test', [UserController::class, 'testOpdsConnection']);
+    Route::delete('/user/opds', [UserController::class, 'clearOpdsSettings']);
 
     Route::get('/books/search', [BookController::class, 'search']);
+    Route::get('/books/editions', [BookController::class, 'editions']);
+    Route::get('/books/classification-options', [BookController::class, 'classificationOptions']);
     Route::get('/books/{book}', [BookController::class, 'show']);
+    Route::post('/books/{book}/classify', [BookController::class, 'classify']);
 
     Route::get('/library', [LibraryController::class, 'index']);
+    Route::get('/library/external-ids', [LibraryController::class, 'externalIds']);
+    Route::patch('/library/reorder', [LibraryController::class, 'reorder']);
     Route::post('/library', [LibraryController::class, 'store']);
+    Route::get('/library/{userBook}', [LibraryController::class, 'show']);
     Route::patch('/library/{userBook}', [LibraryController::class, 'update']);
+    Route::patch('/library/{userBook}/pin', [LibraryController::class, 'pin']);
+    Route::delete('/library/{userBook}/pin', [LibraryController::class, 'unpin']);
+    Route::post('/library/{userBook}/reread', [LibraryController::class, 'startReread']);
+    Route::get('/library/{userBook}/history', [LibraryController::class, 'readingHistory']);
     Route::delete('/library/{userBook}', [LibraryController::class, 'destroy']);
+
+    Route::patch('/read-throughs/{readThrough}', [LibraryController::class, 'updateReadThrough']);
+
+    Route::post('/library/{userBook}/tags', [UserBookTagController::class, 'sync']);
+    Route::post('/library/{userBook}/tags/{tag}', [UserBookTagController::class, 'attach']);
+    Route::delete('/library/{userBook}/tags/{tag}', [UserBookTagController::class, 'detach']);
+
+    Route::get('/tags', [TagController::class, 'index']);
+    Route::post('/tags', [TagController::class, 'store']);
+    Route::patch('/tags/{tag}', [TagController::class, 'update']);
+    Route::delete('/tags/{tag}', [TagController::class, 'destroy']);
+    Route::get('/tags/colors', [TagController::class, 'colors']);
+
+    Route::get('/preferences', [UserPreferenceController::class, 'index']);
+    Route::get('/preferences/list', [UserPreferenceController::class, 'list']);
+    Route::get('/preferences/options', [UserPreferenceController::class, 'options']);
+    Route::get('/preferences/genres', [UserPreferenceController::class, 'genres']);
+    Route::post('/preferences', [UserPreferenceController::class, 'store']);
+    Route::post('/preferences/batch', [UserPreferenceController::class, 'batchStore']);
+    Route::delete('/preferences/batch', [UserPreferenceController::class, 'batchDestroy']);
+    Route::delete('/preferences/{preference}', [UserPreferenceController::class, 'destroy']);
+
+    Route::get('/authors/library', [AuthorController::class, 'library']);
+    Route::get('/authors/search', [AuthorController::class, 'search']);
+    Route::get('/authors/{key}', [AuthorController::class, 'show']);
+    Route::get('/authors/{key}/works', [AuthorController::class, 'works']);
+
+    Route::get('/series', [SeriesController::class, 'index']);
+    Route::post('/series', [SeriesController::class, 'store']);
+    Route::get('/series/{series}', [SeriesController::class, 'show']);
+    Route::patch('/series/{series}', [SeriesController::class, 'update']);
+    Route::delete('/series/{series}', [SeriesController::class, 'destroy']);
+    Route::post('/series/{series}/books', [SeriesController::class, 'assignBook']);
+    Route::delete('/series/{series}/books', [SeriesController::class, 'removeBook']);
 
     Route::get('/sessions', [SessionController::class, 'index']);
     Route::post('/sessions', [SessionController::class, 'store']);
 
     Route::get('/stats', [StatsController::class, 'index']);
+    Route::get('/stats/heatmap', [StatsController::class, 'heatmap']);
+    Route::get('/stats/format-velocity', [StatsController::class, 'formatVelocity']);
+    Route::get('/stats/mood-ring', [StatsController::class, 'moodRing']);
+    Route::get('/stats/dnf-analytics', [StatsController::class, 'dnfAnalytics']);
+    Route::get('/stats/page-economy', [StatsController::class, 'pageEconomy']);
+    Route::get('/stats/calendar', [StatsController::class, 'calendar']);
+
+    Route::get('/goals', [ReadingGoalController::class, 'index']);
+    Route::post('/goals', [ReadingGoalController::class, 'store']);
+    Route::post('/goals/recalculate', [ReadingGoalController::class, 'recalculate']);
+    Route::get('/goals/types', [ReadingGoalController::class, 'types']);
+    Route::get('/goals/periods', [ReadingGoalController::class, 'periods']);
+    Route::get('/goals/{goal}', [ReadingGoalController::class, 'show']);
+    Route::patch('/goals/{goal}', [ReadingGoalController::class, 'update']);
+    Route::delete('/goals/{goal}', [ReadingGoalController::class, 'destroy']);
 
     Route::prefix('sync')->group(function () {
         Route::get('/pull', [SyncController::class, 'pull']);

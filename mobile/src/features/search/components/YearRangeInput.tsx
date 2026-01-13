@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { View, TextInput } from 'react-native';
+import { triggerHaptic } from '@/hooks/useHaptic';
 import { Text } from '@/components';
 import { useTheme } from '@/themes';
 
@@ -10,6 +11,7 @@ interface YearRangeInputProps {
 }
 
 const CURRENT_YEAR = new Date().getFullYear();
+const MIN_YEAR = 1800;
 
 export function YearRangeInput({
   yearFrom,
@@ -21,61 +23,148 @@ export function YearRangeInput({
 
   const [fromText, setFromText] = useState(yearFrom?.toString() ?? '');
   const [toText, setToText] = useState(yearTo?.toString() ?? '');
+  const [fromError, setFromError] = useState<string | null>(null);
+  const [toError, setToError] = useState<string | null>(null);
+  const [wasSwapped, setWasSwapped] = useState(false);
 
   useEffect(() => {
     setFromText(yearFrom?.toString() ?? '');
+    setFromError(null);
   }, [yearFrom]);
 
   useEffect(() => {
     setToText(yearTo?.toString() ?? '');
+    setToError(null);
   }, [yearTo]);
 
-  const parseYear = (text: string): number | undefined => {
-    const num = parseInt(text, 10);
-    if (isNaN(num) || num < 1800 || num > CURRENT_YEAR) {
-      return undefined;
+  useEffect(() => {
+    if (wasSwapped) {
+      const timer = setTimeout(() => setWasSwapped(false), 2000);
+      return () => clearTimeout(timer);
     }
-    return num;
+  }, [wasSwapped]);
+
+  const validateYear = (text: string): { value: number | undefined; error: string | null } => {
+    if (text === '') {
+      return { value: undefined, error: null };
+    }
+
+    const num = parseInt(text, 10);
+
+    if (isNaN(num)) {
+      return { value: undefined, error: 'Invalid year' };
+    }
+
+    if (num < MIN_YEAR) {
+      return { value: undefined, error: `Min year is ${MIN_YEAR}` };
+    }
+
+    if (num > CURRENT_YEAR) {
+      return { value: undefined, error: `Max year is ${CURRENT_YEAR}` };
+    }
+
+    return { value: num, error: null };
+  };
+
+  const normalizeYearRange = (
+    from: number | undefined,
+    to: number | undefined
+  ): [number | undefined, number | undefined, boolean] => {
+    if (from !== undefined && to !== undefined && from > to) {
+      return [to, from, true];
+    }
+    return [from, to, false];
   };
 
   const handleFromChange = (text: string) => {
     const cleaned = text.replace(/[^0-9]/g, '').slice(0, 4);
     setFromText(cleaned);
+    if (fromError) setFromError(null);
+    if (wasSwapped) setWasSwapped(false);
   };
 
   const handleToChange = (text: string) => {
     const cleaned = text.replace(/[^0-9]/g, '').slice(0, 4);
     setToText(cleaned);
+    if (toError) setToError(null);
+    if (wasSwapped) setWasSwapped(false);
   };
 
   const handleFromBlur = () => {
-    const parsedFrom = parseYear(fromText);
-    const parsedTo = parseYear(toText);
-    onChange(parsedFrom, parsedTo);
+    const fromValidation = validateYear(fromText);
+    const toValidation = validateYear(toText);
+
+    if (fromValidation.error) {
+      setFromError(fromValidation.error);
+      setFromText('');
+      triggerHaptic('warning');
+      onChange(undefined, toValidation.value);
+      return;
+    }
+
+    setFromError(null);
+
+    const [normalizedFrom, normalizedTo, swapped] = normalizeYearRange(
+      fromValidation.value,
+      toValidation.value
+    );
+
+    if (swapped) {
+      setFromText(normalizedFrom?.toString() ?? '');
+      setToText(normalizedTo?.toString() ?? '');
+      setWasSwapped(true);
+      triggerHaptic('light');
+    }
+
+    onChange(normalizedFrom, normalizedTo);
   };
 
   const handleToBlur = () => {
-    const parsedFrom = parseYear(fromText);
-    const parsedTo = parseYear(toText);
-    onChange(parsedFrom, parsedTo);
+    const fromValidation = validateYear(fromText);
+    const toValidation = validateYear(toText);
+
+    if (toValidation.error) {
+      setToError(toValidation.error);
+      setToText('');
+      triggerHaptic('warning');
+      onChange(fromValidation.value, undefined);
+      return;
+    }
+
+    setToError(null);
+
+    const [normalizedFrom, normalizedTo, swapped] = normalizeYearRange(
+      fromValidation.value,
+      toValidation.value
+    );
+
+    if (swapped) {
+      setFromText(normalizedFrom?.toString() ?? '');
+      setToText(normalizedTo?.toString() ?? '');
+      setWasSwapped(true);
+      triggerHaptic('light');
+    }
+
+    onChange(normalizedFrom, normalizedTo);
   };
 
-  const inputStyle = {
+  const getInputStyle = (hasError: boolean) => ({
     flex: 1,
     backgroundColor: theme.colors.surface,
     borderRadius: isScholar ? theme.radii.sm : theme.radii.md,
-    borderWidth: theme.borders.thin,
-    borderColor: theme.colors.border,
+    borderWidth: hasError ? 2 : theme.borders.thin,
+    borderColor: hasError ? theme.colors.danger : theme.colors.border,
     paddingHorizontal: theme.spacing.sm,
-    paddingVertical: theme.spacing.xs,
+    paddingVertical: theme.spacing.sm,
     fontSize: 14,
     fontFamily: theme.fonts.body,
     color: theme.colors.foreground,
     textAlign: 'center' as const,
-  };
+    minHeight: 44,
+  });
 
   return (
-    <View>
+    <View accessible accessibilityLabel="Publication year range filter">
       <Text variant="label" muted style={{ marginBottom: theme.spacing.xs }}>
         Publication Year
       </Text>
@@ -90,12 +179,14 @@ export function YearRangeInput({
           value={fromText}
           onChangeText={handleFromChange}
           onBlur={handleFromBlur}
-          placeholder="From"
+          placeholder={String(MIN_YEAR)}
           placeholderTextColor={theme.colors.foregroundMuted}
-          style={inputStyle}
+          style={getInputStyle(!!fromError)}
           keyboardType="number-pad"
           maxLength={4}
           returnKeyType="done"
+          accessibilityLabel="From year"
+          accessibilityHint={`Enter starting year, minimum ${MIN_YEAR}`}
         />
         <Text variant="caption" muted>
           to
@@ -104,14 +195,25 @@ export function YearRangeInput({
           value={toText}
           onChangeText={handleToChange}
           onBlur={handleToBlur}
-          placeholder="To"
+          placeholder={String(CURRENT_YEAR)}
           placeholderTextColor={theme.colors.foregroundMuted}
-          style={inputStyle}
+          style={getInputStyle(!!toError)}
           keyboardType="number-pad"
           maxLength={4}
           returnKeyType="done"
+          accessibilityLabel="To year"
+          accessibilityHint={`Enter ending year, maximum ${CURRENT_YEAR}`}
         />
       </View>
+      {(fromError || toError || wasSwapped) && (
+        <Text
+          variant="caption"
+          color={wasSwapped ? 'muted' : 'danger'}
+          style={{ marginTop: theme.spacing.xs }}
+        >
+          {fromError || toError || 'Years swapped to correct order'}
+        </Text>
+      )}
     </View>
   );
 }

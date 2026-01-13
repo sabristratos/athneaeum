@@ -1,7 +1,23 @@
 import { create } from 'zustand';
 import { createJSONStorage, persist } from 'zustand/middleware';
+import { useShallow } from 'zustand/react/shallow';
 import { mmkvStorage } from '@/lib/storage';
+import { useToastStore } from '@/stores/toastStore';
 import type { ThemeName } from '@/types/theme';
+
+export const EDITION_LABELS: Record<ThemeName, string> = {
+  scholar: 'Scholar Edition',
+  dreamer: 'Dreamer Edition',
+  wanderer: 'Wanderer Edition',
+  midnight: 'Midnight Edition',
+};
+
+export const EDITION_DESCRIPTIONS: Record<ThemeName, string> = {
+  scholar: 'Dark Academia',
+  dreamer: 'Cozy Cottagecore',
+  wanderer: 'Desert Explorer',
+  midnight: 'Celestial Library',
+};
 
 interface ThemeStore {
   themeName: ThemeName;
@@ -11,16 +27,26 @@ interface ThemeStore {
   setHydrated: (hydrated: boolean) => void;
 }
 
-export const useThemeStore = create<ThemeStore>()(
+const useThemeStoreBase = create<ThemeStore>()(
   persist(
     (set, get) => ({
       themeName: 'scholar',
       isHydrated: false,
-      setTheme: (name: ThemeName) => set({ themeName: name }),
-      toggleTheme: () =>
-        set((state) => ({
-          themeName: state.themeName === 'scholar' ? 'dreamer' : 'scholar',
-        })),
+      setTheme: (name: ThemeName) => {
+        set({ themeName: name });
+        useToastStore.getState().addToast({
+          message: `Switched to ${EDITION_LABELS[name]}`,
+          variant: 'info',
+        });
+      },
+      toggleTheme: () => {
+        const newTheme = get().themeName === 'scholar' ? 'dreamer' : 'scholar';
+        set({ themeName: newTheme });
+        useToastStore.getState().addToast({
+          message: `Switched to ${EDITION_LABELS[newTheme]}`,
+          variant: 'info',
+        });
+      },
       setHydrated: (hydrated: boolean) => set({ isHydrated: hydrated }),
     }),
     {
@@ -33,3 +59,17 @@ export const useThemeStore = create<ThemeStore>()(
     }
   )
 );
+
+export const useThemeStore = useThemeStoreBase;
+
+export const useThemeActions = () =>
+  useThemeStoreBase(
+    useShallow((state) => ({
+      setTheme: state.setTheme,
+      toggleTheme: state.toggleTheme,
+    }))
+  );
+
+export const useThemeName = () => useThemeStoreBase((state) => state.themeName);
+
+export const useThemeHydrated = () => useThemeStoreBase((state) => state.isHydrated);

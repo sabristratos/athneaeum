@@ -12,6 +12,7 @@ import type { Associations } from '@nozbe/watermelondb/Model';
 import type { BookStatus } from '@/types/book';
 import type { Book } from '@/database/models/Book';
 import type { ReadingSession } from '@/database/models/ReadingSession';
+import type { ReadThrough } from '@/database/models/ReadThrough';
 
 export class UserBook extends Model {
   static table = 'user_books';
@@ -19,6 +20,7 @@ export class UserBook extends Model {
   static associations: Associations = {
     books: { type: 'belongs_to', key: 'book_id' },
     reading_sessions: { type: 'has_many', foreignKey: 'user_book_id' },
+    read_throughs: { type: 'has_many', foreignKey: 'user_book_id' },
   };
 
   @field('server_id') serverId!: number | null;
@@ -27,6 +29,11 @@ export class UserBook extends Model {
   @text('status') status!: BookStatus;
   @field('rating') rating!: number | null;
   @field('current_page') currentPage!: number;
+  @text('format') format!: string | null;
+  @field('price') price!: number | null;
+  @field('is_pinned') isPinned!: boolean;
+  @field('queue_position') queuePosition!: number | null;
+  @text('review') review!: string | null;
   @field('is_dnf') isDnf!: boolean;
   @text('dnf_reason') dnfReason!: string | null;
   @date('started_at') startedAt!: Date | null;
@@ -40,6 +47,7 @@ export class UserBook extends Model {
 
   @relation('books', 'book_id') book!: Book;
   @children('reading_sessions') readingSessions!: Query<ReadingSession>;
+  @children('read_throughs') readThroughs!: Query<ReadThrough>;
 
   @writer async updateStatus(newStatus: BookStatus) {
     await this.update((record) => {

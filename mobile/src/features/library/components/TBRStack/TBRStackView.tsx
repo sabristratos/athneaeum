@@ -1,9 +1,7 @@
 import React, { useCallback, useMemo } from 'react';
 import { View, StyleSheet } from 'react-native';
 import Animated, { FadeIn } from 'react-native-reanimated';
-import { Text } from '@/components/Text';
-import { Icon } from '@/components/Icon';
-import { Button } from '@/components/Button';
+import { Text, Icon, Button } from '@/components/atoms';
 import { useTheme } from '@/themes';
 import { StackedBook } from './StackedBook';
 import { coverSizes } from '@/themes/shared';

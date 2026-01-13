@@ -6,10 +6,9 @@ import Animated, {
   withSpring,
 } from 'react-native-reanimated';
 import { ArrowDown01Icon } from '@hugeicons/core-free-icons';
-import { Text } from '@/components/Text';
-import { Icon } from '@/components/Icon';
-import { Pressable } from '@/components/Pressable';
+import { Text, Icon, Pressable } from '@/components/atoms';
 import { useTheme } from '@/themes';
+import { SPRINGS } from '@/animations/constants';
 
 interface SectionHeaderProps {
   title: string;
@@ -28,10 +27,7 @@ function AnimatedChevron({ expanded }: { expanded: boolean }) {
   const rotation = useSharedValue(expanded ? 180 : 0);
 
   useEffect(() => {
-    rotation.value = withSpring(expanded ? 180 : 0, {
-      damping: 15,
-      stiffness: 300,
-    });
+    rotation.value = withSpring(expanded ? 180 : 0, SPRINGS.responsive);
   }, [expanded, rotation]);
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -91,7 +87,15 @@ export function SectionHeader({
 
   if (collapsible && onToggle) {
     return (
-      <Pressable onPress={onToggle} activeOpacity={0.9} haptic="light">
+      <Pressable
+        onPress={onToggle}
+        activeOpacity={0.9}
+        haptic="light"
+        accessibilityRole="button"
+        accessibilityLabel={`${title}${count !== undefined ? `, ${count} items` : ''}`}
+        accessibilityState={{ expanded }}
+        accessibilityHint={expanded ? 'Tap to collapse section' : 'Tap to expand section'}
+      >
         {headerContent}
       </Pressable>
     );

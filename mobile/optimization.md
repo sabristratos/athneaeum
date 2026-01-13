@@ -6,164 +6,165 @@ Reference this document when building screens and components. Check off items as
 
 ## Architecture & Structure
 
-- [ ] **Feature-based organization** - Group related components, hooks, services, and types by feature
-- [ ] **Separate container/presentational components** - Keep business logic out of UI components
-- [ ] **Extract logic to custom hooks** - Move complex state and effects into reusable hooks
-- [ ] **Use PascalCase for components** - `UserProfile.tsx`, `BookCard.tsx`
-- [ ] **Use lowercase/hyphenated directories** - `user-profile/`, `book-card/`
+- [x] **Feature-based organization** - Group related components, hooks, services, and types by feature
+- [x] **Separate container/presentational components** - Keep business logic out of UI components
+- [x] **Extract logic to custom hooks** - Move complex state and effects into reusable hooks
+- [x] **Use PascalCase for components** - `UserProfile.tsx`, `BookCard.tsx`
+- [x] **Use lowercase/hyphenated directories** - `user-profile/`, `book-card/`
 
 ---
 
 ## State Management
 
 ### Zustand (Client State)
-- [ ] **Use Zustand for UI state only** - Theme, preferences, form data, navigation state
-- [ ] **Create logical slices** - Separate stores by domain (`themeStore`, `uiStore`)
-- [ ] **Persist important state** - Use AsyncStorage middleware for user preferences
-- [ ] **Use shallow selectors** - Prevent unnecessary re-renders with `useShallow`
+- [x] **Use Zustand for UI state only** - Theme, preferences, form data, navigation state
+- [x] **Create logical slices** - Separate stores by domain (`themeStore`, `uiStore`)
+- [x] **Persist important state** - Use AsyncStorage middleware for user preferences
+- [x] **Use shallow selectors** - Prevent unnecessary re-renders with `useShallow`
 
 ### TanStack Query (Server State)
-- [ ] **Use TanStack Query for all API data** - Books, user data, search results
-- [ ] **Configure stale times appropriately** - Avoid over-fetching
-- [ ] **Handle AppState changes** - Refetch on app focus when appropriate
-- [ ] **Use optimistic updates** - For mutations that should feel instant
-- [ ] **Implement proper error boundaries** - Handle query failures gracefully
+- [x] **Use TanStack Query for all API data** - Books, user data, search results
+- [x] **Configure stale times appropriately** - Avoid over-fetching
+- [x] **Handle AppState changes** - Refetch on app focus when appropriate
+- [x] **Use optimistic updates** - For mutations that should feel instant
+- [x] **Implement proper error boundaries** - Handle query failures gracefully
 
 ---
 
 ## Component Performance
 
-- [ ] **Memoize expensive components** - Use `React.memo()` for list items and complex components
-- [ ] **Memoize callbacks** - Use `useCallback` for functions passed as props
-- [ ] **Memoize computed values** - Use `useMemo` for expensive calculations
-- [ ] **Avoid inline object/array creation** - Define outside render or memoize
-- [ ] **Avoid inline functions in JSX** - Extract and memoize event handlers
-- [ ] **Keep render functions pure** - No side effects in render
+- [x] **Memoize expensive components** - Use `React.memo()` for list items and complex components
+- [x] **Memoize callbacks** - Use `useCallback` for functions passed as props
+- [x] **Memoize computed values** - Use `useMemo` for expensive calculations
+- [x] **Avoid inline object/array creation** - Define outside render or memoize
+- [x] **Avoid inline functions in JSX** - Extract and memoize event handlers
+- [x] **Keep render functions pure** - No side effects in render
 
 ---
 
 ## FlatList Optimization
 
-- [ ] **Provide `keyExtractor`** - Use unique, stable keys for caching
-- [ ] **Implement `getItemLayout`** - If items have uniform height
-- [ ] **Memoize `renderItem` function** - Wrap in `useCallback`
-- [ ] **Memoize list item components** - Wrap in `React.memo()`
-- [ ] **Tune `windowSize`** - Reduce from default 21 if memory is a concern
-- [ ] **Tune `maxToRenderPerBatch`** - Reduce for large items
-- [ ] **Enable `removeClippedSubviews`** - Detach off-screen views
-- [ ] **Keep list items simple** - Minimize nested Views
-- [ ] **Use optimized images** - `expo-image` or `react-native-fast-image`
-- [ ] **Consider FlashList** - For very long lists with recycling
+- [x] **Provide `keyExtractor`** - Use unique, stable keys for caching
+- [x] **Implement `getItemLayout`** - If items have uniform height (MarginaliaSection)
+- [x] **Memoize `renderItem` function** - Wrap in `useCallback`
+- [x] **Memoize list item components** - Wrap in `React.memo()`
+- [x] **Tune `windowSize`** - Reduce from default 21 if memory is a concern
+- [x] **Tune `maxToRenderPerBatch`** - Reduce for large items
+- [x] **Enable `removeClippedSubviews`** - Detach off-screen views
+- [x] **Keep list items simple** - Minimize nested Views
+- [x] **Use optimized images** - `expo-image` or `react-native-fast-image`
+- [x] **Consider FlashList** - For very long lists with recycling
+- [x] **FlashList v2 auto-sizing** - FlashList v2+ automatically calculates item sizes (no estimatedItemSize needed)
 
 ---
 
 ## Animation Best Practices
 
 ### General Principles
-- [ ] **Use Reanimated for all animations** - Not the Animated API
-- [ ] **Animate non-layout properties** - Prefer `transform`, `opacity` over `width`, `height`
-- [ ] **Keep worklets on UI thread** - Don't read shared values on JS thread
-- [ ] **Limit simultaneous animations** - Too many causes dropped frames
-- [ ] **Test on mid-range Android** - Not just high-end devices
+- [x] **Use Reanimated for all animations** - Not the Animated API
+- [x] **Animate non-layout properties** - Prefer `transform`, `opacity` over `width`, `height`
+- [x] **Keep worklets on UI thread** - Don't read shared values on JS thread
+- [x] **Limit simultaneous animations** - Too many causes dropped frames
+- [x] **Test on mid-range Android** - Not just high-end devices
 
 ### Animation Types
-- [ ] **Use `withSpring` for natural interactions** - Buttons, cards, toggles
-- [ ] **Use `withTiming` for precise animations** - Progress bars, controlled transitions
-- [ ] **Use `withDecay` for momentum** - Fling gestures, physics-based motion
-- [ ] **Make animations interruptible** - Save context for gesture pickup
+- [x] **Use `withSpring` for natural interactions** - Buttons, cards, toggles
+- [x] **Use `withTiming` for precise animations** - Progress bars, controlled transitions
+- [x] **Use `withDecay` for momentum** - Fling gestures, physics-based motion
+- [x] **Make animations interruptible** - Save context for gesture pickup
 
 ### Accessibility
-- [ ] **Check `reduceMotion` setting** - Provide alternatives for motion-sensitive users
-- [ ] **Keep essential animations simple** - Fade instead of complex motion when reduced
+- [x] **Check `reduceMotion` setting** - Provide alternatives for motion-sensitive users
+- [x] **Keep essential animations simple** - Fade instead of complex motion when reduced
 
 ---
 
 ## Gesture Handling
 
-- [ ] **Wrap app in `GestureHandlerRootView`** - As close to root as possible
-- [ ] **Use Gesture Handler + Reanimated together** - For 60-120fps gestures
-- [ ] **Use gesture composition wisely** - `Race()` for exclusive, `Simultaneous()` for multi-touch
-- [ ] **Implement interruptible gestures** - Use context to track state
-- [ ] **Add haptic feedback** - Use `expo-haptics` for tactile responses
+- [x] **Wrap app in `GestureHandlerRootView`** - As close to root as possible
+- [x] **Use Gesture Handler + Reanimated together** - For 60-120fps gestures
+- [x] **Use gesture composition wisely** - `Race()` for exclusive, `Simultaneous()` for multi-touch
+- [x] **Implement interruptible gestures** - Use context to track state
+- [x] **Add haptic feedback** - Use `expo-haptics` for tactile responses
 
 ---
 
 ## Navigation & Transitions
 
-- [ ] **Use `native-stack` for performance** - Not JS-based stack unless customization needed
-- [ ] **Choose appropriate animations** - `slide_from_right`, `fade`, `slide_from_bottom`
-- [ ] **Lazy load screens** - Don't load all screens upfront
-- [ ] **Use `InteractionManager.runAfterInteractions`** - Defer heavy work until after transitions
+- [x] **Use `native-stack` for performance** - Not JS-based stack unless customization needed
+- [x] **Choose appropriate animations** - `slide_from_right`, `fade`, `slide_from_bottom`
+- [x] **Lazy load screens** - Don't load all screens upfront (`lazy: true`, `freezeOnBlur: true`)
+- [x] **Use `InteractionManager.runAfterInteractions`** - Defer heavy work until after transitions
 
 ---
 
 ## NativeWind Styling
 
-- [ ] **Use semantic color tokens** - `bg-surface`, `text-foreground`, never raw colors
-- [ ] **Avoid dynamic class generation** - No template literals for class names
-- [ ] **Use conditional classes correctly** - Ternary with full class names
-- [ ] **Support dark mode** - Use `dark:` variants consistently
-- [ ] **Define styled components outside render** - Prevent recreation
+- [x] **Use semantic color tokens** - `bg-surface`, `text-foreground`, never raw colors
+- [x] **Avoid dynamic class generation** - No template literals for class names
+- [x] **Use conditional classes correctly** - Ternary with full class names
+- [x] **Support dark mode** - Use `dark:` variants consistently
+- [x] **Define styled components outside render** - Prevent recreation
 
 ---
 
 ## Image Optimization
 
-- [ ] **Use appropriate image sizes** - Don't load 4K images for thumbnails
-- [ ] **Implement lazy loading** - Load images as they come into view
-- [ ] **Use caching** - `expo-image` has built-in caching
-- [ ] **Consider placeholder/blur** - Show low-res preview while loading
-- [ ] **Use appropriate formats** - WebP for better compression
+- [x] **Use appropriate image sizes** - Don't load 4K images for thumbnails
+- [x] **Implement lazy loading** - Load images as they come into view
+- [x] **Use caching** - `expo-image` has built-in caching (`cachePolicy="memory-disk"`)
+- [x] **Consider placeholder/blur** - Show low-res preview while loading (shimmer placeholder)
+- [x] **Use appropriate formats** - WebP for better compression (useOptimizedImage hook)
 
 ---
 
 ## Bundle & Memory
 
-- [ ] **Enable Hermes** - 20-40% startup improvement
-- [ ] **Use `inlineRequires`** - Defer module loading
-- [ ] **Monitor bundle size** - Target ≤1.2MB gzipped initial JS
-- [ ] **Monitor memory usage** - Target ≤300MB peak on 4GB devices
+- [x] **Enable Hermes** - 20-40% startup improvement
+- [x] **Use `inlineRequires`** - Defer module loading
+- [x] **Monitor bundle size** - Target ≤1.2MB gzipped initial JS (useBundleEstimate hook)
+- [x] **Monitor memory usage** - Target ≤300MB peak on 4GB devices (useMemoryMonitor hook)
 - [ ] **Remove unused dependencies** - Audit regularly
-- [ ] **Use tree shaking** - Import specific modules, not entire libraries
+- [x] **Use tree shaking** - Import specific modules, not entire libraries
 
 ---
 
 ## Micro-Interactions Checklist
 
 ### Buttons & Touchables
-- [ ] **Scale on press** - Subtle scale down (0.95-0.98) with spring
-- [ ] **Haptic feedback** - Light impact on press
-- [ ] **Disabled state animation** - Fade or reduce opacity
+- [x] **Scale on press** - Subtle scale down (0.95-0.98) with spring
+- [x] **Haptic feedback** - Light impact on press
+- [x] **Disabled state animation** - Fade or reduce opacity
 
 ### Cards & List Items
-- [ ] **Press state** - Subtle background color change or scale
-- [ ] **Swipe actions** - Smooth reveal of action buttons
-- [ ] **Long press** - Visual feedback + haptic
+- [x] **Press state** - Subtle background color change or scale
+- [x] **Swipe actions** - Smooth reveal of action buttons (SwipeableRow component)
+- [x] **Long press** - Visual feedback + haptic (Pressable component)
 
 ### Loading States
-- [ ] **Skeleton screens** - Show content structure while loading
-- [ ] **Shimmer effect** - Animated gradient over skeletons
-- [ ] **Pull-to-refresh** - Custom animated indicator matching theme
+- [x] **Skeleton screens** - Show content structure while loading
+- [x] **Shimmer effect** - Animated gradient over skeletons
+- [x] **Pull-to-refresh** - Custom animated indicator matching theme (ThemedRefreshControl)
 
 ### Success/Error States
-- [ ] **Success checkmark** - Bounce/spring into place
-- [ ] **Error shake** - Horizontal shake animation
-- [ ] **Toast notifications** - Slide in with spring
+- [x] **Success checkmark** - Bounce/spring into place
+- [x] **Error shake** - Horizontal shake animation
+- [x] **Toast notifications** - Slide in with spring (ToastContainer)
 
 ### Form Inputs
-- [ ] **Focus animation** - Border color/width transition
-- [ ] **Validation feedback** - Shake on error, checkmark on valid
-- [ ] **Character counter** - Animate color as limit approaches
+- [x] **Focus animation** - Border color/width transition
+- [x] **Validation feedback** - Shake on error, checkmark on valid
+- [x] **Character counter** - Animate color as limit approaches (Input showCharacterCount prop)
 
 ### Toggles & Switches
-- [ ] **Spring animation** - Natural bounce between states
-- [ ] **Color transition** - Smooth background color change
-- [ ] **Haptic on toggle** - Selection feedback
+- [x] **Spring animation** - Natural bounce between states
+- [x] **Color transition** - Smooth background color change
+- [x] **Haptic on toggle** - Selection feedback
 
 ### Navigation
-- [ ] **Tab bar indicators** - Animated underline or background
-- [ ] **Screen transitions** - Appropriate for navigation type
-- [ ] **Shared elements** - Hero images between list and detail (when stable)
+- [x] **Tab bar indicators** - Animated underline or background
+- [x] **Screen transitions** - Appropriate for navigation type
+- [x] **Shared elements** - Hero images between list and detail (when stable)
 
 ---
 

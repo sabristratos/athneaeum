@@ -1,4 +1,3 @@
-import { Platform } from 'react-native';
 import * as SecureStore from 'expo-secure-store';
 import type { ApiError } from '@/types';
 
@@ -33,6 +32,7 @@ export class ApiRequestError extends Error {
 interface RequestConfig extends Omit<RequestInit, 'body'> {
   requiresAuth?: boolean;
   body?: object;
+  params?: Record<string, string | number | boolean | undefined>;
 }
 
 export async function getToken(): Promise<string | null> {
@@ -47,11 +47,55 @@ export async function removeToken(): Promise<void> {
   await SecureStore.deleteItemAsync('auth_token');
 }
 
+export async function uploadFile<T>(
+  endpoint: string,
+  formData: FormData
+): Promise<T> {
+  const token = await getToken();
+
+  const headers: Record<string, string> = {
+    Accept: 'application/json',
+  };
+
+  if (token) {
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+
+  const response = await fetch(`${API_URL}${endpoint}`, {
+    method: 'POST',
+    headers,
+    body: formData,
+  });
+
+  if (response.status === 401) {
+    throw new AuthenticationError();
+  }
+
+  let data;
+  try {
+    const text = await response.text();
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    throw new ApiRequestError('Invalid response from server', response.status);
+  }
+
+  if (!response.ok) {
+    const errorData = data as ApiError;
+    throw new ApiRequestError(
+      errorData.error || errorData.message || 'Request failed',
+      response.status,
+      errorData.errors
+    );
+  }
+
+  return data as T;
+}
+
 export async function apiClient<T>(
   endpoint: string,
   config: RequestConfig = {}
 ): Promise<T> {
-  const { requiresAuth = true, body, ...fetchConfig } = config;
+  const { requiresAuth = true, body, params, ...fetchConfig } = config;
 
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
@@ -61,27 +105,30 @@ export async function apiClient<T>(
 
   if (requiresAuth) {
     const token = await getToken();
-    if (__DEV__) {
-      console.log('[API] Token present:', !!token, 'Endpoint:', endpoint);
-    }
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
     }
   }
 
-  const startTime = __DEV__ ? performance.now() : 0;
+  let url = `${API_URL}${endpoint}`;
+  if (params) {
+    const searchParams = new URLSearchParams();
+    Object.entries(params).forEach(([key, value]) => {
+      if (value !== undefined) {
+        searchParams.append(key, String(value));
+      }
+    });
+    const queryString = searchParams.toString();
+    if (queryString) {
+      url += `?${queryString}`;
+    }
+  }
 
-  const response = await fetch(`${API_URL}${endpoint}`, {
+  const response = await fetch(url, {
     ...fetchConfig,
     headers,
     body: body ? JSON.stringify(body) : undefined,
   });
-
-  if (__DEV__) {
-    const duration = performance.now() - startTime;
-    const status = response.status;
-    console.log(`[API] ${fetchConfig.method || 'GET'} ${endpoint} → ${status} (${duration.toFixed(0)}ms)`);
-  }
 
   if (response.status === 401) {
     throw new AuthenticationError();
@@ -99,11 +146,11 @@ export async function apiClient<T>(
   }
 
   if (!response.ok) {
-    const error = data as ApiError;
+    const errorData = data as ApiError;
     throw new ApiRequestError(
-      error.message || 'Request failed',
+      errorData.error || errorData.message || 'Request failed',
       response.status,
-      error.errors
+      errorData.errors
     );
   }
 

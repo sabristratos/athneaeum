@@ -5,102 +5,161 @@ import Animated, {
   useAnimatedStyle,
   withSpring,
 } from 'react-native-reanimated';
-import * as Haptics from 'expo-haptics';
-import { Icon } from '@/components/Icon';
+import { triggerHaptic } from '@/hooks/useHaptic';
+import { Icon, Text } from '@/components/atoms';
 import { useTheme } from '@/themes';
+import { SPRINGS } from '@/animations/constants';
 import {
   GridViewIcon,
   Menu01Icon,
   BookOpen01Icon,
   AlignBoxMiddleCenterIcon,
+  Layers01Icon,
 } from '@hugeicons/core-free-icons';
 
-export type ViewMode = 'list' | 'grid' | 'spines' | 'stack';
+export type ViewMode = 'list' | 'grid' | 'spines' | 'stack' | 'series';
 
 interface ViewModeToggleProps {
   currentMode: ViewMode;
   onModeChange: (mode: ViewMode) => void;
   showStackOption?: boolean;
+  showSeriesOption?: boolean;
   disabled?: boolean;
+  variant?: 'floating' | 'inline';
 }
 
 interface ViewModeOption {
   mode: ViewMode;
   icon: typeof GridViewIcon;
+  label: string;
 }
 
-const SPRING_CONFIG = {
-  damping: 20,
-  stiffness: 300,
-};
+const FLOATING_CELL_SIZE = 44;
+const FLOATING_CELL_GAP = 8;
+const FLOATING_PADDING = 6;
+const FLOATING_INDICATOR_SIZE = 34;
+const FLOATING_CELL_STEP = FLOATING_CELL_SIZE + FLOATING_CELL_GAP;
+const FLOATING_INDICATOR_OFFSET = (FLOATING_CELL_SIZE - FLOATING_INDICATOR_SIZE) / 2;
 
-// Core dimensions - all calculations derive from these
-const CELL_SIZE = 44;
-const CELL_GAP = 8;
-const PADDING = 6;
-const INDICATOR_SIZE = 34; // Slightly smaller for visual breathing room
-
-// Derived values
-const CELL_STEP = CELL_SIZE + CELL_GAP; // 52
-const INDICATOR_OFFSET = (CELL_SIZE - INDICATOR_SIZE) / 2; // 5 - centers indicator in cell
-
-/**
- * A floating toggle bar for switching between library view modes.
- * Uses absolute positioning for deterministic layout.
- */
 export const ViewModeToggle = memo(function ViewModeToggle({
   currentMode,
   onModeChange,
   showStackOption = false,
+  showSeriesOption = false,
   disabled = false,
+  variant = 'floating',
 }: ViewModeToggleProps) {
-  const { theme } = useTheme();
+  const { theme, themeName } = useTheme();
+  const isScholar = themeName === 'scholar';
+  const isDreamer = themeName === 'dreamer';
 
-  // Build options list
   const options: ViewModeOption[] = [
-    { mode: 'list', icon: Menu01Icon },
-    { mode: 'grid', icon: GridViewIcon },
-    { mode: 'spines', icon: AlignBoxMiddleCenterIcon },
+    { mode: 'list', icon: Menu01Icon, label: 'List' },
+    { mode: 'grid', icon: GridViewIcon, label: 'Grid' },
+    { mode: 'spines', icon: AlignBoxMiddleCenterIcon, label: 'Spines' },
   ];
 
+  if (showSeriesOption) {
+    options.push({ mode: 'series', icon: Layers01Icon, label: 'Series' });
+  }
+
   if (showStackOption) {
-    options.push({ mode: 'stack', icon: BookOpen01Icon });
+    options.push({ mode: 'stack', icon: BookOpen01Icon, label: 'Stack' });
   }
 
   const optionCount = options.length;
   const currentIndex = options.findIndex((o) => o.mode === currentMode);
 
-  // Calculate container dimensions
-  const containerWidth = PADDING * 2 + optionCount * CELL_SIZE + (optionCount - 1) * CELL_GAP;
-  const containerHeight = CELL_SIZE + PADDING * 2;
+  const indicatorX = useSharedValue(currentIndex);
 
-  // Animation for indicator (translateX from base position)
-  const indicatorX = useSharedValue(currentIndex * CELL_STEP);
-
-  // Update indicator position when mode changes
   useEffect(() => {
-    indicatorX.value = withSpring(currentIndex * CELL_STEP, SPRING_CONFIG);
+    indicatorX.value = withSpring(currentIndex, SPRINGS.snap);
   }, [currentIndex, indicatorX]);
 
-  // Handle mode change
   const handleModeChange = useCallback(
     (mode: ViewMode) => {
       if (disabled || mode === currentMode) return;
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      triggerHaptic('medium');
       onModeChange(mode);
     },
     [disabled, currentMode, onModeChange]
   );
 
-  // Animated style for indicator
-  const indicatorStyle = useAnimatedStyle(() => ({
-    transform: [{ translateX: indicatorX.value }],
+  if (variant === 'inline') {
+    const indicatorAnimatedStyle = useAnimatedStyle(() => ({
+      left: `${(indicatorX.value / optionCount) * 100}%`,
+    }));
+
+    return (
+      <View
+        style={[
+          styles.inlineContainer,
+          {
+            backgroundColor: theme.colors.surfaceAlt,
+            borderRadius: isScholar ? theme.radii.sm : isDreamer ? theme.radii.lg : theme.radii.md,
+            padding: 4,
+            opacity: disabled ? 0.5 : 1,
+          },
+        ]}
+      >
+        <Animated.View
+          style={[
+            styles.inlineIndicator,
+            {
+              width: `${100 / optionCount}%`,
+              backgroundColor: theme.colors.surface,
+              borderRadius: isScholar ? theme.radii.xs : isDreamer ? theme.radii.md : theme.radii.sm,
+              ...theme.shadows.sm,
+            },
+            indicatorAnimatedStyle,
+          ]}
+        />
+
+        {options.map((option) => {
+          const isActive = option.mode === currentMode;
+
+          return (
+            <Pressable
+              key={option.mode}
+              onPress={() => handleModeChange(option.mode)}
+              disabled={disabled}
+              style={[styles.inlineCell, { flex: 1 }]}
+              accessibilityLabel={`${option.label} view`}
+              accessibilityState={{ selected: isActive }}
+            >
+              <Icon
+                icon={option.icon}
+                size={18}
+                color={isActive ? theme.colors.primary : theme.colors.foregroundMuted}
+              />
+              <Text
+                variant="caption"
+                style={{
+                  color: isActive ? theme.colors.primary : theme.colors.foregroundMuted,
+                  fontSize: 11,
+                  marginTop: 2,
+                }}
+              >
+                {option.label}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
+    );
+  }
+
+  const containerWidth = FLOATING_PADDING * 2 + optionCount * FLOATING_CELL_SIZE + (optionCount - 1) * FLOATING_CELL_GAP;
+  const containerHeight = FLOATING_CELL_SIZE + FLOATING_PADDING * 2;
+
+  const floatingIndicatorStyle = useAnimatedStyle(() => ({
+    transform: [{ translateX: indicatorX.value * FLOATING_CELL_STEP }],
   }));
 
   return (
     <View
       style={[
-        styles.container,
+        styles.floatingContainer,
         {
           width: containerWidth,
           height: containerHeight,
@@ -113,26 +172,24 @@ export const ViewModeToggle = memo(function ViewModeToggle({
         },
       ]}
     >
-      {/* Sliding indicator - centered in first cell, animated via translateX */}
       <Animated.View
         style={[
-          styles.indicator,
+          styles.floatingIndicator,
           {
-            left: PADDING + INDICATOR_OFFSET,
-            top: PADDING + INDICATOR_OFFSET,
-            width: INDICATOR_SIZE,
-            height: INDICATOR_SIZE,
+            left: FLOATING_PADDING + FLOATING_INDICATOR_OFFSET,
+            top: FLOATING_PADDING + FLOATING_INDICATOR_OFFSET,
+            width: FLOATING_INDICATOR_SIZE,
+            height: FLOATING_INDICATOR_SIZE,
             backgroundColor: theme.colors.primary,
-            borderRadius: INDICATOR_SIZE / 2,
+            borderRadius: FLOATING_INDICATOR_SIZE / 2,
           },
-          indicatorStyle,
+          floatingIndicatorStyle,
         ]}
       />
 
-      {/* Option buttons - absolutely positioned */}
       {options.map((option, index) => {
         const isActive = option.mode === currentMode;
-        const buttonLeft = PADDING + index * CELL_STEP;
+        const buttonLeft = FLOATING_PADDING + index * FLOATING_CELL_STEP;
 
         return (
           <Pressable
@@ -140,12 +197,12 @@ export const ViewModeToggle = memo(function ViewModeToggle({
             onPress={() => handleModeChange(option.mode)}
             disabled={disabled}
             style={[
-              styles.cell,
+              styles.floatingCell,
               {
                 left: buttonLeft,
-                top: PADDING,
-                width: CELL_SIZE,
-                height: CELL_SIZE,
+                top: FLOATING_PADDING,
+                width: FLOATING_CELL_SIZE,
+                height: FLOATING_CELL_SIZE,
               },
             ]}
             accessibilityLabel={`${option.mode} view`}
@@ -164,15 +221,30 @@ export const ViewModeToggle = memo(function ViewModeToggle({
 });
 
 const styles = StyleSheet.create({
-  container: {
+  floatingContainer: {
     position: 'relative',
   },
-  indicator: {
+  floatingIndicator: {
     position: 'absolute',
   },
-  cell: {
+  floatingCell: {
     position: 'absolute',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  inlineContainer: {
+    flexDirection: 'row',
+    position: 'relative',
+  },
+  inlineIndicator: {
+    position: 'absolute',
+    top: 4,
+    bottom: 4,
+  },
+  inlineCell: {
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 8,
+    zIndex: 1,
   },
 });

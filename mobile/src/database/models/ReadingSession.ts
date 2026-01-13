@@ -9,17 +9,22 @@ import {
 } from '@nozbe/watermelondb/decorators';
 import type { Associations } from '@nozbe/watermelondb/Model';
 import type { UserBook } from '@/database/models/UserBook';
+import type { ReadThrough } from '@/database/models/ReadThrough';
+import { secondsToDuration } from '@/utils/dateUtils';
 
 export class ReadingSession extends Model {
   static table = 'reading_sessions';
 
   static associations: Associations = {
     user_books: { type: 'belongs_to', key: 'user_book_id' },
+    read_throughs: { type: 'belongs_to', key: 'read_through_id' },
   };
 
   @field('server_id') serverId!: number | null;
   @text('user_book_id') userBookId!: string;
   @field('server_user_book_id') serverUserBookId!: number | null;
+  @text('read_through_id') readThroughId!: string | null;
+  @field('server_read_through_id') serverReadThroughId!: number | null;
   @text('date') sessionDate!: string;
   @field('pages_read') pagesRead!: number;
   @field('start_page') startPage!: number;
@@ -32,19 +37,26 @@ export class ReadingSession extends Model {
   @field('is_deleted') isDeleted!: boolean;
 
   @relation('user_books', 'user_book_id') userBook!: UserBook;
+  @relation('read_throughs', 'read_through_id') readThrough!: ReadThrough | null;
 
   get formattedDuration(): string | null {
     if (!this.durationSeconds) return null;
-    const hours = Math.floor(this.durationSeconds / 3600);
-    const minutes = Math.floor((this.durationSeconds % 3600) / 60);
+    const { hours, minutes } = secondsToDuration(this.durationSeconds);
     if (hours > 0) return `${hours}h ${minutes}m`;
     return `${minutes}m`;
   }
 
-  @writer async markSynced(serverId: number, serverUserBookId: number) {
+  @writer async markSynced(
+    serverId: number,
+    serverUserBookId: number,
+    serverReadThroughId?: number | null
+  ) {
     await this.update((record) => {
       record.serverId = serverId;
       record.serverUserBookId = serverUserBookId;
+      if (serverReadThroughId !== undefined) {
+        record.serverReadThroughId = serverReadThroughId;
+      }
       record.isPendingSync = false;
     });
   }

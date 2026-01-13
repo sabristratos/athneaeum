@@ -89,14 +89,12 @@ export function useUserBook(userBookId: string) {
                 setBook(b);
                 setLoading(false);
               },
-              error: (err) => {
-                console.error('[useUserBook] Book error:', err);
+              error: () => {
                 setLoading(false);
               },
             });
         },
-        error: (err) => {
-          console.error('[useUserBook] UserBook error:', err);
+        error: () => {
           setLoading(false);
         },
       });

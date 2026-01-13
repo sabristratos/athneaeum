@@ -1,15 +1,11 @@
 import './global.css';
 
-console.log('[App] Module loading started');
-
 import { useCallback, useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { View, ActivityIndicator, Text } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import * as SplashScreen from 'expo-splash-screen';
-
-console.log('[App] Core imports loaded');
 
 import {
   useFonts,
@@ -21,64 +17,58 @@ import {
   CrimsonText_600SemiBold,
 } from '@expo-google-fonts/crimson-text';
 import {
+  Nunito_400Regular,
   Nunito_600SemiBold,
   Nunito_700Bold,
   Nunito_800ExtraBold,
 } from '@expo-google-fonts/nunito';
-
-console.log('[App] Fonts imports loaded');
+import {
+  Lora_400Regular,
+  Lora_500Medium,
+  Lora_600SemiBold,
+} from '@expo-google-fonts/lora';
 
 import { ThemeProvider, useTheme } from './src/themes';
-console.log('[App] ThemeProvider imported');
-
 import { RootNavigator } from './src/navigation';
-console.log('[App] RootNavigator imported');
-
 import { DatabaseProvider } from './src/database/DatabaseProvider';
-console.log('[App] DatabaseProvider imported');
-
+import { ToastContainer, PerformanceOverlay } from './src/components';
+import { ShareImportHandler } from './src/components/ShareImportHandler';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { queryClient, setupQueryClientListeners } from './src/lib/queryClient';
-console.log('[App] QueryClientProvider imported');
 
 SplashScreen.preventAutoHideAsync();
-console.log('[App] SplashScreen.preventAutoHideAsync called');
 
 function AppContent() {
-  console.log('[AppContent] Rendering');
   const { isDark, theme } = useTheme();
-  console.log('[AppContent] Theme loaded:', theme.name);
-
-  useEffect(() => {
-    console.log('[AppContent] Mounted');
-  }, []);
 
   return (
     <View style={{ flex: 1, backgroundColor: theme.colors.canvas }}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <RootNavigator />
+      <ToastContainer />
+      <ShareImportHandler />
+      <PerformanceOverlay />
     </View>
   );
 }
 
-export default function App() {
-  console.log('[App] App component rendering');
+const LOADING_SCREEN_BG = '#1a1a1a';
+const LOADING_SCREEN_ACCENT = '#6b7280';
 
+export default function App() {
   const [fontsLoaded] = useFonts({
     PlayfairDisplay_400Regular,
     PlayfairDisplay_600SemiBold,
     CrimsonText_400Regular,
     CrimsonText_600SemiBold,
+    Nunito_400Regular,
     Nunito_600SemiBold,
     Nunito_700Bold,
     Nunito_800ExtraBold,
+    Lora_400Regular,
+    Lora_500Medium,
+    Lora_600SemiBold,
   });
-
-  console.log('[App] Fonts loaded:', fontsLoaded);
-
-  useEffect(() => {
-    console.log('[App] App mounted, fontsLoaded:', fontsLoaded);
-  }, [fontsLoaded]);
 
   useEffect(() => {
     const cleanup = setupQueryClientListeners();
@@ -86,26 +76,22 @@ export default function App() {
   }, []);
 
   const onLayoutRootView = useCallback(async () => {
-    console.log('[App] onLayoutRootView called, fontsLoaded:', fontsLoaded);
     if (fontsLoaded) {
       await SplashScreen.hideAsync();
-      console.log('[App] Splash screen hidden');
     }
   }, [fontsLoaded]);
 
   if (!fontsLoaded) {
-    console.log('[App] Showing loading screen (fonts not loaded)');
     return (
       <SafeAreaProvider>
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#12100e' }}>
-          <ActivityIndicator size="large" color="#8b2e2e" />
-          <Text style={{ color: '#fff', marginTop: 10 }}>Loading fonts...</Text>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: LOADING_SCREEN_BG }}>
+          <ActivityIndicator size="large" color={LOADING_SCREEN_ACCENT} />
+          <Text style={{ color: '#9ca3af', marginTop: 10 }}>Loading...</Text>
         </View>
       </SafeAreaProvider>
     );
   }
 
-  console.log('[App] Rendering main app with providers');
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>

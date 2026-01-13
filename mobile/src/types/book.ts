@@ -1,4 +1,21 @@
+import type { Tag } from './tag';
+import type { BookFormat } from './stats';
+
 export type BookStatus = 'want_to_read' | 'reading' | 'read' | 'dnf';
+
+export type Audience = 'adult' | 'young_adult' | 'middle_grade' | 'children';
+export type Intensity = 'light' | 'moderate' | 'dark' | 'intense';
+export type Mood =
+  | 'adventurous'
+  | 'romantic'
+  | 'suspenseful'
+  | 'humorous'
+  | 'melancholic'
+  | 'inspirational'
+  | 'mysterious'
+  | 'cozy'
+  | 'tense'
+  | 'thought_provoking';
 
 // Search filter types
 export type MinRating = 0 | 3 | 4 | 4.5;
@@ -17,12 +34,26 @@ export interface SearchResult {
   author: string;
   cover_url: string | null;
   page_count: number | null;
+  height_cm: number | null;
+  width_cm: number | null;
+  thickness_cm: number | null;
   isbn: string | null;
   description: string | null;
   genres: string[];
   published_date: string | null;
   average_rating: number | null;
   ratings_count: number | null;
+  edition_count?: number;
+  series_name?: string | null;
+  volume_number?: number | null;
+}
+
+export interface SearchResponse {
+  items: SearchResult[];
+  total: number;
+  start_index: number;
+  has_more: boolean;
+  provider: string;
 }
 
 export interface SearchMeta {
@@ -30,11 +61,6 @@ export interface SearchMeta {
   start_index: number;
   has_more: boolean;
   provider: string;
-}
-
-export interface SearchResponse {
-  data: SearchResult[];
-  meta: SearchMeta;
 }
 
 // Filter option arrays for UI
@@ -61,8 +87,8 @@ export const MIN_RATING_OPTIONS: { value: MinRating; label: string }[] = [
 ];
 
 export const LANGUAGE_OPTIONS: { value: string; label: string }[] = [
-  { value: '', label: 'Any Language' },
-  { value: 'en', label: 'English' },
+  { value: '', label: 'English (Default)' },
+  { value: 'all', label: 'All Languages' },
   { value: 'es', label: 'Spanish' },
   { value: 'fr', label: 'French' },
   { value: 'de', label: 'German' },
@@ -75,18 +101,58 @@ export const LANGUAGE_OPTIONS: { value: string; label: string }[] = [
   { value: 'ar', label: 'Arabic' },
 ];
 
+export interface Genre {
+  id: number;
+  name: string;
+  slug: string;
+}
+
+export interface ClassificationOptions {
+  audiences: { value: Audience; label: string }[];
+  intensities: { value: Intensity; label: string }[];
+  moods: { value: Mood; label: string }[];
+}
+
+export interface Series {
+  id: number;
+  title: string;
+  author: string;
+  external_id: string | null;
+  external_provider: string | null;
+  total_volumes: number | null;
+  is_complete: boolean;
+  description: string | null;
+  book_count?: number;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface Book {
   id: number;
   external_id: string | null;
   external_provider: string | null;
+  series_id: number | null;
+  volume_number: number | null;
+  volume_title: string | null;
+  series?: Series | null;
   title: string;
   author: string;
   cover_url: string | null;
   page_count: number | null;
+  height_cm: number | null;
+  width_cm: number | null;
+  thickness_cm: number | null;
   isbn: string | null;
   description: string | null;
-  genres: string[] | null;
+  genres: Genre[] | null;
   published_date: string | null;
+  audience: Audience | null;
+  audience_label: string | null;
+  intensity: Intensity | null;
+  intensity_label: string | null;
+  moods: Mood[] | null;
+  is_classified: boolean;
+  classification_confidence: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -98,14 +164,23 @@ export interface UserBook {
   book: Book;
   status: BookStatus;
   status_label: string;
+  format: BookFormat | null;
+  format_label: string | null;
   rating: number | null;
+  price: number | null;
   current_page: number;
   progress_percentage: number | null;
   is_dnf: boolean;
   dnf_reason: string | null;
+  is_pinned: boolean;
+  queue_position: number | null;
+  review: string | null;
   started_at: string | null;
   finished_at: string | null;
   reading_sessions?: ReadingSession[];
+  read_throughs?: ReadThrough[];
+  read_count?: number;
+  tags?: Tag[];
   created_at: string;
   updated_at: string;
 }
@@ -113,6 +188,7 @@ export interface UserBook {
 export interface ReadingSession {
   id: number;
   user_book_id: number;
+  read_through_id: number | null;
   date: string;
   pages_read: number;
   start_page: number;
@@ -124,9 +200,30 @@ export interface ReadingSession {
   updated_at: string;
 }
 
-export interface LibraryResponse {
-  data: UserBook[];
+export interface ReadThrough {
+  id: number;
+  user_book_id: number;
+  read_number: number;
+  status: BookStatus;
+  rating: number | null;
+  review: string | null;
+  is_dnf: boolean;
+  dnf_reason: string | null;
+  started_at: string | null;
+  finished_at: string | null;
+  total_pages_read: number;
+  created_at: string;
+  updated_at: string;
 }
+
+export type LibraryResponse = UserBook[];
+
+export interface LibraryExternalIdEntry {
+  status: BookStatus;
+  user_book_id: number;
+}
+
+export type LibraryExternalIdsMap = Record<string, LibraryExternalIdEntry>;
 
 export interface AddToLibraryData {
   external_id?: string;
@@ -135,6 +232,9 @@ export interface AddToLibraryData {
   author: string;
   cover_url?: string | null;
   page_count?: number | null;
+  height_cm?: number | null;
+  width_cm?: number | null;
+  thickness_cm?: number | null;
   isbn?: string | null;
   description?: string | null;
   genres?: string[];
@@ -144,10 +244,13 @@ export interface AddToLibraryData {
 
 export interface UpdateUserBookData {
   status?: BookStatus;
+  format?: BookFormat | null;
   rating?: number | null;
+  price?: number | null;
   current_page?: number;
   is_dnf?: boolean;
   dnf_reason?: string | null;
+  review?: string | null;
   started_at?: string | null;
   finished_at?: string | null;
 }
@@ -217,6 +320,3 @@ export interface ReadingStats {
   recent_sessions: RecentSession[];
 }
 
-export interface ReadingStatsResponse {
-  data: ReadingStats;
-}

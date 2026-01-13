@@ -18,13 +18,26 @@ return new class extends Migration
             $table->string('author');
             $table->string('cover_url')->nullable();
             $table->integer('page_count')->nullable();
+            $table->decimal('height_cm', 5, 2)->nullable();
+            $table->decimal('width_cm', 5, 2)->nullable();
+            $table->decimal('thickness_cm', 5, 2)->nullable();
             $table->string('isbn')->nullable();
+            $table->string('isbn13')->nullable();
             $table->text('description')->nullable();
             $table->json('genres')->nullable();
             $table->date('published_date')->nullable();
+            $table->boolean('is_locked')->default(false);
+
+            $table->string('audience')->nullable();
+            $table->string('intensity')->nullable();
+            $table->json('moods')->nullable();
+            $table->decimal('classification_confidence', 3, 2)->nullable();
+            $table->boolean('is_classified')->default(false);
+
             $table->timestamps();
 
             $table->unique(['external_id', 'external_provider']);
+            $table->index('isbn13');
         });
     }
 

@@ -3,9 +3,11 @@ import { database } from '@/database/index';
 import { apiClient } from '@/api/client';
 import type { Book } from '@/database/models/Book';
 import type { UserBook } from '@/database/models/UserBook';
+import type { ReadThrough } from '@/database/models/ReadThrough';
 import type { ReadingSession } from '@/database/models/ReadingSession';
+import type { Series } from '@/database/models/Series';
 import type { SyncMetadata } from '@/database/models/SyncMetadata';
-import type { PullResponse, ServerBook, ServerUserBook, ServerSession } from '@/database/sync/types';
+import type { PullResponse, ServerBook, ServerUserBook, ServerReadThrough, ServerSession, ServerSeries } from '@/database/sync/types';
 import type { BookStatus } from '@/types/book';
 
 export async function pullChanges(lastPulledAt: number): Promise<number> {
@@ -14,18 +16,38 @@ export async function pullChanges(lastPulledAt: number): Promise<number> {
   );
 
   await database.write(async () => {
+    const seriesCollection = database.get<Series>('series');
     const booksCollection = database.get<Book>('books');
     const userBooksCollection = database.get<UserBook>('user_books');
+    const readThroughsCollection = database.get<ReadThrough>('read_throughs');
     const sessionsCollection = database.get<ReadingSession>('reading_sessions');
+
+    // Process series first (before books that reference them)
+    for (const serverSeries of response.changes.series?.created ?? []) {
+      await createOrUpdateSeries(seriesCollection, serverSeries);
+    }
+
+    for (const serverSeries of response.changes.series?.updated ?? []) {
+      await createOrUpdateSeries(seriesCollection, serverSeries);
+    }
+
+    for (const serverId of response.changes.series?.deleted ?? []) {
+      const existing = await seriesCollection
+        .query(Q.where('server_id', serverId))
+        .fetch();
+      if (existing[0]) {
+        await existing[0].destroyPermanently();
+      }
+    }
 
     // Process created books
     for (const serverBook of response.changes.books.created) {
-      await createOrUpdateBook(booksCollection, serverBook);
+      await createOrUpdateBook(booksCollection, seriesCollection, serverBook);
     }
 
     // Process updated books
     for (const serverBook of response.changes.books.updated) {
-      await createOrUpdateBook(booksCollection, serverBook);
+      await createOrUpdateBook(booksCollection, seriesCollection, serverBook);
     }
 
     // Process created user_books
@@ -56,11 +78,40 @@ export async function pullChanges(lastPulledAt: number): Promise<number> {
       }
     }
 
+    // Process created read_throughs
+    for (const serverReadThrough of response.changes.read_throughs?.created ?? []) {
+      await createOrUpdateReadThrough(
+        readThroughsCollection,
+        userBooksCollection,
+        serverReadThrough
+      );
+    }
+
+    // Process updated read_throughs
+    for (const serverReadThrough of response.changes.read_throughs?.updated ?? []) {
+      await createOrUpdateReadThrough(
+        readThroughsCollection,
+        userBooksCollection,
+        serverReadThrough
+      );
+    }
+
+    // Process deleted read_throughs
+    for (const serverId of response.changes.read_throughs?.deleted ?? []) {
+      const existing = await readThroughsCollection
+        .query(Q.where('server_id', serverId))
+        .fetch();
+      if (existing[0]) {
+        await existing[0].destroyPermanently();
+      }
+    }
+
     // Process created reading_sessions
     for (const serverSession of response.changes.reading_sessions.created) {
       await createOrUpdateSession(
         sessionsCollection,
         userBooksCollection,
+        readThroughsCollection,
         serverSession
       );
     }
@@ -70,6 +121,7 @@ export async function pullChanges(lastPulledAt: number): Promise<number> {
       await createOrUpdateSession(
         sessionsCollection,
         userBooksCollection,
+        readThroughsCollection,
         serverSession
       );
     }
@@ -91,16 +143,62 @@ export async function pullChanges(lastPulledAt: number): Promise<number> {
   return response.timestamp;
 }
 
+async function createOrUpdateSeries(
+  collection: ReturnType<typeof database.get<Series>>,
+  serverSeries: ServerSeries
+): Promise<void> {
+  const existing = await collection
+    .query(Q.where('server_id', serverSeries.id))
+    .fetch();
+
+  if (existing[0]) {
+    if (existing[0].isPendingSync) {
+      return;
+    }
+
+    await existing[0].update((record) => {
+      record.title = serverSeries.title;
+      record.author = serverSeries.author;
+      record.externalId = serverSeries.external_id;
+      record.externalProvider = serverSeries.external_provider;
+      record.totalVolumes = serverSeries.total_volumes;
+      record.isComplete = serverSeries.is_complete;
+      record.description = serverSeries.description;
+    });
+  } else {
+    await collection.create((record) => {
+      record.serverId = serverSeries.id;
+      record.title = serverSeries.title;
+      record.author = serverSeries.author;
+      record.externalId = serverSeries.external_id;
+      record.externalProvider = serverSeries.external_provider;
+      record.totalVolumes = serverSeries.total_volumes;
+      record.isComplete = serverSeries.is_complete;
+      record.description = serverSeries.description;
+      record.isPendingSync = false;
+      record.isDeleted = false;
+    });
+  }
+}
+
 async function createOrUpdateBook(
   collection: ReturnType<typeof database.get<Book>>,
+  seriesCollection: ReturnType<typeof database.get<Series>>,
   serverBook: ServerBook
 ): Promise<void> {
   const existing = await collection
     .query(Q.where('server_id', serverBook.id))
     .fetch();
 
+  let localSeriesId: string | null = null;
+  if (serverBook.series_id) {
+    const series = await seriesCollection
+      .query(Q.where('server_id', serverBook.series_id))
+      .fetch();
+    localSeriesId = series[0]?.id ?? null;
+  }
+
   if (existing[0]) {
-    // Skip if local has pending changes
     if (existing[0].isPendingSync) {
       return;
     }
@@ -110,13 +208,19 @@ async function createOrUpdateBook(
       record.author = serverBook.author;
       record.coverUrl = serverBook.cover_url;
       record.pageCount = serverBook.page_count;
+      record.heightCm = serverBook.height_cm;
+      record.widthCm = serverBook.width_cm;
+      record.thicknessCm = serverBook.thickness_cm;
       record.isbn = serverBook.isbn;
       record.description = serverBook.description;
       record.genresJson = JSON.stringify(serverBook.genres || []);
       record.publishedDate = serverBook.published_date;
+      record.seriesId = localSeriesId;
+      record.serverSeriesId = serverBook.series_id;
+      record.volumeNumber = serverBook.volume_number;
+      record.volumeTitle = serverBook.volume_title;
     });
   } else {
-    // Check if book exists by external_id
     const byExternalId = serverBook.external_id
       ? await collection
           .query(Q.where('external_id', serverBook.external_id))
@@ -130,10 +234,17 @@ async function createOrUpdateBook(
         record.author = serverBook.author;
         record.coverUrl = serverBook.cover_url;
         record.pageCount = serverBook.page_count;
+        record.heightCm = serverBook.height_cm;
+        record.widthCm = serverBook.width_cm;
+        record.thicknessCm = serverBook.thickness_cm;
         record.isbn = serverBook.isbn;
         record.description = serverBook.description;
         record.genresJson = JSON.stringify(serverBook.genres || []);
         record.publishedDate = serverBook.published_date;
+        record.seriesId = localSeriesId;
+        record.serverSeriesId = serverBook.series_id;
+        record.volumeNumber = serverBook.volume_number;
+        record.volumeTitle = serverBook.volume_title;
         record.isPendingSync = false;
       });
     } else {
@@ -145,10 +256,17 @@ async function createOrUpdateBook(
         record.author = serverBook.author;
         record.coverUrl = serverBook.cover_url;
         record.pageCount = serverBook.page_count;
+        record.heightCm = serverBook.height_cm;
+        record.widthCm = serverBook.width_cm;
+        record.thicknessCm = serverBook.thickness_cm;
         record.isbn = serverBook.isbn;
         record.description = serverBook.description;
         record.genresJson = JSON.stringify(serverBook.genres || []);
         record.publishedDate = serverBook.published_date;
+        record.seriesId = localSeriesId;
+        record.serverSeriesId = serverBook.series_id;
+        record.volumeNumber = serverBook.volume_number;
+        record.volumeTitle = serverBook.volume_title;
         record.isPendingSync = false;
         record.isDeleted = false;
       });
@@ -171,9 +289,6 @@ async function createOrUpdateUserBook(
     .fetch();
 
   if (!book[0]) {
-    console.warn(
-      `[Sync] Cannot find book with server_id ${serverUserBook.book_id}`
-    );
     return;
   }
 
@@ -197,6 +312,11 @@ async function createOrUpdateUserBook(
       record.status = serverUserBook.status as BookStatus;
       record.rating = serverUserBook.rating;
       record.currentPage = serverUserBook.current_page;
+      record.format = serverUserBook.format;
+      record.price = serverUserBook.price;
+      record.isPinned = serverUserBook.is_pinned;
+      record.queuePosition = serverUserBook.queue_position;
+      record.review = serverUserBook.review;
       record.isDnf = serverUserBook.is_dnf;
       record.dnfReason = serverUserBook.dnf_reason;
       (record as any).startedAt = serverUserBook.started_at
@@ -215,6 +335,11 @@ async function createOrUpdateUserBook(
       record.status = serverUserBook.status as BookStatus;
       record.rating = serverUserBook.rating;
       record.currentPage = serverUserBook.current_page;
+      record.format = serverUserBook.format;
+      record.price = serverUserBook.price;
+      record.isPinned = serverUserBook.is_pinned;
+      record.queuePosition = serverUserBook.queue_position;
+      record.review = serverUserBook.review;
       record.isDnf = serverUserBook.is_dnf;
       record.dnfReason = serverUserBook.dnf_reason;
       (record as any).startedAt = serverUserBook.started_at
@@ -231,29 +356,94 @@ async function createOrUpdateUserBook(
   }
 }
 
+async function createOrUpdateReadThrough(
+  collection: ReturnType<typeof database.get<ReadThrough>>,
+  userBooksCollection: ReturnType<typeof database.get<UserBook>>,
+  serverReadThrough: ServerReadThrough
+): Promise<void> {
+  const existing = await collection
+    .query(Q.where('server_id', serverReadThrough.id))
+    .fetch();
+
+  const userBook = await userBooksCollection
+    .query(Q.where('server_id', serverReadThrough.user_book_id))
+    .fetch();
+
+  if (!userBook[0]) {
+    return;
+  }
+
+  if (existing[0]) {
+    if (existing[0].isPendingSync) {
+      return;
+    }
+
+    await existing[0].update((record) => {
+      record.userBookId = userBook[0].id;
+      record.serverUserBookId = serverReadThrough.user_book_id;
+      record.readNumber = serverReadThrough.read_number;
+      record.status = serverReadThrough.status as BookStatus;
+      record.rating = serverReadThrough.rating;
+      record.review = serverReadThrough.review;
+      record.isDnf = serverReadThrough.is_dnf;
+      record.dnfReason = serverReadThrough.dnf_reason;
+      (record as any).startedAt = serverReadThrough.started_at
+        ? new Date(serverReadThrough.started_at)
+        : null;
+      (record as any).finishedAt = serverReadThrough.finished_at
+        ? new Date(serverReadThrough.finished_at)
+        : null;
+    });
+  } else {
+    await collection.create((record) => {
+      record.serverId = serverReadThrough.id;
+      record.userBookId = userBook[0].id;
+      record.serverUserBookId = serverReadThrough.user_book_id;
+      record.readNumber = serverReadThrough.read_number;
+      record.status = serverReadThrough.status as BookStatus;
+      record.rating = serverReadThrough.rating;
+      record.review = serverReadThrough.review;
+      record.isDnf = serverReadThrough.is_dnf;
+      record.dnfReason = serverReadThrough.dnf_reason;
+      (record as any).startedAt = serverReadThrough.started_at
+        ? new Date(serverReadThrough.started_at)
+        : null;
+      (record as any).finishedAt = serverReadThrough.finished_at
+        ? new Date(serverReadThrough.finished_at)
+        : null;
+      record.isPendingSync = false;
+      record.isDeleted = false;
+    });
+  }
+}
+
 async function createOrUpdateSession(
   collection: ReturnType<typeof database.get<ReadingSession>>,
   userBooksCollection: ReturnType<typeof database.get<UserBook>>,
+  readThroughsCollection: ReturnType<typeof database.get<ReadThrough>>,
   serverSession: ServerSession
 ): Promise<void> {
   const existing = await collection
     .query(Q.where('server_id', serverSession.id))
     .fetch();
 
-  // Find the local user_book by server_id
   const userBook = await userBooksCollection
     .query(Q.where('server_id', serverSession.user_book_id))
     .fetch();
 
   if (!userBook[0]) {
-    console.warn(
-      `[Sync] Cannot find user_book with server_id ${serverSession.user_book_id}`
-    );
     return;
   }
 
+  let readThrough: ReadThrough | null = null;
+  if (serverSession.read_through_id) {
+    const readThroughs = await readThroughsCollection
+      .query(Q.where('server_id', serverSession.read_through_id))
+      .fetch();
+    readThrough = readThroughs[0] ?? null;
+  }
+
   if (existing[0]) {
-    // Sessions are append-only, skip if exists
     return;
   }
 
@@ -261,6 +451,8 @@ async function createOrUpdateSession(
     record.serverId = serverSession.id;
     record.userBookId = userBook[0].id;
     record.serverUserBookId = serverSession.user_book_id;
+    record.readThroughId = readThrough?.id ?? null;
+    record.serverReadThroughId = serverSession.read_through_id;
     record.sessionDate = serverSession.date;
     record.pagesRead = serverSession.pages_read;
     record.startPage = serverSession.start_page;

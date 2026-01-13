@@ -8,8 +8,8 @@ import {
   type ViewToken,
 } from 'react-native';
 import { Book02Icon, Add01Icon } from '@hugeicons/core-free-icons';
-import { Text } from '@/components/Text';
-import { Icon } from '@/components/Icon';
+import { Text, Icon } from '@/components/atoms';
+
 import { QuoteCard } from '@/components/QuoteCard';
 import { PaginationDots } from '@/components/PaginationDots';
 import { useTheme } from '@/themes';
@@ -20,12 +20,9 @@ interface MarginaliaSectionProps {
   onAddQuote: () => void;
   onQuotePress: (quote: Quote) => void;
 }
-
 const CARD_WIDTH_PERCENT = 0.75;
 const CARD_GAP = 24;
-
 type CarouselItem = { type: 'quote'; data: Quote } | { type: 'add' };
-
 export function MarginaliaSection({
   quotes,
   onAddQuote,
@@ -34,20 +31,15 @@ export function MarginaliaSection({
   const { theme, themeName } = useTheme();
   const isScholar = themeName === 'scholar';
   const { width: screenWidth } = useWindowDimensions();
-
   const [activeIndex, setActiveIndex] = useState(0);
-
   const cardWidth = screenWidth * CARD_WIDTH_PERCENT;
   const snapInterval = cardWidth + CARD_GAP;
-
   const carouselData = useMemo<CarouselItem[]>(() => {
     const items: CarouselItem[] = quotes.map((quote) => ({ type: 'quote', data: quote }));
     items.push({ type: 'add' });
     return items;
   }, [quotes]);
-
   const totalItems = carouselData.length;
-
   const onViewableItemsChanged = useCallback(
     ({ viewableItems }: { viewableItems: ViewToken[] }) => {
       if (viewableItems.length > 0 && viewableItems[0].index !== null) {
@@ -56,14 +48,12 @@ export function MarginaliaSection({
     },
     []
   );
-
   const viewabilityConfig = useMemo(
     () => ({
       itemVisiblePercentThreshold: 50,
     }),
     []
   );
-
   const renderItem: ListRenderItem<CarouselItem> = useCallback(
     ({ item }) => {
       if (item.type === 'add') {
@@ -109,7 +99,6 @@ export function MarginaliaSection({
           </TouchableOpacity>
         );
       }
-
       return (
         <View style={{ width: cardWidth }}>
           <QuoteCard
@@ -121,13 +110,11 @@ export function MarginaliaSection({
     },
     [cardWidth, isScholar, theme, onAddQuote, onQuotePress]
   );
-
   const keyExtractor = useCallback(
     (item: CarouselItem, index: number) =>
       item.type === 'add' ? 'add-quote' : item.data.id.toString(),
     []
   );
-
   const getItemLayout = useCallback(
     (_: unknown, index: number) => ({
       length: snapInterval,
@@ -136,9 +123,7 @@ export function MarginaliaSection({
     }),
     [snapInterval]
   );
-
   const ItemSeparator = useCallback(() => <View style={{ width: CARD_GAP }} />, []);
-
   if (quotes.length === 0) {
     return (
       <View style={{ gap: theme.spacing.md, paddingHorizontal: theme.spacing.lg }}>
@@ -153,7 +138,6 @@ export function MarginaliaSection({
         >
           Marginalia
         </Text>
-
         <TouchableOpacity onPress={onAddQuote} activeOpacity={0.7}>
           <View
             style={{
@@ -209,7 +193,6 @@ export function MarginaliaSection({
       </View>
     );
   }
-
   return (
     <View style={{ gap: theme.spacing.md }}>
       <View
@@ -240,7 +223,6 @@ export function MarginaliaSection({
           {quotes.length} {quotes.length === 1 ? 'quote' : 'quotes'}
         </Text>
       </View>
-
       <FlatList
         horizontal
         data={carouselData}
@@ -261,7 +243,6 @@ export function MarginaliaSection({
         maxToRenderPerBatch={3}
         windowSize={5}
       />
-
       <View style={{ paddingHorizontal: theme.spacing.lg }}>
         <PaginationDots count={totalItems} activeIndex={activeIndex} />
       </View>

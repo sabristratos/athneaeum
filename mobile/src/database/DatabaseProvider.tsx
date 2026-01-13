@@ -1,5 +1,7 @@
-import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import { AppState, type AppStateStatus } from 'react-native';
+import NetInfo from '@react-native-community/netinfo';
+import { Q } from '@nozbe/watermelondb';
 import { database } from '@/database/index';
 import {
   setupAutoSync,
@@ -12,6 +14,8 @@ interface DatabaseContextValue {
   database: Database;
   isReady: boolean;
   isSyncing: boolean;
+  isOnline: boolean;
+  pendingCount: number;
   lastSyncAt: number | null;
   triggerSync: () => Promise<void>;
 }
@@ -25,9 +29,37 @@ interface DatabaseProviderProps {
 export function DatabaseProvider({ children }: DatabaseProviderProps) {
   const [isReady, setIsReady] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isOnline, setIsOnline] = useState(true);
+  const [pendingCount, setPendingCount] = useState(0);
   const [lastSyncAt, setLastSyncAt] = useState<number | null>(null);
+  const pendingCheckTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const updatePendingCount = useCallback(async () => {
+    try {
+      const userBooksPending = await database
+        .get('user_books')
+        .query(Q.where('is_pending_sync', true), Q.where('is_deleted', false))
+        .fetchCount();
+
+      const sessionsPending = await database
+        .get('reading_sessions')
+        .query(Q.where('is_pending_sync', true), Q.where('is_deleted', false))
+        .fetchCount();
+
+      const booksPending = await database
+        .get('books')
+        .query(Q.where('is_pending_sync', true), Q.where('is_deleted', false))
+        .fetchCount();
+
+      setPendingCount(userBooksPending + sessionsPending + booksPending);
+    } catch {
+      setPendingCount(0);
+    }
+  }, []);
 
   const triggerSync = useCallback(async () => {
+    if (!isOnline) return;
+
     setIsSyncing(true);
     try {
       const result = await syncWithServer();
@@ -36,8 +68,9 @@ export function DatabaseProvider({ children }: DatabaseProviderProps) {
       }
     } finally {
       setIsSyncing(false);
+      await updatePendingCount();
     }
-  }, []);
+  }, [isOnline, updatePendingCount]);
 
   useEffect(() => {
     async function init() {
@@ -46,10 +79,7 @@ export function DatabaseProvider({ children }: DatabaseProviderProps) {
         setIsReady(true);
         setupAutoSync();
         triggerSync();
-      } catch (error) {
-        if (__DEV__) {
-          console.error('[DatabaseProvider] Init error:', error);
-        }
+      } catch {
         setIsReady(true);
       }
     }
@@ -75,13 +105,37 @@ export function DatabaseProvider({ children }: DatabaseProviderProps) {
     };
   }, [triggerSync]);
 
+  useEffect(() => {
+    const unsubscribe = NetInfo.addEventListener((state) => {
+      setIsOnline(state.isConnected ?? false);
+    });
+
+    return () => {
+      unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    updatePendingCount();
+
+    pendingCheckTimer.current = setInterval(() => {
+      updatePendingCount();
+    }, 10000);
+
+    return () => {
+      if (pendingCheckTimer.current) {
+        clearInterval(pendingCheckTimer.current);
+      }
+    };
+  }, [updatePendingCount]);
+
   if (!isReady) {
     return null;
   }
 
   return (
     <DatabaseContext.Provider
-      value={{ database, isReady, isSyncing, lastSyncAt, triggerSync }}
+      value={{ database, isReady, isSyncing, isOnline, pendingCount, lastSyncAt, triggerSync }}
     >
       {children}
     </DatabaseContext.Provider>
@@ -108,6 +162,8 @@ export function useSync() {
   }
   return {
     isSyncing: context.isSyncing,
+    isOnline: context.isOnline,
+    pendingCount: context.pendingCount,
     lastSyncAt: context.lastSyncAt,
     triggerSync: context.triggerSync,
   };

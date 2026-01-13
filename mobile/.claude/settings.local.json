@@ -33,7 +33,18 @@
       "Bash(Remove-Item -Recurse -Force \"$env:TEMP\\\\haste-*\" -ErrorAction SilentlyContinue)",
       "Bash(Write-Host \"Caches cleared successfully\")",
       "WebFetch(domain:www.npmjs.com)",
-      "Bash(npm ls:*)"
+      "Bash(npm ls:*)",
+      "Bash(Test-Path \"C:\\\\Work\\\\Athenaeum\\\\mobile\\\\src\\\\features\\\\library\\\\BookDetailScreen.tsx\")",
+      "Skill(frontend-design)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Work\\\\Athenaeum\\\\mobile\\\\src\" -Directory)",
+      "Bash(Select-Object Name)",
+      "Bash(Get-ChildItem -Recurse node_modules/@shopify/flash-list/dist/*.d.ts)",
+      "Bash(ForEach-Object { $_FullName })",
+      "WebFetch(domain:shopify.github.io)",
+      "Bash(npm start -- --clear)",
+      "Bash(Select-String:*)",
+      "Bash(findstr:*)",
+      "Bash(grep:*)"
     ]
   }
 }

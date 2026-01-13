@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Http\Resources\Concerns\SanitizesUtf8;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 class ReadingSessionResource extends JsonResource
 {
+    use SanitizesUtf8;
+
     public function toArray(Request $request): array
     {
         return [
@@ -20,7 +23,7 @@ class ReadingSessionResource extends JsonResource
             'end_page' => $this->end_page,
             'duration_seconds' => $this->duration_seconds,
             'formatted_duration' => $this->formatted_duration,
-            'notes' => $this->notes,
+            'notes' => $this->sanitizeUtf8($this->notes),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];

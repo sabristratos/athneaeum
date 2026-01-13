@@ -6,7 +6,7 @@ import {
   withSequence,
   withTiming,
 } from 'react-native-reanimated';
-import * as Haptics from 'expo-haptics';
+import { triggerHaptic } from '@/hooks/useHaptic';
 import { useThemeAnimation } from './useThemeAnimation';
 import { SPRINGS, TIMING } from '../constants';
 
@@ -25,7 +25,7 @@ export function useFeedbackAnimation(): FeedbackAnimationResult {
   const translateX = useSharedValue(0);
 
   const triggerSuccess = useCallback(() => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    triggerHaptic('success');
 
     if (reducedMotion) {
       scale.value = withSequence(
@@ -41,7 +41,7 @@ export function useFeedbackAnimation(): FeedbackAnimationResult {
   }, [reducedMotion, scale]);
 
   const triggerError = useCallback(() => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+    triggerHaptic('error');
 
     if (reducedMotion) {
       translateX.value = withSequence(
@@ -51,18 +51,18 @@ export function useFeedbackAnimation(): FeedbackAnimationResult {
       );
     } else {
       translateX.value = withSequence(
-        withTiming(-10, { duration: 50 }),
-        withTiming(10, { duration: 50 }),
-        withTiming(-8, { duration: 50 }),
-        withTiming(8, { duration: 50 }),
-        withTiming(-4, { duration: 50 }),
-        withTiming(0, { duration: 50 })
+        withTiming(-10, TIMING.instant),
+        withTiming(10, TIMING.instant),
+        withTiming(-8, TIMING.instant),
+        withTiming(8, TIMING.instant),
+        withTiming(-4, TIMING.instant),
+        withTiming(0, TIMING.instant)
       );
     }
   }, [reducedMotion, translateX]);
 
   const triggerWarning = useCallback(() => {
-    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+    triggerHaptic('warning');
 
     if (reducedMotion) {
       scale.value = withSequence(

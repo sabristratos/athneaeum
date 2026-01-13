@@ -9,16 +9,20 @@ interface TextureConfig {
 
 const TEXTURE_CONFIGS: Record<ThemeName, TextureConfig> = {
   scholar: {
-    opacity: 0.06,
-    lineCount: 15,
+    opacity: 0.08,
+    lineCount: 4,
   },
   dreamer: {
-    opacity: 0.04,
-    lineCount: 10,
+    opacity: 0.05,
+    lineCount: 3,
   },
   wanderer: {
-    opacity: 0.05,
-    lineCount: 12,
+    opacity: 0.06,
+    lineCount: 4,
+  },
+  midnight: {
+    opacity: 0.04,
+    lineCount: 3,
   },
 };
 
@@ -28,10 +32,6 @@ interface SpineTextureProps {
   height?: number;
 }
 
-/**
- * Simple texture overlay for book spines using native Views.
- * Creates a subtle grain effect with horizontal lines.
- */
 export const SpineTexture = memo(function SpineTexture({
   themeName,
 }: SpineTextureProps) {
@@ -53,7 +53,6 @@ export const SpineTexture = memo(function SpineTexture({
             styles.grainLine,
             {
               top: `${(i + 1) * (100 / (config.lineCount + 1))}%`,
-              opacity: i % 3 === 0 ? 0.4 : 0.2,
             },
           ]}
         />
@@ -72,5 +71,6 @@ const styles = StyleSheet.create({
     right: 0,
     height: 1,
     backgroundColor: '#000000',
+    opacity: 0.3,
   },
 });

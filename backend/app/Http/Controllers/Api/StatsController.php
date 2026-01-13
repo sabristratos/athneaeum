@@ -6,15 +6,19 @@ namespace App\Http\Controllers\Api;
 
 use App\Enums\BookStatusEnum;
 use App\Http\Controllers\Controller;
-use App\Http\Resources\ReadingSessionResource;
 use App\Models\ReadingSession;
 use App\Models\UserBook;
+use App\Services\Stats\ReaderDNAService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class StatsController extends Controller
 {
+    public function __construct(
+        private ReaderDNAService $readerDNAService
+    ) {}
+
     /**
      * Get reading statistics for the authenticated user.
      */
@@ -23,7 +27,9 @@ class StatsController extends Controller
         $user = $request->user();
         $userBookIds = UserBook::where('user_id', $user->id)->pluck('id');
 
-        $allSessions = ReadingSession::whereIn('user_book_id', $userBookIds)->get();
+        $allSessions = ReadingSession::whereIn('user_book_id', $userBookIds)
+            ->with('userBook')
+            ->get();
 
         $totalPagesRead = $allSessions->sum('pages_read');
         $totalSessions = $allSessions->count();
@@ -58,37 +64,35 @@ class StatsController extends Controller
             ->get();
 
         return response()->json([
-            'data' => [
-                'total_pages_read' => $totalPagesRead,
-                'total_sessions' => $totalSessions,
-                'total_reading_time_seconds' => $totalReadingTimeSeconds,
-                'total_reading_time_formatted' => $this->formatDuration($totalReadingTimeSeconds),
-                'books_completed' => $booksCompleted,
-                'books_in_progress' => $booksInProgress,
-                'current_streak_days' => $streaks['current'],
-                'longest_streak_days' => $streaks['longest'],
-                'avg_pages_per_session' => $avgPagesPerSession,
-                'avg_session_duration_seconds' => $avgSessionDurationSeconds,
-                'avg_session_duration_formatted' => $this->formatDuration($avgSessionDurationSeconds),
-                'this_week' => $thisWeekStats,
-                'this_month' => $thisMonthStats,
-                'recent_sessions' => $recentSessions->map(fn ($session) => [
-                    'id' => $session->id,
-                    'date' => $session->date->format('Y-m-d'),
-                    'pages_read' => $session->pages_read,
-                    'start_page' => $session->start_page,
-                    'end_page' => $session->end_page,
-                    'duration_seconds' => $session->duration_seconds,
-                    'formatted_duration' => $session->formatted_duration,
-                    'notes' => $session->notes,
-                    'book' => [
-                        'id' => $session->userBook->book->id,
-                        'title' => $session->userBook->book->title,
-                        'author' => $session->userBook->book->author,
-                        'cover_url' => $session->userBook->book->cover_url,
-                    ],
-                ]),
-            ],
+            'total_pages_read' => $totalPagesRead,
+            'total_sessions' => $totalSessions,
+            'total_reading_time_seconds' => $totalReadingTimeSeconds,
+            'total_reading_time_formatted' => $this->formatDuration($totalReadingTimeSeconds),
+            'books_completed' => $booksCompleted,
+            'books_in_progress' => $booksInProgress,
+            'current_streak_days' => $streaks['current'],
+            'longest_streak_days' => $streaks['longest'],
+            'avg_pages_per_session' => $avgPagesPerSession,
+            'avg_session_duration_seconds' => $avgSessionDurationSeconds,
+            'avg_session_duration_formatted' => $this->formatDuration($avgSessionDurationSeconds),
+            'this_week' => $thisWeekStats,
+            'this_month' => $thisMonthStats,
+            'recent_sessions' => $recentSessions->map(fn ($session) => [
+                'id' => $session->id,
+                'date' => $session->date->format('Y-m-d'),
+                'pages_read' => $session->pages_read,
+                'start_page' => $session->start_page,
+                'end_page' => $session->end_page,
+                'duration_seconds' => $session->duration_seconds,
+                'formatted_duration' => $session->formatted_duration,
+                'notes' => $session->notes,
+                'book' => [
+                    'id' => $session->userBook->book->id,
+                    'title' => $session->userBook->book->title,
+                    'author' => $session->userBook->book->author,
+                    'cover_url' => $session->userBook->book->cover_url,
+                ],
+            ]),
         ]);
     }
 
@@ -203,5 +207,68 @@ class StatsController extends Controller
         }
 
         return sprintf('%dm', $minutes);
+    }
+
+    /**
+     * Get 365-day heatmap data for reading activity.
+     */
+    public function heatmap(Request $request): JsonResponse
+    {
+        return response()->json(
+            $this->readerDNAService->getHeatmapData($request->user())
+        );
+    }
+
+    /**
+     * Get reading velocity by book format.
+     */
+    public function formatVelocity(Request $request): JsonResponse
+    {
+        return response()->json(
+            $this->readerDNAService->getFormatVelocity($request->user())
+        );
+    }
+
+    /**
+     * Get tag and genre breakdown (mood ring).
+     */
+    public function moodRing(Request $request): JsonResponse
+    {
+        return response()->json(
+            $this->readerDNAService->getMoodRing($request->user())
+        );
+    }
+
+    /**
+     * Get DNF analytics and abandonment patterns.
+     */
+    public function dnfAnalytics(Request $request): JsonResponse
+    {
+        return response()->json(
+            $this->readerDNAService->getDnfAnalytics($request->user())
+        );
+    }
+
+    /**
+     * Get page economy analysis.
+     */
+    public function pageEconomy(Request $request): JsonResponse
+    {
+        return response()->json(
+            $this->readerDNAService->getPageEconomy($request->user())
+        );
+    }
+
+    /**
+     * Get calendar data for reading activity visualization.
+     */
+    public function calendar(Request $request): JsonResponse
+    {
+        $year = (int) $request->input('year', now()->year);
+        $month = $request->has('month') ? (int) $request->input('month') : null;
+
+        return response()->json(
+            $this->readerDNAService->getCalendarData($request->user(), $year, $month)
+        );
     }
 }

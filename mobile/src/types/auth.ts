@@ -1,11 +1,17 @@
 import type { ThemeName } from '@/types/theme';
+import type { UserPreferences } from '@/stores/preferencesStore';
+
+export type SearchSource = 'google' | 'opds' | 'both';
 
 export interface User {
   id: number;
   name: string;
   email: string;
   theme: ThemeName;
-  preferences: Record<string, unknown> | null;
+  preferences: UserPreferences | null;
+  avatar_url: string | null;
+  has_opds_configured: boolean;
+  preferred_search_source: SearchSource;
   created_at: string;
   updated_at: string;
 }
@@ -43,6 +49,7 @@ export interface MessageResponse {
 }
 
 export interface ApiError {
-  message: string;
+  message?: string;
+  error?: string;
   errors?: Record<string, string[]>;
 }

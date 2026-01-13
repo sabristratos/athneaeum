@@ -2,17 +2,19 @@ import React, { useMemo } from 'react';
 import { View, ActivityIndicator, Text } from 'react-native';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import * as Linking from 'expo-linking';
-import { useAuthStore } from '@/stores/authStore';
-import { useThemeStore } from '@/stores/themeStore';
+import { useIsAuthenticated, useAuthHydrated } from '@/stores/authStore';
+import { useThemeHydrated } from '@/stores/themeStore';
 import { useTheme } from '@/themes';
 import { AuthNavigator } from '@/navigation/AuthNavigator';
 import { MainNavigator } from '@/navigation/MainNavigator';
+import { GoalCelebrationOverlay } from '@/components/organisms';
 
 const prefix = Linking.createURL('/');
 
 export function RootNavigator() {
-  const { isAuthenticated, isHydrated: authHydrated } = useAuthStore();
-  const { isHydrated: themeHydrated } = useThemeStore();
+  const isAuthenticated = useIsAuthenticated();
+  const authHydrated = useAuthHydrated();
+  const themeHydrated = useThemeHydrated();
   const { theme } = useTheme();
 
   const linking = useMemo(
@@ -72,6 +74,7 @@ export function RootNavigator() {
   return (
     <NavigationContainer linking={linking} theme={navigationTheme}>
       {isAuthenticated ? <MainNavigator /> : <AuthNavigator />}
+      <GoalCelebrationOverlay />
     </NavigationContainer>
   );
 }

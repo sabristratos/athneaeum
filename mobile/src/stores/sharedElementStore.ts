@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useShallow } from 'zustand/react/shallow';
 
 export interface ElementPosition {
   x: number;
@@ -7,10 +8,12 @@ export interface ElementPosition {
   height: number;
 }
 
-// Hero cover dimensions (shared constant)
+// Hero cover dimensions - must match CoverImage 'lg' size from CoverImage.tsx sizeMap
+// (coverSizes.lg.width + sharedSpacing.md + sharedSpacing.xs = 100 + 16 + 4 = 120)
+// (coverSizes.lg.height + 30 = 150 + 30 = 180)
 export const HERO_COVER = {
-  width: 160,
-  height: 240,
+  width: 120,
+  height: 180,
 };
 
 interface SharedElementState {
@@ -112,3 +115,29 @@ export const useSharedElementStore = create<SharedElementState>((set, get) => ({
       return { listItemPositions: rest };
     }),
 }));
+
+export const useSharedElementActions = () =>
+  useSharedElementStore(
+    useShallow((state) => ({
+      startForwardTransition: state.startForwardTransition,
+      startBackwardTransition: state.startBackwardTransition,
+      completeTransition: state.completeTransition,
+      registerListItemPosition: state.registerListItemPosition,
+      unregisterListItemPosition: state.unregisterListItemPosition,
+    }))
+  );
+
+export const useSharedElementTransition = () =>
+  useSharedElementStore(
+    useShallow((state) => ({
+      isTransitioning: state.isTransitioning,
+      direction: state.direction,
+      sourcePosition: state.sourcePosition,
+      targetPosition: state.targetPosition,
+      coverUri: state.coverUri,
+      userBookId: state.userBookId,
+    }))
+  );
+
+export const useIsTransitioning = () =>
+  useSharedElementStore((state) => state.isTransitioning);

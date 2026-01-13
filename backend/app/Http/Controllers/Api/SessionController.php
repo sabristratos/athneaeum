@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\BookStatusEnum;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Session\StoreReadingSessionRequest;
 use App\Http\Resources\ReadingSessionResource;
@@ -45,6 +46,10 @@ class SessionController extends Controller
     {
         $userBook = UserBook::findOrFail($request->validated('user_book_id'));
 
+        if ($userBook->user_id !== $request->user()->id) {
+            abort(403, 'You do not have permission to log sessions for this book.');
+        }
+
         $session = DB::transaction(function () use ($request, $userBook) {
             $startPage = $request->validated('start_page');
             $endPage = $request->validated('end_page');
@@ -59,9 +64,14 @@ class SessionController extends Controller
                 'notes' => $request->validated('notes'),
             ]);
 
-            $userBook->update([
-                'current_page' => $endPage,
-            ]);
+            $updateData = ['current_page' => $endPage];
+
+            if ($userBook->status === BookStatusEnum::WantToRead) {
+                $updateData['status'] = BookStatusEnum::Reading;
+                $updateData['started_at'] = $userBook->started_at ?? now();
+            }
+
+            $userBook->update($updateData);
 
             return $session;
         });

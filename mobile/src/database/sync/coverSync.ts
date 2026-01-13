@@ -93,7 +93,6 @@ export async function uploadPendingCovers(): Promise<void> {
     try {
       const token = await getToken();
       if (!token) {
-        console.warn('[CoverSync] No auth token, skipping upload');
         continue;
       }
 
@@ -114,7 +113,6 @@ export async function uploadPendingCovers(): Promise<void> {
       );
 
       if (uploadResult.status !== 200) {
-        console.error('[CoverSync] Upload failed:', uploadResult.body);
         continue;
       }
 
@@ -135,8 +133,7 @@ export async function uploadPendingCovers(): Promise<void> {
 
       // Optionally delete local file after successful upload
       // await FileSystem.deleteAsync(book.localCoverPath, { idempotent: true });
-    } catch (error) {
-      console.error('[CoverSync] Upload error:', error);
+    } catch {
     }
   }
 }

@@ -1,15 +1,18 @@
-import React, { useCallback, useMemo } from 'react';
-import { View, StyleSheet, ScrollView, RefreshControl } from 'react-native';
+import React, { useCallback, useMemo, useState } from 'react';
+import { View, StyleSheet, RefreshControl, NativeScrollEvent, NativeSyntheticEvent } from 'react-native';
+import Animated, { useAnimatedStyle } from 'react-native-reanimated';
 import { ShelfRow } from '@/components/ShelfRow';
 import { useTheme } from '@/themes';
 import { useScrollPhysics, buildSectionBoundaries } from '@/hooks';
 import { BookSpine } from './BookSpine';
+import { SPINE_HEIGHT_MAX } from './constants';
 import type { UserBook } from '@/types';
 
-// Spine dimensions - use max height for section boundary calculations
-const SPINE_HEIGHT_MAX = 160;
 const SPINE_GAP = 2;
 const SHELF_PADDING = 16;
+const INITIAL_BATCH_SIZE = 40;
+const LOAD_MORE_BATCH_SIZE = 40;
+const LOAD_MORE_THRESHOLD = 500;
 
 interface SpineGridViewProps {
   books: UserBook[];
@@ -21,11 +24,6 @@ interface SpineGridViewProps {
   ListEmptyComponent?: React.ComponentType | React.ReactElement | null;
 }
 
-/**
- * A grid view that displays books as procedurally generated spines.
- * Spine widths vary based on page count.
- * Can show 50+ books per screen, mimicking a real bookshelf.
- */
 export function SpineGridView({
   books,
   onBookPress,
@@ -36,57 +34,90 @@ export function SpineGridView({
   ListEmptyComponent,
 }: SpineGridViewProps) {
   const { theme } = useTheme();
+  const [visibleCount, setVisibleCount] = useState(INITIAL_BATCH_SIZE);
 
-  // Build section boundaries for haptic feedback
+  const visibleBooks = useMemo(() => {
+    return books.slice(0, visibleCount);
+  }, [books, visibleCount]);
+
+  const hasMoreBooks = visibleCount < books.length;
+
   const sectionBoundaries = useMemo(
-    () => buildSectionBoundaries(books, SPINE_HEIGHT_MAX + theme.spacing.md),
-    [books, theme.spacing.md]
+    () => buildSectionBoundaries(visibleBooks, SPINE_HEIGHT_MAX + theme.spacing.md),
+    [visibleBooks, theme.spacing.md]
   );
 
-  // Scroll physics
-  const { scrollHandler, tiltAngle, skewAngle } = useScrollPhysics({
+  const { scrollHandler: physicsScrollHandler, tiltAngle, skewAngle } = useScrollPhysics({
     enableTilt: true,
     enableSkew: true,
     enableSectionHaptics: true,
     sectionBoundaries,
   });
 
-  // Render header if provided
-  const renderHeader = () => {
+  const handleScroll = useCallback(
+    (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      physicsScrollHandler(event);
+
+      if (!hasMoreBooks) return;
+
+      const { layoutMeasurement, contentOffset, contentSize } = event.nativeEvent;
+      const distanceFromBottom = contentSize.height - layoutMeasurement.height - contentOffset.y;
+
+      if (distanceFromBottom < LOAD_MORE_THRESHOLD) {
+        setVisibleCount((prev) => Math.min(prev + LOAD_MORE_BATCH_SIZE, books.length));
+      }
+    },
+    [physicsScrollHandler, hasMoreBooks, books.length]
+  );
+
+  const containerPhysicsStyle = useAnimatedStyle(() => {
+    return {
+      transform: [
+        { perspective: 1000 },
+        { rotateX: `${tiltAngle.value}deg` },
+      ],
+    };
+  }, [tiltAngle]);
+
+  const handleBookPress = useCallback(
+    (userBook: UserBook) => {
+      onBookPress(userBook);
+    },
+    [onBookPress]
+  );
+
+  const renderHeader = useCallback(() => {
     if (!ListHeaderComponent) return null;
     if (React.isValidElement(ListHeaderComponent)) {
       return ListHeaderComponent;
     }
     const HeaderComponent = ListHeaderComponent as React.ComponentType;
     return <HeaderComponent />;
-  };
+  }, [ListHeaderComponent]);
 
-  // Render empty state if provided
-  const renderEmpty = () => {
+  const renderEmpty = useCallback(() => {
     if (books.length > 0 || !ListEmptyComponent) return null;
     if (React.isValidElement(ListEmptyComponent)) {
       return ListEmptyComponent;
     }
     const EmptyComponent = ListEmptyComponent as React.ComponentType;
     return <EmptyComponent />;
-  };
+  }, [books.length, ListEmptyComponent]);
 
-  // Render all spines in a flex wrap container
-  const renderSpines = () => {
+  const renderSpines = useCallback(() => {
     if (books.length === 0) return renderEmpty();
 
     const content = (
       <View style={[styles.spinesContainer, { gap: SPINE_GAP }]}>
-        {books.map((userBook, index) => (
+        {visibleBooks.map((userBook, index) => (
           <BookSpine
             key={userBook.id}
             book={userBook.book}
             userBook={userBook}
-            onPress={() => onBookPress(userBook)}
+            onPress={() => handleBookPress(userBook)}
             index={index}
-            tiltAngle={tiltAngle}
             skewAngle={skewAngle}
-            enablePhysics={true}
+            totalBooks={books.length}
           />
         ))}
       </View>
@@ -107,14 +138,14 @@ export function SpineGridView({
         {content}
       </View>
     );
-  };
+  }, [books.length, visibleBooks, handleBookPress, renderEmpty, showShelves, theme.spacing.md, skewAngle]);
 
   return (
-    <ScrollView
+    <Animated.ScrollView
       style={styles.scrollView}
       contentContainerStyle={{ paddingBottom: theme.spacing.xl + 80 }}
       showsVerticalScrollIndicator={false}
-      onScroll={scrollHandler as any}
+      onScroll={handleScroll}
       scrollEventThrottle={16}
       removeClippedSubviews={true}
       refreshControl={
@@ -128,8 +159,10 @@ export function SpineGridView({
       }
     >
       {renderHeader()}
-      {renderSpines()}
-    </ScrollView>
+      <Animated.View style={containerPhysicsStyle}>
+        {renderSpines()}
+      </Animated.View>
+    </Animated.ScrollView>
   );
 }
 

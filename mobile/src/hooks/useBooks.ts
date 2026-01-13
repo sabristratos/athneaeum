@@ -1,6 +1,9 @@
 import { useState, useCallback, useRef } from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { booksApi } from '@/api/books';
 import { ApiRequestError } from '@/api/client';
+import { queryKeys } from '@/lib/queryKeys';
+import { calculateLocalStats } from '@/services/LocalStatsService';
 import type {
   SearchResult,
   SearchFilters,
@@ -13,6 +16,16 @@ import type {
   ReadingSession,
   ReadingStats,
 } from '@/types';
+
+function formatStatus(status: BookStatus): string {
+  const labels: Record<BookStatus, string> = {
+    reading: 'Reading',
+    want_to_read: 'Want to Read',
+    read: 'Read',
+    dnf: 'DNF',
+  };
+  return labels[status] || status;
+}
 
 export function useBookSearch() {
   const [results, setResults] = useState<SearchResult[]>([]);
@@ -31,8 +44,8 @@ export function useBookSearch() {
 
     try {
       const response = await booksApi.search(query);
-      setResults(response.data ?? []);
-      setProvider(response.meta?.provider ?? '');
+      setResults(response.items ?? []);
+      setProvider(response.provider ?? '');
     } catch (err) {
       if (err instanceof Error) {
         setError(err.message);
@@ -80,8 +93,13 @@ export function useInfiniteBookSearch() {
 
     try {
       const response = await booksApi.search(query, PAGE_SIZE, 0, filters);
-      setResults(response.data ?? []);
-      setMeta(response.meta ?? null);
+      setResults(response.items ?? []);
+      setMeta({
+        total: response.total,
+        has_more: response.has_more,
+        provider: response.provider,
+        start_index: response.start_index,
+      });
     } catch (err) {
       if (err instanceof Error) {
         setError(err.message);
@@ -112,12 +130,17 @@ export function useInfiniteBookSearch() {
       );
       setResults((prev) => {
         const existingIds = new Set(prev.map((item) => item.external_id));
-        const newItems = (response.data ?? []).filter(
+        const newItems = (response.items ?? []).filter(
           (item) => !existingIds.has(item.external_id)
         );
         return [...prev, ...newItems];
       });
-      setMeta(response.meta ?? null);
+      setMeta({
+        total: response.total,
+        has_more: response.has_more,
+        provider: response.provider,
+        start_index: response.start_index,
+      });
     } catch {
       // Silent fail for load more - don't clear existing results
     } finally {
@@ -167,8 +190,7 @@ export function useLibrary() {
     setError(null);
 
     try {
-      const response = await booksApi.getLibrary(status);
-      const books = Array.isArray(response) ? response : (response.data ?? []);
+      const books = await booksApi.getLibrary(status);
       setBooks(books);
     } catch (err) {
       if (err instanceof Error) {
@@ -195,27 +217,43 @@ export function useLibrary() {
   }, []);
 
   const updateBook = useCallback(async (id: number, data: UpdateUserBookData): Promise<UserBook | null> => {
+    const previousBooks = books;
+
+    setBooks((prev) => prev.map((b) => {
+      if (b.id !== id) return b;
+      return {
+        ...b,
+        ...data,
+        status_label: data.status ? formatStatus(data.status) : b.status_label,
+      };
+    }));
+
     try {
       const updated = await booksApi.updateUserBook(id, data);
       setBooks((prev) => prev.map((b) => (b.id === id ? updated : b)));
       return updated;
     } catch (err) {
+      setBooks(previousBooks);
       if (err instanceof ApiRequestError) {
         throw err;
       }
       throw new Error('Failed to update book');
     }
-  }, []);
+  }, [books]);
 
   const removeBook = useCallback(async (id: number): Promise<boolean> => {
+    const previousBooks = books;
+
+    setBooks((prev) => prev.filter((b) => b.id !== id));
+
     try {
       await booksApi.removeFromLibrary(id);
-      setBooks((prev) => prev.filter((b) => b.id !== id));
       return true;
     } catch (err) {
+      setBooks(previousBooks);
       return false;
     }
-  }, []);
+  }, [books]);
 
   const moveToEndOfList = useCallback((id: number) => {
     setBooks((prev) => {
@@ -243,14 +281,15 @@ export function useReadingSessions(userBookId?: number) {
   const [sessions, setSessions] = useState<ReadingSession[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
 
   const fetchSessions = useCallback(async () => {
     setLoading(true);
     setError(null);
 
     try {
-      const response = await booksApi.getSessions(userBookId);
-      setSessions(response.data ?? []);
+      const sessions = await booksApi.getSessions(userBookId);
+      setSessions(Array.isArray(sessions) ? sessions : []);
     } catch (err) {
       if (err instanceof Error) {
         setError(err.message);
@@ -264,6 +303,10 @@ export function useReadingSessions(userBookId?: number) {
     try {
       const session = await booksApi.logSession(data);
       setSessions((prev) => [session, ...prev]);
+
+      queryClient.invalidateQueries({ queryKey: queryKeys.stats.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.goals.all });
+
       return session;
     } catch (err) {
       if (err instanceof ApiRequestError) {
@@ -271,7 +314,7 @@ export function useReadingSessions(userBookId?: number) {
       }
       throw new Error('Failed to log session');
     }
-  }, []);
+  }, [queryClient]);
 
   const updateSession = useCallback(async (
     sessionId: number,
@@ -288,6 +331,10 @@ export function useReadingSessions(userBookId?: number) {
       setSessions((prev) =>
         prev.map((s) => (s.id === sessionId ? session : s))
       );
+
+      queryClient.invalidateQueries({ queryKey: queryKeys.stats.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.goals.all });
+
       return session;
     } catch (err) {
       if (err instanceof ApiRequestError) {
@@ -295,17 +342,21 @@ export function useReadingSessions(userBookId?: number) {
       }
       throw new Error('Failed to update session');
     }
-  }, []);
+  }, [queryClient]);
 
   const deleteSession = useCallback(async (sessionId: number): Promise<boolean> => {
     try {
       await booksApi.deleteSession(sessionId);
       setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+
+      queryClient.invalidateQueries({ queryKey: queryKeys.stats.all });
+      queryClient.invalidateQueries({ queryKey: queryKeys.goals.all });
+
       return true;
     } catch {
       return false;
     }
-  }, []);
+  }, [queryClient]);
 
   return { sessions, loading, error, fetchSessions, logSession, updateSession, deleteSession };
 }
@@ -314,24 +365,32 @@ export function useReadingStats() {
   const [stats, setStats] = useState<ReadingStats | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isOffline, setIsOffline] = useState(false);
 
   const fetchStats = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setIsOffline(false);
 
     try {
-      const response = await booksApi.getStats();
-      setStats(response.data);
+      const apiStats = await booksApi.getStats();
+      setStats(apiStats);
     } catch (err) {
-      if (err instanceof Error) {
-        setError(err.message);
-      } else {
-        setError('Failed to load reading stats');
+      try {
+        const localStats = await calculateLocalStats();
+        setStats(localStats);
+        setIsOffline(true);
+      } catch (localErr) {
+        if (err instanceof Error) {
+          setError(err.message);
+        } else {
+          setError('Failed to load reading stats');
+        }
       }
     } finally {
       setLoading(false);
     }
   }, []);
 
-  return { stats, loading, error, fetchStats };
+  return { stats, loading, error, isOffline, fetchStats };
 }

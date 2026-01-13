@@ -1,10 +1,14 @@
 import React, { useCallback, useMemo } from 'react';
 import { View, StyleSheet, useWindowDimensions, RefreshControl } from 'react-native';
 import { FlashList, type ListRenderItemInfo } from '@shopify/flash-list';
+import Animated from 'react-native-reanimated';
 import { BookCoverCard, ShelfRow } from '@/components';
 import { useTheme } from '@/themes';
 import { useScrollPhysics, buildSectionBoundaries } from '@/hooks';
 import type { UserBook } from '@/types';
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const AnimatedFlashList = Animated.createAnimatedComponent(FlashList) as any;
 
 interface CoverGridViewProps {
   books: UserBook[];
@@ -119,11 +123,12 @@ export function CoverGridView({
   );
 
   return (
-    <FlashList
+    <AnimatedFlashList
       data={rows}
       renderItem={renderRow}
       keyExtractor={keyExtractor}
-      onScroll={scrollHandler as any}
+      estimatedItemSize={180}
+      onScroll={scrollHandler}
       scrollEventThrottle={16}
       showsVerticalScrollIndicator={false}
       contentContainerStyle={{ paddingBottom: theme.spacing.xl }}

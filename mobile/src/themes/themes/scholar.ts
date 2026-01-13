@@ -10,6 +10,7 @@ export const scholarTheme: Theme = {
     surface: '#1c1a17',
     surfaceAlt: '#161412',
     surfaceHover: '#2a2622',
+    muted: '#2a2622',
 
     // Borders
     border: '#2a2622',
@@ -20,6 +21,7 @@ export const scholarTheme: Theme = {
     primary: '#8b2e2e',
     primaryHover: '#a33a3a',
     primaryGlow: 'rgba(139,46,46,0.3)',
+    primarySubtle: 'rgba(139,46,46,0.15)',
 
     // Foreground/Text (Cream/paper tones) - lightened for better contrast
     foreground: '#dcd0c0',
@@ -32,8 +34,11 @@ export const scholarTheme: Theme = {
 
     // Semantic
     success: '#4a6741',
+    successSubtle: 'rgba(74,103,65,0.15)',
     danger: '#8b2e2e',
+    dangerSubtle: 'rgba(139,46,46,0.15)',
     warning: '#b8860b',
+    warningSubtle: 'rgba(184,134,11,0.15)',
 
     // On-color (text on colored backgrounds)
     onPrimary: '#dcd0c0',
@@ -56,6 +61,7 @@ export const scholarTheme: Theme = {
   },
   radii: {
     none: 0,
+    xs: 1,
     sm: 2,
     md: 4,
     lg: 6,
@@ -111,5 +117,17 @@ export const scholarTheme: Theme = {
   icons: {
     rating: 'star',
     progress: 'ink',
+  },
+  tagColors: {
+    primary: { bg: '#8b2e2e', text: '#dcd0c0' },
+    gold: { bg: '#b8860b', text: '#12100e' },
+    green: { bg: '#4a6741', text: '#dcd0c0' },
+    purple: { bg: '#5d4777', text: '#dcd0c0' },
+    copper: { bg: '#8b5a2b', text: '#dcd0c0' },
+    blue: { bg: '#3d5a80', text: '#dcd0c0' },
+    orange: { bg: '#a65d2e', text: '#dcd0c0' },
+    teal: { bg: '#2f6b6b', text: '#dcd0c0' },
+    rose: { bg: '#8b5a5a', text: '#dcd0c0' },
+    slate: { bg: '#4a4a4a', text: '#dcd0c0' },
   },
 };

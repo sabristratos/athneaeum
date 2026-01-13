@@ -63,6 +63,27 @@ interface BookSearchServiceInterface
     public function findByExternalId(string $externalId): ?array;
 
     /**
+     * Search for all editions of a book by title and author.
+     *
+     * Returns ungrouped results so users can pick a specific edition.
+     *
+     * @return array<int, array{
+     *   external_id: ?string,
+     *   title: string,
+     *   author: string,
+     *   cover_url: ?string,
+     *   page_count: ?int,
+     *   isbn: ?string,
+     *   description: ?string,
+     *   genres: array<string>,
+     *   published_date: ?string,
+     *   average_rating: ?float,
+     *   ratings_count: ?int
+     * }>
+     */
+    public function searchEditions(string $title, string $author, int $limit = 20): array;
+
+    /**
      * Get the provider name identifier.
      *
      * Used for storing which provider a book came from.

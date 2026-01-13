@@ -2,3 +2,8 @@ export * from '@/types/theme';
 export * from '@/types/auth';
 export * from '@/types/book';
 export * from '@/types/quote';
+export * from '@/types/tag';
+export * from '@/types/stats';
+export * from '@/types/tierList';
+export * from '@/types/preference';
+export * from '@/types/author';

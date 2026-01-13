@@ -7,6 +7,5 @@ export function useReadingStatsQuery() {
     queryKey: queryKeys.stats.reading(),
     queryFn: () => booksApi.getStats(),
     staleTime: 1000 * 60 * 2,
-    select: (response) => response.data,
   });
 }

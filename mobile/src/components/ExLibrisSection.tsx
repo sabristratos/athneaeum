@@ -1,11 +1,11 @@
 import React from 'react';
 import { View, TouchableOpacity } from 'react-native';
 import { Calendar03Icon } from '@hugeicons/core-free-icons';
-import { Card } from '@/components/Card';
-import { Text } from '@/components/Text';
-import { Icon } from '@/components/Icon';
+import { Card } from '@/components/organisms';
+import { Text, Icon } from '@/components/atoms';
 import { SectionHeader } from '@/components/SectionHeader';
 import { useTheme } from '@/themes';
+import { formatShortDateWithYear } from '@/utils/dateUtils';
 import type { Book, UserBook } from '@/types';
 
 interface ExLibrisSectionProps {
@@ -22,17 +22,8 @@ export function ExLibrisSection({
   const { theme, themeName } = useTheme();
   const isScholar = themeName === 'scholar';
 
-  const formatDate = (dateString: string | null) => {
-    if (!dateString) return null;
-    return new Date(dateString).toLocaleDateString('en-US', {
-      month: 'short',
-      day: 'numeric',
-      year: 'numeric',
-    });
-  };
-
-  const startDate = formatDate(userBook.started_at);
-  const finishDate = formatDate(userBook.finished_at);
+  const startDate = userBook.started_at ? formatShortDateWithYear(userBook.started_at) : null;
+  const finishDate = userBook.finished_at ? formatShortDateWithYear(userBook.finished_at) : null;
 
   return (
     <View style={{ gap: theme.spacing.md }}>

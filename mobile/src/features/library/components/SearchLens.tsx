@@ -5,17 +5,15 @@ import {
   TextInput,
   Keyboard,
   useWindowDimensions,
+  TouchableWithoutFeedback,
 } from 'react-native';
 import Animated, {
   useAnimatedStyle,
-  withSpring,
   interpolate,
   type SharedValue,
 } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
-import { Pressable } from '@/components/Pressable';
-import { Icon } from '@/components/Icon';
-import { Text } from '@/components/Text';
+import { Pressable, Icon, Text } from '@/components/atoms';
 import { useTheme } from '@/themes';
 import { Cancel01Icon, Search01Icon } from '@hugeicons/core-free-icons';
 
@@ -29,16 +27,6 @@ interface SearchLensProps {
   overlayOpacity: SharedValue<number>;
 }
 
-const SPRING_CONFIG = {
-  damping: 15,
-  stiffness: 200,
-};
-
-/**
- * SearchLens overlay component.
- * Displays a blurred backdrop with a glowing search input.
- * Shows matching count as user types.
- */
 export const SearchLens = memo(function SearchLens({
   isActive,
   searchQuery,
@@ -52,7 +40,6 @@ export const SearchLens = memo(function SearchLens({
   const { height: screenHeight } = useWindowDimensions();
   const inputRef = useRef<TextInput>(null);
 
-  // Focus input when lens opens
   useEffect(() => {
     if (isActive) {
       setTimeout(() => {
@@ -61,30 +48,23 @@ export const SearchLens = memo(function SearchLens({
     }
   }, [isActive]);
 
-  // Animated styles
   const backdropStyle = useAnimatedStyle(() => ({
     opacity: overlayOpacity.value,
   }));
 
   const searchContainerStyle = useAnimatedStyle(() => ({
     transform: [
-      {
-        translateY: interpolate(overlayOpacity.value, [0, 1], [-50, 0]),
-      },
-      {
-        scale: interpolate(overlayOpacity.value, [0, 1], [0.9, 1]),
-      },
+      { translateY: interpolate(overlayOpacity.value, [0, 1], [-50, 0]) },
+      { scale: interpolate(overlayOpacity.value, [0, 1], [0.9, 1]) },
     ],
     opacity: overlayOpacity.value,
   }));
 
-  // Handle backdrop press (close lens)
   const handleBackdropPress = () => {
     Keyboard.dismiss();
     onClose();
   };
 
-  // Handle clear search
   const handleClear = () => {
     onSearchChange('');
     inputRef.current?.focus();
@@ -95,25 +75,23 @@ export const SearchLens = memo(function SearchLens({
   }
 
   return (
-    <Animated.View style={[styles.container, backdropStyle]} pointerEvents={isActive ? 'auto' : 'none'}>
-      {/* Blurred backdrop */}
-      <Pressable
-        style={StyleSheet.absoluteFillObject}
-        onPress={handleBackdropPress}
-        haptic="none"
-      >
-        <BlurView
-          intensity={theme.isDark ? 40 : 60}
-          tint={theme.isDark ? 'dark' : 'light'}
-          style={StyleSheet.absoluteFill}
-        />
-        <View
-          style={[
-            StyleSheet.absoluteFill,
-            { backgroundColor: theme.colors.overlay },
-          ]}
-        />
-      </Pressable>
+    <Animated.View style={[styles.container, backdropStyle]}>
+      {/* Touchable backdrop - captures all taps */}
+      <TouchableWithoutFeedback onPress={handleBackdropPress}>
+        <View style={StyleSheet.absoluteFill}>
+          <BlurView
+            intensity={theme.isDark ? 20 : 30}
+            tint={theme.isDark ? 'dark' : 'light'}
+            style={StyleSheet.absoluteFill}
+          />
+          <View
+            style={[
+              StyleSheet.absoluteFill,
+              { backgroundColor: theme.colors.overlay },
+            ]}
+          />
+        </View>
+      </TouchableWithoutFeedback>
 
       {/* Search container */}
       <Animated.View
@@ -130,7 +108,6 @@ export const SearchLens = memo(function SearchLens({
           searchContainerStyle,
         ]}
       >
-        {/* Glow effect */}
         <View
           style={[
             styles.glowEffect,
@@ -141,16 +118,10 @@ export const SearchLens = memo(function SearchLens({
           ]}
         />
 
-        {/* Search icon */}
         <View style={styles.iconContainer}>
-          <Icon
-            icon={Search01Icon}
-            size={22}
-            color={theme.colors.primary}
-          />
+          <Icon icon={Search01Icon} size={22} color={theme.colors.primary} />
         </View>
 
-        {/* Input */}
         <TextInput
           ref={inputRef}
           style={[
@@ -176,38 +147,25 @@ export const SearchLens = memo(function SearchLens({
           selectionColor={theme.colors.primary}
         />
 
-        {/* Clear button */}
         {searchQuery.length > 0 && (
-          <Pressable
-            onPress={handleClear}
-            haptic="light"
-            style={styles.clearButton}
-          >
-            <Icon
-              icon={Cancel01Icon}
-              size={18}
-              color={theme.colors.foregroundMuted}
-            />
+          <Pressable onPress={handleClear} haptic="light" style={styles.clearButton}>
+            <Icon icon={Cancel01Icon} size={18} color={theme.colors.foregroundMuted} />
           </Pressable>
         )}
       </Animated.View>
 
-      {/* Match count */}
+      {/* Match count - pointerEvents none so taps pass through */}
       <Animated.View
         style={[
           styles.matchCount,
-          {
-            top: screenHeight * 0.15 + 70,
-          },
+          { top: screenHeight * 0.15 + 70 },
           searchContainerStyle,
         ]}
+        pointerEvents="none"
       >
         <Text
           variant="caption"
-          style={{
-            color: theme.colors.paper,
-            fontFamily: theme.fonts.body,
-          }}
+          style={{ color: theme.colors.paper, fontFamily: theme.fonts.body }}
         >
           {searchQuery.trim()
             ? `${matchingCount} of ${totalCount} books match`
@@ -215,13 +173,8 @@ export const SearchLens = memo(function SearchLens({
         </Text>
       </Animated.View>
 
-      {/* Close hint */}
-      <Animated.View
-        style={[
-          styles.closeHint,
-          searchContainerStyle,
-        ]}
-      >
+      {/* Close hint - pointerEvents none so taps pass through */}
+      <Animated.View style={[styles.closeHint, searchContainerStyle]} pointerEvents="none">
         <Text
           variant="caption"
           style={{
@@ -237,9 +190,6 @@ export const SearchLens = memo(function SearchLens({
   );
 });
 
-/**
- * Floating search button that opens the SearchLens
- */
 interface SearchLensButtonProps {
   onPress: () => void;
   isActive?: boolean;
