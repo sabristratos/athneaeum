@@ -299,15 +299,15 @@ export function useReadingSessions(userBookId?: number) {
     }
   }, [userBookId]);
 
-  const logSession = useCallback(async (data: LogSessionData): Promise<ReadingSession | null> => {
+  const logSession = useCallback(async (data: LogSessionData): Promise<{ session: ReadingSession; userBook?: UserBook } | null> => {
     try {
-      const session = await booksApi.logSession(data);
-      setSessions((prev) => [session, ...prev]);
+      const response = await booksApi.logSession(data);
+      setSessions((prev) => [response.session, ...prev]);
 
       queryClient.invalidateQueries({ queryKey: queryKeys.stats.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.goals.all });
 
-      return session;
+      return { session: response.session, userBook: response.user_book };
     } catch (err) {
       if (err instanceof ApiRequestError) {
         throw err;

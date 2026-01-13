@@ -8,7 +8,7 @@ import {
   useTierListActions,
   useTierListIsGenerated,
 } from '@/stores/tierListStore';
-import { useTags } from '@/stores/tagStore';
+import { useTags } from '@/database/hooks';
 import { useToast } from '@/stores/toastStore';
 import type { TierName } from '@/types/tierList';
 
@@ -20,7 +20,7 @@ export interface FilterOption {
 
 export function useTierListController() {
   const { books: allBooks, loading, fetchLibrary } = useLibrary();
-  const allTags = useTags();
+  const { tags: allTags } = useTags();
   const [selectedFilters, setSelectedFilters] = useState<string[]>([]);
 
   const books = useMemo(
@@ -31,11 +31,11 @@ export function useTierListController() {
   const availableFilters = useMemo(() => {
     const filters: FilterOption[] = [];
     const genreSet = new Set<string>();
-    const tagIds = new Set<number>();
+    const tagSlugs = new Set<string>();
 
     books.forEach((b) => {
       b.book.genres?.forEach((g) => genreSet.add(g.name));
-      b.tags?.forEach((t) => tagIds.add(t.id));
+      b.tags?.forEach((t) => tagSlugs.add(t.slug));
     });
 
     Array.from(genreSet)
@@ -49,10 +49,10 @@ export function useTierListController() {
       });
 
     allTags
-      .filter((t) => tagIds.has(t.id))
+      .filter((t) => tagSlugs.has(t.slug))
       .forEach((tag) => {
         filters.push({
-          id: `tag:${tag.id}`,
+          id: `tag:${tag.slug}`,
           label: tag.name,
           type: 'tag',
         });
@@ -67,16 +67,16 @@ export function useTierListController() {
     const selectedGenres = selectedFilters
       .filter((f) => f.startsWith('genre:'))
       .map((f) => f.replace('genre:', ''));
-    const selectedTagIds = selectedFilters
+    const selectedTagSlugs = selectedFilters
       .filter((f) => f.startsWith('tag:'))
-      .map((f) => parseInt(f.replace('tag:', ''), 10));
+      .map((f) => f.replace('tag:', ''));
 
     return books.filter((b) => {
       const bookGenres = new Set(b.book.genres?.map((g) => g.name) ?? []);
-      const bookTagIds = new Set(b.tags?.map((t) => t.id) ?? []);
+      const bookTagSlugs = new Set(b.tags?.map((t) => t.slug) ?? []);
 
       const matchesGenre = selectedGenres.some((g) => bookGenres.has(g));
-      const matchesTag = selectedTagIds.some((id) => bookTagIds.has(id));
+      const matchesTag = selectedTagSlugs.some((slug) => bookTagSlugs.has(slug));
 
       return matchesGenre || matchesTag;
     });

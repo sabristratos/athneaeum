@@ -38,6 +38,14 @@ class ReadingSessionFactory extends Factory
         ]);
     }
 
+    public function forReadThrough(\App\Models\ReadThrough $readThrough): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'user_book_id' => $readThrough->user_book_id,
+            'read_through_id' => $readThrough->id,
+        ]);
+    }
+
     public function onDate(\DateTimeInterface|string $date): static
     {
         return $this->state(fn (array $attributes) => [

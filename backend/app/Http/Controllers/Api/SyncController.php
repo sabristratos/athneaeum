@@ -7,10 +7,13 @@ namespace App\Http\Controllers\Api;
 use App\Enums\BookStatusEnum;
 use App\Http\Controllers\Controller;
 use App\Models\Book;
+use App\Models\ReadingGoal;
 use App\Models\ReadingSession;
 use App\Models\ReadThrough;
 use App\Models\Series;
+use App\Models\Tag;
 use App\Models\UserBook;
+use App\Models\UserPreference;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -58,6 +61,18 @@ class SyncController extends Controller
             ->when($timestamp, fn ($q) => $q->where('updated_at', '>', $timestamp))
             ->get();
 
+        $tags = Tag::forUser($userId)
+            ->when($timestamp, fn ($q) => $q->where('updated_at', '>', $timestamp))
+            ->get();
+
+        $preferences = UserPreference::where('user_id', $userId)
+            ->when($timestamp, fn ($q) => $q->where('updated_at', '>', $timestamp))
+            ->get();
+
+        $goals = ReadingGoal::where('user_id', $userId)
+            ->when($timestamp, fn ($q) => $q->where('updated_at', '>', $timestamp))
+            ->get();
+
         return response()->json([
             'changes' => [
                 'books' => [
@@ -85,6 +100,21 @@ class SyncController extends Controller
                     'updated' => $timestamp ? $series->map(fn ($s) => $this->transformSeries($s))->toArray() : [],
                     'deleted' => [],
                 ],
+                'tags' => [
+                    'created' => $timestamp ? [] : $tags->map(fn ($t) => $this->transformTag($t))->toArray(),
+                    'updated' => $timestamp ? $tags->map(fn ($t) => $this->transformTag($t))->toArray() : [],
+                    'deleted' => [],
+                ],
+                'user_preferences' => [
+                    'created' => $timestamp ? [] : $preferences->map(fn ($p) => $this->transformPreference($p))->toArray(),
+                    'updated' => $timestamp ? $preferences->map(fn ($p) => $this->transformPreference($p))->toArray() : [],
+                    'deleted' => [],
+                ],
+                'reading_goals' => [
+                    'created' => $timestamp ? [] : $goals->map(fn ($g) => $this->transformGoal($g))->toArray(),
+                    'updated' => $timestamp ? $goals->map(fn ($g) => $this->transformGoal($g))->toArray() : [],
+                    'deleted' => [],
+                ],
             ],
             'timestamp' => now()->getTimestampMs(),
         ]);
@@ -95,8 +125,8 @@ class SyncController extends Controller
      */
     public function push(Request $request): JsonResponse
     {
-        $idMappings = ['books' => [], 'user_books' => [], 'read_throughs' => [], 'reading_sessions' => []];
-        $counts = ['books' => 0, 'user_books' => 0, 'read_throughs' => 0, 'reading_sessions' => 0];
+        $idMappings = ['books' => [], 'user_books' => [], 'read_throughs' => [], 'reading_sessions' => [], 'tags' => [], 'user_preferences' => [], 'reading_goals' => []];
+        $counts = ['books' => 0, 'user_books' => 0, 'read_throughs' => 0, 'reading_sessions' => 0, 'tags' => 0, 'user_preferences' => 0, 'reading_goals' => 0];
         $skipped = ['user_books' => [], 'read_throughs' => [], 'reading_sessions' => []];
 
         DB::transaction(function () use ($request, &$idMappings, &$counts, &$skipped) {
@@ -375,6 +405,133 @@ class SyncController extends Controller
                     ->where('id', $serverId)
                     ->delete();
             }
+
+            // Process created tags (only user-created, not system)
+            foreach ($data['tags']['created'] ?? [] as $tagData) {
+                $tag = Tag::create([
+                    'user_id' => $userId,
+                    'name' => $tagData['name'],
+                    'slug' => $tagData['slug'],
+                    'color' => $tagData['color'],
+                    'is_system' => false,
+                    'sort_order' => $tagData['sort_order'] ?? 0,
+                ]);
+                $idMappings['tags'][] = [
+                    'local_id' => $tagData['local_id'],
+                    'server_id' => $tag->id,
+                ];
+                $counts['tags']++;
+            }
+
+            // Process updated tags
+            foreach ($data['tags']['updated'] ?? [] as $tagData) {
+                if (! isset($tagData['server_id'])) {
+                    continue;
+                }
+                $tag = Tag::where('id', $tagData['server_id'])
+                    ->where('user_id', $userId)
+                    ->where('is_system', false)
+                    ->first();
+
+                if ($tag) {
+                    $tag->update([
+                        'name' => $tagData['name'] ?? $tag->name,
+                        'color' => $tagData['color'] ?? $tag->color,
+                        'sort_order' => $tagData['sort_order'] ?? $tag->sort_order,
+                    ]);
+                }
+            }
+
+            // Process deleted tags
+            foreach ($data['tags']['deleted'] ?? [] as $serverId) {
+                Tag::where('id', $serverId)
+                    ->where('user_id', $userId)
+                    ->where('is_system', false)
+                    ->delete();
+            }
+
+            // Process created user_preferences
+            foreach ($data['user_preferences']['created'] ?? [] as $prefData) {
+                $preference = UserPreference::firstOrCreate(
+                    [
+                        'user_id' => $userId,
+                        'category' => $prefData['category'],
+                        'type' => $prefData['type'],
+                        'normalized' => $prefData['normalized'],
+                    ],
+                    [
+                        'value' => $prefData['value'],
+                    ]
+                );
+                $idMappings['user_preferences'][] = [
+                    'local_id' => $prefData['local_id'],
+                    'server_id' => $preference->id,
+                ];
+                $counts['user_preferences']++;
+            }
+
+            // Process deleted user_preferences
+            foreach ($data['user_preferences']['deleted'] ?? [] as $serverId) {
+                UserPreference::where('id', $serverId)
+                    ->where('user_id', $userId)
+                    ->delete();
+            }
+
+            // Process created reading_goals
+            foreach ($data['reading_goals']['created'] ?? [] as $goalData) {
+                $goal = ReadingGoal::updateOrCreate(
+                    [
+                        'user_id' => $userId,
+                        'type' => $goalData['type'],
+                        'period' => $goalData['period'],
+                        'year' => $goalData['year'],
+                        'month' => $goalData['month'] ?? null,
+                        'week' => $goalData['week'] ?? null,
+                    ],
+                    [
+                        'target' => $goalData['target'],
+                        'is_active' => $goalData['is_active'] ?? true,
+                        'completed_at' => isset($goalData['completed_at']) ? Carbon::parse($goalData['completed_at']) : null,
+                    ]
+                );
+                $idMappings['reading_goals'][] = [
+                    'local_id' => $goalData['local_id'],
+                    'server_id' => $goal->id,
+                ];
+                $counts['reading_goals']++;
+            }
+
+            // Process updated reading_goals
+            foreach ($data['reading_goals']['updated'] ?? [] as $goalData) {
+                if (! isset($goalData['server_id'])) {
+                    continue;
+                }
+                $goal = ReadingGoal::where('id', $goalData['server_id'])
+                    ->where('user_id', $userId)
+                    ->first();
+
+                if ($goal) {
+                    $updateData = [];
+                    if (isset($goalData['target'])) {
+                        $updateData['target'] = $goalData['target'];
+                    }
+                    if (isset($goalData['is_active'])) {
+                        $updateData['is_active'] = $goalData['is_active'];
+                    }
+                    if (array_key_exists('completed_at', $goalData)) {
+                        $updateData['completed_at'] = $goalData['completed_at'] ? Carbon::parse($goalData['completed_at']) : null;
+                    }
+
+                    $goal->update($updateData);
+                }
+            }
+
+            // Process deleted reading_goals
+            foreach ($data['reading_goals']['deleted'] ?? [] as $serverId) {
+                ReadingGoal::where('id', $serverId)
+                    ->where('user_id', $userId)
+                    ->delete();
+            }
         });
 
         return response()->json([
@@ -510,6 +667,11 @@ class SyncController extends Controller
             'series_id' => $book->series_id,
             'volume_number' => $book->volume_number,
             'volume_title' => $book->volume_title,
+            'audience' => $book->audience?->value,
+            'intensity' => $book->intensity?->value,
+            'moods' => $book->moods,
+            'is_classified' => $book->is_classified ?? false,
+            'classification_confidence' => $book->classification_confidence,
             'created_at' => $book->created_at->toIso8601String(),
             'updated_at' => $book->updated_at->toIso8601String(),
         ];
@@ -571,11 +733,12 @@ class SyncController extends Controller
             'id' => $session->id,
             'user_book_id' => $session->user_book_id,
             'read_through_id' => $session->read_through_id,
-            'date' => $session->date,
+            'date' => $session->date->format('Y-m-d'),
             'pages_read' => $session->pages_read,
             'start_page' => $session->start_page,
             'end_page' => $session->end_page,
             'duration_seconds' => $session->duration_seconds,
+            'formatted_duration' => $session->formatted_duration,
             'notes' => $session->notes,
             'created_at' => $session->created_at->toIso8601String(),
             'updated_at' => $session->updated_at->toIso8601String(),
@@ -598,6 +761,59 @@ class SyncController extends Controller
             'description' => $series->description,
             'created_at' => $series->created_at->toIso8601String(),
             'updated_at' => $series->updated_at->toIso8601String(),
+        ];
+    }
+
+    /**
+     * Transform tag model for API response.
+     */
+    private function transformTag(Tag $tag): array
+    {
+        return [
+            'id' => $tag->id,
+            'name' => $tag->name,
+            'slug' => $tag->slug,
+            'color' => $tag->color->value,
+            'is_system' => $tag->is_system,
+            'sort_order' => $tag->sort_order,
+            'created_at' => $tag->created_at->toIso8601String(),
+            'updated_at' => $tag->updated_at->toIso8601String(),
+        ];
+    }
+
+    /**
+     * Transform user preference model for API response.
+     */
+    private function transformPreference(UserPreference $preference): array
+    {
+        return [
+            'id' => $preference->id,
+            'category' => $preference->category->value,
+            'type' => $preference->type->value,
+            'value' => $preference->value,
+            'normalized' => $preference->normalized,
+            'created_at' => $preference->created_at->toIso8601String(),
+            'updated_at' => $preference->updated_at->toIso8601String(),
+        ];
+    }
+
+    /**
+     * Transform reading goal model for API response.
+     */
+    private function transformGoal(ReadingGoal $goal): array
+    {
+        return [
+            'id' => $goal->id,
+            'type' => $goal->type->value,
+            'period' => $goal->period->value,
+            'target' => $goal->target,
+            'year' => $goal->year,
+            'month' => $goal->month,
+            'week' => $goal->week,
+            'is_active' => $goal->is_active,
+            'completed_at' => $goal->completed_at?->toIso8601String(),
+            'created_at' => $goal->created_at->toIso8601String(),
+            'updated_at' => $goal->updated_at->toIso8601String(),
         ];
     }
 }

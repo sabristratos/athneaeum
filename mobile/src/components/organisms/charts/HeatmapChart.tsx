@@ -1,4 +1,4 @@
-import React, { memo, useCallback } from 'react';
+import React, { memo, useCallback, useMemo } from 'react';
 import { ScrollView, View, StyleSheet } from 'react-native';
 import Svg, { G, Text as SvgText } from 'react-native-svg';
 import { HeatmapCell } from '@/components/atoms/charts/HeatmapCell';
@@ -12,6 +12,22 @@ const DAYS_IN_WEEK = 7;
 const DAY_LABELS = ['', 'M', '', 'W', '', 'F', ''];
 const LABEL_WIDTH = 20;
 
+function parseDate(dateStr: string): Date {
+  const [year, month, day] = dateStr.split('-').map(Number);
+  return new Date(year, month - 1, day);
+}
+
+function getWeeksDiff(startDate: Date, targetDate: Date): number {
+  const startSunday = new Date(startDate);
+  startSunday.setDate(startDate.getDate() - startDate.getDay());
+
+  const targetSunday = new Date(targetDate);
+  targetSunday.setDate(targetDate.getDate() - targetDate.getDay());
+
+  const diffTime = targetSunday.getTime() - startSunday.getTime();
+  return Math.floor(diffTime / (7 * 24 * 60 * 60 * 1000));
+}
+
 interface HeatmapChartProps {
   days: HeatmapDay[];
   onDayPress?: (day: HeatmapDay) => void;
@@ -23,7 +39,18 @@ export const HeatmapChart = memo(function HeatmapChart({
 }: HeatmapChartProps) {
   const { theme } = useTheme();
 
-  const chartWidth = LABEL_WIDTH + WEEKS * (CELL_SIZE + CELL_GAP);
+  const startDate = useMemo(() => {
+    if (days.length === 0) return new Date();
+    return parseDate(days[0].date);
+  }, [days]);
+
+  const totalWeeks = useMemo(() => {
+    if (days.length === 0) return WEEKS;
+    const endDate = parseDate(days[days.length - 1].date);
+    return getWeeksDiff(startDate, endDate) + 1;
+  }, [days, startDate]);
+
+  const chartWidth = LABEL_WIDTH + totalWeeks * (CELL_SIZE + CELL_GAP);
   const chartHeight = DAYS_IN_WEEK * (CELL_SIZE + CELL_GAP) + 4;
 
   const handleDayPress = useCallback(
@@ -36,9 +63,10 @@ export const HeatmapChart = memo(function HeatmapChart({
   const renderCells = () => {
     const cells: React.ReactNode[] = [];
 
-    days.forEach((day, index) => {
-      const week = Math.floor(index / 7);
-      const dayOfWeek = index % 7;
+    days.forEach((day) => {
+      const date = parseDate(day.date);
+      const dayOfWeek = date.getDay();
+      const week = getWeeksDiff(startDate, date);
 
       cells.push(
         <HeatmapCell

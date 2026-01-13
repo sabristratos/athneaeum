@@ -20,6 +20,7 @@ export const scholarTheme: Theme = {
     // Primary (Deep burgundy)
     primary: '#8b2e2e',
     primaryHover: '#a33a3a',
+    primaryDark: '#6b2222',
     primaryGlow: 'rgba(139,46,46,0.3)',
     primarySubtle: 'rgba(139,46,46,0.15)',
 

@@ -114,7 +114,7 @@ export const ReadThroughCard = React.memo(function ReadThroughCard({
           )}
         </View>
 
-        {readThrough.total_pages_read > 0 && (
+        {(readThrough.total_pages_read ?? 0) > 0 && (
           <Text variant="caption" muted>
             {readThrough.total_pages_read} pages read
           </Text>

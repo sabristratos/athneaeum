@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useMemo } from 'react';
 import { View, StyleSheet, ScrollView, Pressable } from 'react-native';
 import DraggableFlatList, {
   ScaleDecorator,
@@ -9,6 +9,15 @@ import { Text } from '@/components';
 import { useTheme } from '@/themes';
 import { TierBookItem } from './TierBookItem';
 import { TIER_COLORS, type TierDefinition, type TierListBook, type TierName } from '@/types/tierList';
+
+function getContrastTextColor(hexColor: string): string {
+  const hex = hexColor.replace('#', '');
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.5 ? '#1a1a1a' : '#ffffff';
+}
 
 interface TierRowProps {
   tier: TierDefinition;
@@ -27,6 +36,7 @@ export function TierRow({
 }: TierRowProps) {
   const { theme, themeName } = useTheme();
   const tierColor = TIER_COLORS[tier.id][themeName];
+  const tierTextColor = useMemo(() => getContrastTextColor(tierColor), [tierColor]);
 
   const visibleBooks = books.slice(0, maxVisible);
   const overflowCount = books.length - maxVisible;
@@ -99,7 +109,7 @@ export function TierRow({
         <Text
           variant="label"
           style={{
-            color: '#ffffff',
+            color: tierTextColor,
             fontWeight: '700',
             textAlign: 'center',
           }}
@@ -125,7 +135,7 @@ export function TierRow({
             <Text
               variant="caption"
               muted
-              style={{ fontStyle: 'italic' }}
+              emphatic
             >
               No books
             </Text>

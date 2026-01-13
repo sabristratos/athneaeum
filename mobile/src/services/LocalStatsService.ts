@@ -343,6 +343,7 @@ export async function calculateGenreBreakdown(): Promise<MoodGenreItem[]> {
   const items: MoodGenreItem[] = Object.entries(genreCounts)
     .map(([genre, count]) => ({
       genre,
+      genre_key: genre.toLowerCase().replace(/\s+/g, '_'),
       count,
       percentage: totalGenres > 0 ? Math.round((count / totalGenres) * 100) : 0,
     }))

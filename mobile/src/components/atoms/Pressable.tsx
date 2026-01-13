@@ -45,6 +45,7 @@ export function Pressable({
   className,
   children,
   disabled,
+  hitSlop,
   ...props
 }: PressableProps) {
   const scale = useSharedValue(1);
@@ -112,6 +113,13 @@ export function Pressable({
     [style]
   );
 
+  const defaultHitSlop = hitSlop ?? {
+    top: 8,
+    right: 8,
+    bottom: 8,
+    left: 8,
+  };
+
   return (
     <AnimatedPressable
       onPressIn={handlePressIn}
@@ -120,6 +128,7 @@ export function Pressable({
       style={[getBaseStyle, animatedStyle]}
       className={className}
       disabled={disabled}
+      hitSlop={defaultHitSlop}
       {...props}
     >
       {children}

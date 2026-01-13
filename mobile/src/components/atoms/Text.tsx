@@ -11,6 +11,7 @@ export interface TextProps extends RNTextProps {
   muted?: boolean;
   center?: boolean;
   bold?: boolean;
+  emphatic?: boolean;
   children: React.ReactNode;
 }
 
@@ -30,11 +31,13 @@ export function Text({
   muted = false,
   center = false,
   bold = false,
+  emphatic = false,
   style,
   children,
   ...props
 }: TextProps) {
-  const { theme } = useTheme();
+  const { theme, themeName } = useTheme();
+  const isScholar = themeName === 'scholar';
 
   const isHeading = variant.startsWith('h');
   const isLabel = variant === 'label';
@@ -78,6 +81,7 @@ export function Text({
           fontSize,
           fontFamily: isHeading ? theme.fonts.heading : theme.fonts.body,
           fontWeight,
+          fontStyle: emphatic && isScholar ? 'italic' : 'normal',
           letterSpacing,
           textTransform: isLabel ? 'uppercase' : 'none',
           textAlign: center ? 'center' : undefined,

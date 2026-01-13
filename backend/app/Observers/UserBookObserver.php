@@ -6,21 +6,19 @@ namespace App\Observers;
 
 use App\Enums\BookStatusEnum;
 use App\Models\UserBook;
-use App\Services\Goals\ReadingGoalService;
 use App\Services\Stats\StatisticsAggregationService;
 use Illuminate\Support\Facades\Cache;
 
 /**
  * Observer for user book changes.
  *
- * Automatically updates user statistics and reading goals when user books
- * are modified (status changes, ratings, etc.).
+ * Automatically updates user statistics when user books are modified
+ * (status changes, ratings, etc.). Goal progress is computed on the frontend.
  */
 class UserBookObserver
 {
     public function __construct(
-        private StatisticsAggregationService $statsService,
-        private ReadingGoalService $goalService
+        private StatisticsAggregationService $statsService
     ) {}
 
     /**
@@ -42,8 +40,6 @@ class UserBookObserver
             $oldStatus = $userBook->getOriginal('status');
             $newStatus = $userBook->status;
             if ($newStatus === BookStatusEnum::Read && $oldStatus !== BookStatusEnum::Read) {
-                $this->goalService->incrementBookGoals($userBook->user);
-
                 if (! $userBook->finished_at) {
                     $userBook->updateQuietly(['finished_at' => now()]);
                 }
@@ -65,7 +61,6 @@ class UserBookObserver
     public function deleted(UserBook $userBook): void
     {
         $this->statsService->recalculateAll($userBook->user);
-        $this->goalService->recalculateAllGoals($userBook->user);
         $this->invalidateLibraryAuthorsCache($userBook->user_id);
     }
 

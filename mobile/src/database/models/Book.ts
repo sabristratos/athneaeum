@@ -39,6 +39,11 @@ export class Book extends Model {
   @text('description') description!: string | null;
   @text('genres_json') genresJson!: string | null;
   @text('published_date') publishedDate!: string | null;
+  @text('audience') audience!: string | null;
+  @text('intensity') intensity!: string | null;
+  @text('moods_json') moodsJson!: string | null;
+  @field('is_classified') isClassified!: boolean;
+  @field('classification_confidence') classificationConfidence!: number | null;
   @readonly @date('created_at') createdAt!: Date;
   @date('updated_at') updatedAt!: Date;
   @field('is_pending_sync') isPendingSync!: boolean;
@@ -49,6 +54,10 @@ export class Book extends Model {
 
   get genres(): string[] {
     return this.genresJson ? JSON.parse(this.genresJson) : [];
+  }
+
+  get moods(): string[] {
+    return this.moodsJson ? JSON.parse(this.moodsJson) : [];
   }
 
   get effectiveCoverUrl(): string | null {

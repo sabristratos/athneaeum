@@ -44,7 +44,11 @@
       "Bash(npm start -- --clear)",
       "Bash(Select-String:*)",
       "Bash(findstr:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(.gradlew.bat app:assembleDebug:*)",
+      "Bash(Select-Object -Last 100)",
+      "Bash(Set-Location \"C:\\\\Websites\\\\atheneum\\\\mobile\\\\android\")",
+      "Bash(Select-Object -Last 150)"
     ]
   }
 }

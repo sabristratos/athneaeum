@@ -125,7 +125,7 @@ class BookClassificationTest extends TestCase
             'is_classified' => false,
         ]);
 
-        $mockClassification = new \stdClass();
+        $mockClassification = new \stdClass;
         $mockClassification->audience = AudienceEnum::Adult;
         $mockClassification->intensity = ContentIntensityEnum::Moderate;
         $mockClassification->moods = [MoodEnum::Adventurous, MoodEnum::Tense];

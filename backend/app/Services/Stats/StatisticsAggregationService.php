@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace App\Services\Stats;
 
 use App\Enums\BookStatusEnum;
-use App\Models\ReadingGoal;
 use App\Models\ReadingSession;
 use App\Models\User;
 use App\Models\UserBook;
@@ -165,7 +164,6 @@ class StatisticsAggregationService
         UserStatistics::where('user_id', $userId)->update($updates);
 
         $this->updateStreaksForSession($userId, $session->date);
-        $this->updateGoalsForSession($userId, $session);
         $this->updateMonthlyStats($userId, Carbon::parse($session->date));
     }
 
@@ -286,8 +284,6 @@ class StatisticsAggregationService
         }
 
         UserStatistics::where('user_id', $userId)->update($updates);
-
-        $this->updateGoalsForBookCompleted($userId);
     }
 
     /**
@@ -373,61 +369,6 @@ class StatisticsAggregationService
             ['user_id' => $userId, 'year' => $year, 'month' => $month],
             []
         )->increment('sessions_count');
-    }
-
-    /**
-     * Update goals when a session is logged.
-     */
-    private function updateGoalsForSession(int $userId, ReadingSession $session): void
-    {
-        $pagesGoals = ReadingGoal::where('user_id', $userId)
-            ->where('type', 'pages')
-            ->where('is_active', true)
-            ->get();
-
-        foreach ($pagesGoals as $goal) {
-            $goal->increment('current_value', $session->pages_read);
-
-            if ($goal->current_value >= $goal->target && ! $goal->completed_at) {
-                $goal->update(['completed_at' => now()]);
-            }
-        }
-
-        if ($session->duration_seconds) {
-            $minutesGoals = ReadingGoal::where('user_id', $userId)
-                ->where('type', 'minutes')
-                ->where('is_active', true)
-                ->get();
-
-            $minutes = (int) round($session->duration_seconds / 60);
-
-            foreach ($minutesGoals as $goal) {
-                $goal->increment('current_value', $minutes);
-
-                if ($goal->current_value >= $goal->target && ! $goal->completed_at) {
-                    $goal->update(['completed_at' => now()]);
-                }
-            }
-        }
-    }
-
-    /**
-     * Update goals when a book is completed.
-     */
-    private function updateGoalsForBookCompleted(int $userId): void
-    {
-        $booksGoals = ReadingGoal::where('user_id', $userId)
-            ->where('type', 'books')
-            ->where('is_active', true)
-            ->get();
-
-        foreach ($booksGoals as $goal) {
-            $goal->increment('current_value');
-
-            if ($goal->current_value >= $goal->target && ! $goal->completed_at) {
-                $goal->update(['completed_at' => now()]);
-            }
-        }
     }
 
     /**

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { useShallow } from 'zustand/react/shallow';
-import type { GoalType, GoalPeriod } from '@/api/goals';
+import type { GoalType, GoalPeriod } from '@/database/models/ReadingGoal';
 
 export interface GoalCelebration {
   id: string;

@@ -9,7 +9,7 @@ import type { Audience, Intensity, Mood } from '@/types';
 import {
   UserGroupIcon,
   ChildIcon,
-  GraduateIcon,
+  GraduationScrollIcon,
   User02Icon,
   SparklesIcon,
 } from '@hugeicons/core-free-icons';
@@ -44,7 +44,7 @@ const MOOD_LABELS: Record<Mood, string> = {
 
 const AUDIENCE_ICONS: Record<Audience, IconSvgElement> = {
   adult: UserGroupIcon,
-  young_adult: GraduateIcon,
+  young_adult: GraduationScrollIcon,
   middle_grade: User02Icon,
   children: ChildIcon,
 };

@@ -6,13 +6,15 @@ import { Timer02Icon, PencilEdit01Icon } from '@hugeicons/core-free-icons';
 import type { IconSvgElement } from '@hugeicons/react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
+import { useMMKVString } from 'react-native-mmkv';
 import { useScrollAnimations } from '@/hooks';
 import { useToast } from '@/stores/toastStore';
 import { useLibrary, useReadingSessions } from '@/hooks/useBooks';
 import { queryKeys } from '@/lib/queryKeys';
 import { booksApi } from '@/api/books';
 import { useQuotes } from '@/hooks/useQuotes';
-import { useTagStore, useTagActions, useRecentlyUsedTags } from '@/stores/tagStore';
+import { useTags, useTagActions as useWatermelonTagActions } from '@/database/hooks';
+import { storage } from '@/lib/storage';
 import { apiClient } from '@/api/client';
 import { useSeriesDetailQuery } from '@/queries';
 import { useLibraryAuthorsQuery, useToggleAuthorPreferenceMutation } from '@/queries/useAuthors';
@@ -27,6 +29,7 @@ import type {
   BookFormat,
   Genre,
 } from '@/types';
+import type { Tag as WatermelonTag } from '@/database/models/Tag';
 import type { Tag, TagColor } from '@/types/tag';
 import type { MainStackParamList } from '@/navigation/MainNavigator';
 import type { ModalStatus } from '@/components';
@@ -101,6 +104,7 @@ export interface BookDetailControllerState {
   readThroughs: ReadThrough[];
   readCount: number;
   nextInSeries: NextInSeriesInfo | null;
+  isAnalyzing: boolean;
 }
 
 export interface BookDetailControllerActions {
@@ -183,6 +187,7 @@ export interface BookDetailControllerActions {
   handleAuthorFavorite: () => void;
   handleAuthorExclude: () => void;
   handleGenrePress: (genre: Genre) => void;
+  handleAnalyzeContent: () => void;
 }
 
 export interface BookDetailControllerComputed {
@@ -208,6 +213,8 @@ export interface BookDetailControllerReturn
     BookDetailControllerScrollAnimations {}
 
 const STAGE_HEIGHT_PERCENT = 0.35;
+const RECENTLY_USED_TAGS_KEY = 'recently_used_tag_ids';
+const MAX_RECENTLY_USED = 5;
 
 export function useBookDetailController(): BookDetailControllerReturn {
   const navigation = useNavigation<NavigationProp>();
@@ -266,23 +273,50 @@ export function useBookDetailController(): BookDetailControllerReturn {
   );
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
-  const tags = useTagStore((s) => s.tags) ?? [];
-  const recentlyUsedTags = useRecentlyUsedTags();
-  const { setTags, addTag, markTagUsed } = useTagActions();
+  const { tags: watermelonTags } = useTags();
+  const { createTag: createWatermelonTag } = useWatermelonTagActions();
+  const [storedRecentlyUsedIds, setStoredRecentlyUsedIds] = useMMKVString(RECENTLY_USED_TAGS_KEY, storage ?? undefined);
+
+  const tags: Tag[] = useMemo(() => {
+    return watermelonTags
+      .filter((t) => t.serverId !== null)
+      .map((t) => ({
+        id: t.serverId!,
+        name: t.name,
+        slug: t.slug,
+        color: t.color as TagColor,
+        color_label: t.color,
+        is_system: t.isSystem,
+        sort_order: t.sortOrder,
+        books_count: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }));
+  }, [watermelonTags]);
+
+  const recentlyUsedTagIds: number[] = useMemo(() => {
+    if (!storedRecentlyUsedIds) return [];
+    try {
+      return JSON.parse(storedRecentlyUsedIds);
+    } catch {
+      return [];
+    }
+  }, [storedRecentlyUsedIds]);
+
+  const recentlyUsedTags: Tag[] = useMemo(() => {
+    return recentlyUsedTagIds
+      .map((id) => tags.find((t) => t.id === id))
+      .filter((t): t is Tag => t !== undefined);
+  }, [recentlyUsedTagIds, tags]);
+
+  const markTagUsed = useCallback((tagId: number) => {
+    const current = recentlyUsedTagIds.filter((id) => id !== tagId);
+    const updated = [tagId, ...current].slice(0, MAX_RECENTLY_USED);
+    setStoredRecentlyUsedIds(JSON.stringify(updated));
+  }, [recentlyUsedTagIds, setStoredRecentlyUsedIds]);
 
   const { data: libraryAuthors } = useLibraryAuthorsQuery('all');
   const toggleAuthorPreference = useToggleAuthorPreferenceMutation();
-
-  useEffect(() => {
-    const fetchTags = async () => {
-      try {
-        const tagsData = await apiClient<Tag[]>('/tags');
-        setTags(tagsData);
-      } catch {
-      }
-    };
-    fetchTags();
-  }, [setTags]);
 
   useFocusEffect(
     useCallback(() => {
@@ -307,12 +341,12 @@ export function useBookDetailController(): BookDetailControllerReturn {
   const { quotes, createQuote, editQuote, removeQuote } = useQuotes(userBook.id);
 
   const { data: seriesDetail } = useSeriesDetailQuery(
-    book.series_id ?? 0,
-    { enabled: !!book.series_id && !!book.volume_number }
+    book?.series_id ?? 0,
+    { enabled: !!book?.series_id && !!book?.volume_number }
   );
 
   const nextInSeries = useMemo(() => {
-    if (!seriesDetail || !book.volume_number) return null;
+    if (!seriesDetail || !book?.volume_number) return null;
     const nextVolumeNumber = book.volume_number + 1;
     const nextBook = seriesDetail.books?.find(
       (b) => b.volume_number === nextVolumeNumber
@@ -323,7 +357,7 @@ export function useBookDetailController(): BookDetailControllerReturn {
       volumeNumber: nextVolumeNumber,
       seriesTitle: seriesDetail.title,
     };
-  }, [seriesDetail, book.volume_number]);
+  }, [seriesDetail, book?.volume_number]);
 
   const statusOptions = useMemo(() => {
     const wasCompleted = userBook.status === 'read' || userBook.finished_at;
@@ -454,7 +488,7 @@ export function useBookDetailController(): BookDetailControllerReturn {
       date: string;
     }) => {
       try {
-        await logSession({
+        const result = await logSession({
           user_book_id: userBook.id,
           date: data.date,
           start_page: userBook.current_page,
@@ -463,9 +497,8 @@ export function useBookDetailController(): BookDetailControllerReturn {
           notes: data.notes,
         });
 
-        const updated = await updateBook(userBook.id, { current_page: data.endPage });
-        if (updated) {
-          setUserBook(updated);
+        if (result?.userBook) {
+          setUserBook(result.userBook);
         }
         fetchSessions();
         toast.success('Session logged', {
@@ -480,7 +513,7 @@ export function useBookDetailController(): BookDetailControllerReturn {
         throw err;
       }
     },
-    [userBook, logSession, updateBook, fetchSessions, toast, navigation]
+    [userBook, logSession, fetchSessions, toast, navigation]
   );
 
   const handleQuickProgress = useCallback(
@@ -489,7 +522,7 @@ export function useBookDetailController(): BookDetailControllerReturn {
         const pagesRead = newPage - userBook.current_page;
 
         if (pagesRead > 0) {
-          await logSession({
+          const result = await logSession({
             user_book_id: userBook.id,
             date: new Date().toISOString().split('T')[0],
             start_page: userBook.current_page,
@@ -497,18 +530,23 @@ export function useBookDetailController(): BookDetailControllerReturn {
             duration_seconds: undefined,
             notes: undefined,
           });
-        }
 
-        const updated = await updateBook(userBook.id, { current_page: newPage });
-        if (updated) {
-          setUserBook(updated);
-          fetchSessions();
-          toast.success('Progress saved', {
-            action: {
-              label: 'Stats',
-              onPress: () => navigation.navigate('MainTabs', { screen: 'StatsTab' } as any),
-            },
-          });
+          if (result?.userBook) {
+            setUserBook(result.userBook);
+            fetchSessions();
+            toast.success('Progress saved', {
+              action: {
+                label: 'Stats',
+                onPress: () => navigation.navigate('MainTabs', { screen: 'StatsTab' } as any),
+              },
+            });
+          }
+        } else {
+          const updated = await updateBook(userBook.id, { current_page: newPage });
+          if (updated) {
+            setUserBook(updated);
+            toast.success('Progress saved');
+          }
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to save progress';
@@ -752,7 +790,8 @@ export function useBookDetailController(): BookDetailControllerReturn {
   const handleCloseTagPicker = useCallback(() => setShowTagPicker(false), []);
 
   const handleSaveTags = useCallback(
-    async (tagIds: number[]) => {
+    async (tagIds: number[], retryCount = 0) => {
+      const maxRetries = 3;
       try {
         const updatedBook = await apiClient<UserBook>(
           `/library/${userBook.id}/tags`,
@@ -764,10 +803,16 @@ export function useBookDetailController(): BookDetailControllerReturn {
         setUserBook(updatedBook);
         tagIds.forEach((id) => markTagUsed(id));
         toast.success('Tags updated');
+        setShowTagPicker(false);
       } catch (err) {
+        if (retryCount < maxRetries) {
+          const delay = Math.pow(2, retryCount) * 500;
+          await new Promise((resolve) => setTimeout(resolve, delay));
+          return handleSaveTags(tagIds, retryCount + 1);
+        }
         showError('Failed to update tags');
+        setShowTagPicker(false);
       }
-      setShowTagPicker(false);
     },
     [userBook.id, showError, markTagUsed, toast]
   );
@@ -775,18 +820,26 @@ export function useBookDetailController(): BookDetailControllerReturn {
   const handleCreateTag = useCallback(
     async (name: string, color: TagColor): Promise<Tag | void> => {
       try {
-        const newTag = await apiClient<Tag>('/tags', {
-          method: 'POST',
-          body: { name, color },
-        });
-        addTag(newTag);
+        const newWatermelonTag = await createWatermelonTag(name, color);
+        const newTag: Tag = {
+          id: newWatermelonTag.serverId ?? 0,
+          name: newWatermelonTag.name,
+          slug: newWatermelonTag.slug,
+          color: newWatermelonTag.color as TagColor,
+          color_label: newWatermelonTag.color,
+          is_system: newWatermelonTag.isSystem,
+          sort_order: newWatermelonTag.sortOrder,
+          books_count: 0,
+          created_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        };
         toast.success('Tag created');
         return newTag;
       } catch (err) {
         showError('Failed to create tag');
       }
     },
-    [addTag, showError, toast]
+    [createWatermelonTag, showError, toast]
   );
 
   const handleOpenBookDetailsSheet = useCallback(() => setShowBookDetailsSheet(true), []);

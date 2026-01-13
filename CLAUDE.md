@@ -36,6 +36,39 @@ npm run test:watch      # Watch mode
 
 ## Architecture
 
+### Offline-First Design
+
+This app follows an **offline-first architecture** with clear separation of concerns:
+
+| Layer | Responsibility |
+|-------|----------------|
+| **Backend (Laravel)** | Sync engine, external APIs, advanced analytics, data ingestion |
+| **Mobile (Expo)** | All CRUD operations, local statistics, goal progress, UI state |
+
+**Key principle**: Mobile performs ALL data mutations locally in WatermelonDB, then syncs to backend. The backend does NOT have direct CRUD endpoints for library items, sessions, tags, goals, or preferences - everything flows through `/sync/push` and `/sync/pull`.
+
+### Data Flow
+
+**Mobile → Backend (Write Operations)**:
+1. Mobile creates/updates record in WatermelonDB with `isPendingSync: true`
+2. `scheduleSyncAfterMutation()` triggers background sync
+3. Sync push sends changes to `/sync/push`
+4. Backend processes and returns server IDs
+5. Mobile updates records with server IDs, clears pending flag
+
+**Backend → Mobile (Read Operations)**:
+1. Mobile calls `/sync/pull?last_pulled_at={timestamp}`
+2. Backend returns all changes since timestamp
+3. Mobile updates WatermelonDB with new/changed records
+4. UI observes WatermelonDB collections (reactive)
+
+**Backend-Only Operations**:
+- Book search (Google Books / OPDS external APIs)
+- Author lookups (external API)
+- Book classification (LLM)
+- Advanced statistics (heatmap, mood ring, DNF analytics, page economy)
+- Goodreads import (file processing)
+
 ### Backend Stack
 - **Framework**: Laravel 12 with Sanctum token auth
 - **Database**: SQLite (dev), PostgreSQL (production)
@@ -204,28 +237,20 @@ Group books into series/collections with volume tracking and ordering.
 
 User-created tags for categorizing books with color-coding.
 
-**Backend Model**: `Tag` with columns: `name`, `slug`, `color` (enum), `emoji`, `is_system`, `sort_order`, `user_id`
+**Backend Model**: `Tag` with columns: `name`, `slug`, `color` (enum), `is_system`, `sort_order`, `user_id`
 
 **Pivot Table**: `user_book_tag` for many-to-many relationship
 
 **Colors**: `TagColorEnum` with 10 options: Primary, Gold, Green, Purple, Copper, Blue, Orange, Teal, Rose, Slate
 
-**API Endpoints**:
+**API Endpoints** (read-only, CRUD via sync):
 - `GET /tags` - List user's tags with book counts
 - `GET /tags/colors` - List available tag colors
-- `POST /tags` - Create tag
-- `PATCH /tags/{tag}` - Update tag
-- `DELETE /tags/{tag}` - Delete tag
-- `POST /library/{userBook}/tags` - Sync tags on a book
 
-**Mobile State** (`stores/tagStore.ts`):
-- Zustand store persisted to MMKV
-- Tag filtering with 'any'/'all' modes (OR/AND logic)
-- Recently used tag tracking (max 5)
-- Undo delete with 5-second window
-- Hooks: `useTags()`, `useTagActions()`, `useTagFilters()`, `useRecentlyUsedTags()`
-
-**Note**: Tags are primarily fetched from the API. The WatermelonDB `Tag` model stores minimal fields (`name`, `color`) for offline display, while the full tag data (including `slug`, `emoji`, `is_system`) comes from API responses.
+**Mobile CRUD** (via WatermelonDB + sync):
+- Tags are created/updated/deleted locally in WatermelonDB
+- Changes sync to backend via `/sync/push`
+- Use `useTags()` hook from `@/database/hooks/useTags.ts`
 
 ### User Preferences (Favorites/Excludes)
 
@@ -237,26 +262,21 @@ Personalize discovery with favorite and excluded authors, genres, and series.
 - `PreferenceCategoryEnum`: Author, Genre, Series
 - `PreferenceTypeEnum`: Favorite, Exclude
 
-**API Endpoints**:
+**API Endpoints** (read-only, CRUD via sync):
 - `GET /preferences` - Get all preferences grouped by type/category
 - `GET /preferences/list` - Get flat list with full details
 - `GET /preferences/options` - Get available categories and types
-- `POST /preferences` - Add a single preference
-- `DELETE /preferences/{id}` - Remove a preference
-- `POST /preferences/batch` - Add multiple preferences
-- `DELETE /preferences/batch` - Remove multiple preferences
+- `GET /preferences/genres` - Get available genres for selection
+
+**Mobile CRUD** (via WatermelonDB + sync):
+- Preferences are created/deleted locally in WatermelonDB
+- Changes sync to backend via `/sync/push`
+- Use `usePreferences()` hook from `@/database/hooks/usePreferences.ts`
 
 **Search Integration**:
 - Excluded authors/genres are automatically filtered from search results
 - Filtering happens in `BookSearchManager::search()` after fetching results
 - Uses normalized (lowercase) matching for case-insensitive comparisons
-
-**Mobile Hooks** (`queries/usePreferences.ts`):
-- `usePreferencesQuery()` - Get grouped preferences
-- `useAddPreferenceMutation()` - Add with optimistic updates
-- `useRemovePreferenceByValueMutation()` - Remove by value
-- `useFavoriteAuthors()`, `useExcludedAuthors()` - Convenience hooks
-- `useFavoriteGenres()`, `useExcludedGenres()` - Convenience hooks
 
 **Mobile Screen**: `PreferencesScreen.tsx` in `features/settings/`
 
@@ -264,23 +284,27 @@ Personalize discovery with favorite and excluded authors, genres, and series.
 
 Flexible reading targets with multiple goal types and periods.
 
-**Backend Model**: `ReadingGoal` with columns: `type`, `period`, `target`, `current_value`, `year`, `month`, `week`, `is_active`
+**Backend Model**: `ReadingGoal` with columns: `type`, `period`, `target`, `year`, `month`, `week`, `is_active`
 
 **Enums**:
 - `GoalTypeEnum`: Books, Pages, Minutes, Streak
 - `GoalPeriodEnum`: Daily, Weekly, Monthly, Yearly
 
-**API Endpoints**:
+**API Endpoints** (read-only, CRUD via sync):
 - `GET /goals` - List active goals
-- `POST /goals` - Create/update goal
-- `PATCH /goals/{goal}` - Update goal target
-- `DELETE /goals/{goal}` - Delete goal
-- `POST /goals/recalculate` - Recalculate all goal progress
+- `GET /goals/types` - Get available goal types
+- `GET /goals/periods` - Get available goal periods
+- `GET /goals/{goal}` - Get single goal
 
-**Computed Properties**:
-- `progressPercentage` - Current value / target
-- `isOnTrack` - Compares current vs expected progress based on elapsed time
-- `remaining` - How much more needed
+**Mobile CRUD** (via WatermelonDB + sync):
+- Goals are created/updated/deleted locally in WatermelonDB
+- Changes sync to backend via `/sync/push`
+- Use `useGoals()` hook from `@/database/hooks/useGoals.ts`
+
+**Progress Computation** (mobile-only):
+- Progress is computed locally from reading sessions in `goalComputation.ts`
+- Refreshes every 60 seconds in `useGoalsWithProgress()` hook
+- Properties: `progressPercentage`, `isOnTrack`, `remaining`, `isCompleted`
 
 ### Import Functionality
 

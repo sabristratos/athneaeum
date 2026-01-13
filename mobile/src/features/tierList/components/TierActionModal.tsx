@@ -1,9 +1,18 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Modal, Pressable, StyleSheet } from 'react-native';
 import { Cancel01Icon, Delete02Icon, ArrowRight01Icon } from '@hugeicons/core-free-icons';
 import { Text, Icon, IconButton } from '@/components';
 import { useTheme } from '@/themes';
 import { TIER_DEFINITIONS, TIER_COLORS, type TierListBook, type TierName } from '@/types/tierList';
+
+function getContrastTextColor(hexColor: string): string {
+  const hex = hexColor.replace('#', '');
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  return luminance > 0.5 ? '#1a1a1a' : '#ffffff';
+}
 
 interface TierActionModalProps {
   visible: boolean;
@@ -35,7 +44,7 @@ export function TierActionModal({
       animationType="fade"
       onRequestClose={onClose}
     >
-      <Pressable style={styles.overlay} onPress={onClose}>
+      <Pressable style={[styles.overlay, { backgroundColor: theme.colors.overlayDark }]} onPress={onClose}>
         <Pressable
           style={[
             styles.content,
@@ -84,6 +93,7 @@ export function TierActionModal({
           <View style={styles.tierOptions}>
             {otherTiers.map((tier) => {
               const tierColor = TIER_COLORS[tier.id][themeName];
+              const textColor = getContrastTextColor(tierColor);
               return (
                 <Pressable
                   key={tier.id}
@@ -98,11 +108,11 @@ export function TierActionModal({
                 >
                   <Text
                     variant="caption"
-                    style={{ color: '#ffffff', fontWeight: '600' }}
+                    style={{ color: textColor, fontWeight: '600' }}
                   >
                     {tier.label}
                   </Text>
-                  <Icon icon={ArrowRight01Icon} size={14} color="#ffffff" />
+                  <Icon icon={ArrowRight01Icon} size={14} color={textColor} />
                 </Pressable>
               );
             })}
@@ -143,7 +153,6 @@ export function TierActionModal({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,

@@ -17,7 +17,6 @@ class TagResource extends JsonResource
             'slug' => $this->slug,
             'color' => $this->color->value,
             'color_label' => $this->color->label(),
-            'emoji' => $this->emoji,
             'is_system' => $this->is_system,
             'sort_order' => $this->sort_order,
             'books_count' => $this->whenCounted('userBooks'),

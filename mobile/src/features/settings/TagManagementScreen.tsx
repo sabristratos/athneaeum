@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import {
   View,
   ScrollView,
@@ -20,11 +20,11 @@ import {
   Pressable,
 } from '@/components';
 import { useTheme } from '@/themes';
-import { useTagStore, useTagActions } from '@/stores/tagStore';
+import { useTags, useTagActions } from '@/database/hooks';
 import { useToast } from '@/stores/toastStore';
-import { apiClient } from '@/api/client';
 import { Add01Icon, ArrowLeft01Icon, Search01Icon, Cancel01Icon } from '@hugeicons/core-free-icons';
-import type { Tag, TagColor } from '@/types/tag';
+import type { TagColor } from '@/types/tag';
+import type { Tag } from '@/database/models/Tag';
 import { sharedSpacing } from '@/themes/shared';
 
 export function TagManagementScreen() {
@@ -32,18 +32,18 @@ export function TagManagementScreen() {
   const navigation = useNavigation();
   const toast = useToast();
   const isScholar = themeName === 'scholar';
-  const tags = useTagStore((s) => s.tags) ?? [];
-  const { setTags, addTag, updateTag, deleteTag, undoDeleteTag } = useTagActions();
 
-  const [loading, setLoading] = useState(false);
+  const { tags, loading } = useTags();
+  const { createTag, updateTag, deleteTag, loading: actionLoading } = useTagActions();
+
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState<string | null>(null);
   const [editorVisible, setEditorVisible] = useState(false);
   const [editingTag, setEditingTag] = useState<Tag | undefined>(undefined);
   const [searchQuery, setSearchQuery] = useState('');
+  const [deletedTagInfo, setDeletedTagInfo] = useState<{ tag: Tag; name: string; color: string } | null>(null);
 
-  const systemTags = useMemo(() => tags.filter((t) => t.is_system), [tags]);
-  const userTags = useMemo(() => tags.filter((t) => !t.is_system), [tags]);
+  const systemTags = useMemo(() => tags.filter((t) => t.isSystem), [tags]);
+  const userTags = useMemo(() => tags.filter((t) => !t.isSystem), [tags]);
 
   const filteredSystemTags = useMemo(() => {
     if (!searchQuery.trim()) return systemTags;
@@ -59,24 +59,9 @@ export function TagManagementScreen() {
 
   const existingNames = useMemo(() => tags.map((t) => t.name), [tags]);
 
-  const fetchTags = useCallback(async () => {
-    try {
-      const tagsData = await apiClient<Tag[]>('/tags');
-      setTags(tagsData);
-      setError(null);
-    } catch (err) {
-      setError('Failed to load tags');
-    }
-  }, [setTags]);
-
-  useEffect(() => {
-    setLoading(true);
-    fetchTags().finally(() => setLoading(false));
-  }, [fetchTags]);
-
   const onRefresh = async () => {
     setRefreshing(true);
-    await fetchTags();
+    await new Promise((resolve) => setTimeout(resolve, 500));
     setRefreshing(false);
   };
 
@@ -86,47 +71,44 @@ export function TagManagementScreen() {
   };
 
   const handleEditTag = (tag: Tag) => {
-    if (tag.is_system) return;
+    if (tag.isSystem) return;
     setEditingTag(tag);
     setEditorVisible(true);
   };
 
   const handleSaveTag = async (name: string, color: TagColor) => {
-    if (editingTag) {
-      const updatedTag = await apiClient<Tag>(`/tags/${editingTag.id}`, {
-        method: 'PATCH',
-        body: { name, color },
-      });
-      updateTag(editingTag.id, updatedTag);
-      toast.success(`${isScholar ? 'Label' : 'Tag'} updated`);
-    } else {
-      const newTag = await apiClient<Tag>('/tags', {
-        method: 'POST',
-        body: { name, color },
-      });
-      addTag(newTag);
-      toast.success(`${isScholar ? 'Label' : 'Tag'} created`);
+    try {
+      if (editingTag) {
+        await updateTag(editingTag.id, { name, color });
+        toast.success(`${isScholar ? 'Label' : 'Tag'} updated`);
+      } else {
+        await createTag(name, color);
+        toast.success(`${isScholar ? 'Label' : 'Tag'} created`);
+      }
+    } catch (err) {
+      toast.danger(`Failed to ${editingTag ? 'update' : 'create'} ${isScholar ? 'label' : 'tag'}`);
     }
   };
 
   const handleDeleteTag = async () => {
     if (!editingTag) return;
-    await apiClient(`/tags/${editingTag.id}`, { method: 'DELETE' });
-    deleteTag(editingTag.id);
 
-    toast.info(`"${editingTag.name}" deleted`, {
+    const tagName = editingTag.name;
+    const tagColor = editingTag.color;
+    const tagId = editingTag.id;
+
+    setDeletedTagInfo({ tag: editingTag, name: tagName, color: tagColor });
+    await deleteTag(tagId);
+
+    toast.info(`"${tagName}" deleted`, {
       action: {
         label: 'Undo',
         onPress: async () => {
-          const restored = undoDeleteTag();
-          if (restored) {
+          if (deletedTagInfo) {
             try {
-              const restoredTag = await apiClient<Tag>('/tags', {
-                method: 'POST',
-                body: { name: restored.name, color: restored.color },
-              });
-              updateTag(restored.id, restoredTag);
-              toast.success(`"${restored.name}" restored`);
+              await createTag(deletedTagInfo.name, deletedTagInfo.color as TagColor);
+              toast.success(`"${deletedTagInfo.name}" restored`);
+              setDeletedTagInfo(null);
             } catch {
               toast.danger('Failed to restore tag');
             }
@@ -137,26 +119,24 @@ export function TagManagementScreen() {
   };
 
   const handleSwipeDelete = async (tag: Tag) => {
-    try {
-      await apiClient(`/tags/${tag.id}`, { method: 'DELETE' });
-      deleteTag(tag.id);
+    const tagName = tag.name;
+    const tagColor = tag.color;
 
-      toast.info(`"${tag.name}" deleted`, {
+    setDeletedTagInfo({ tag, name: tagName, color: tagColor });
+
+    try {
+      await deleteTag(tag.id);
+
+      toast.info(`"${tagName}" deleted`, {
         action: {
           label: 'Undo',
           onPress: async () => {
-            const restored = undoDeleteTag();
-            if (restored) {
-              try {
-                const restoredTag = await apiClient<Tag>('/tags', {
-                  method: 'POST',
-                  body: { name: restored.name, color: restored.color },
-                });
-                updateTag(restored.id, restoredTag);
-                toast.success(`"${restored.name}" restored`);
-              } catch {
-                toast.danger('Failed to restore tag');
-              }
+            try {
+              await createTag(tagName, tagColor as TagColor);
+              toast.success(`"${tagName}" restored`);
+              setDeletedTagInfo(null);
+            } catch {
+              toast.danger('Failed to restore tag');
             }
           },
         },
@@ -167,7 +147,7 @@ export function TagManagementScreen() {
   };
 
   const renderTagItem = (tag: Tag, canDelete: boolean) => {
-    const tagColor = theme.tagColors[tag.color] || theme.tagColors.primary;
+    const tagColor = theme.tagColors[tag.color as TagColor] || theme.tagColors.primary;
 
     const content = (
       <View
@@ -199,17 +179,6 @@ export function TagManagementScreen() {
           >
             {tag.name}
           </Text>
-          {tag.books_count !== undefined && (
-            <Text
-              style={{
-                color: theme.colors.foregroundMuted,
-                fontFamily: theme.fonts.body,
-                fontSize: 12,
-              }}
-            >
-              {tag.books_count} {tag.books_count === 1 ? 'book' : 'books'}
-            </Text>
-          )}
         </View>
       </View>
     );
@@ -256,7 +225,6 @@ export function TagManagementScreen() {
       style={[styles.container, { backgroundColor: theme.colors.canvas }]}
       edges={['top']}
     >
-      {/* Header */}
       <View
         style={[
           styles.header,
@@ -277,7 +245,6 @@ export function TagManagementScreen() {
         </Text>
       </View>
 
-      {/* Search Bar */}
       <View style={{ paddingHorizontal: theme.spacing.lg, paddingBottom: theme.spacing.md }}>
         <View
           style={[
@@ -335,14 +302,6 @@ export function TagManagementScreen() {
           />
         }
       >
-
-        {error && (
-          <Card variant="outlined" padding="lg" style={{ marginBottom: theme.spacing.lg }}>
-            <Text variant="body" color="danger" style={styles.centerText}>
-              {error}
-            </Text>
-          </Card>
-        )}
 
         {showNoResults && (
           <View style={{ paddingVertical: theme.spacing.xl, alignItems: 'center' }}>
@@ -424,9 +383,19 @@ export function TagManagementScreen() {
       <TagEditor
         visible={editorVisible}
         onClose={() => setEditorVisible(false)}
-        tag={editingTag}
+        tag={editingTag ? {
+          id: editingTag.serverId ?? 0,
+          name: editingTag.name,
+          slug: editingTag.slug,
+          color: editingTag.color as TagColor,
+          color_label: editingTag.color,
+          is_system: editingTag.isSystem,
+          sort_order: editingTag.sortOrder,
+          created_at: editingTag.createdAt.toISOString(),
+          updated_at: editingTag.updatedAt.toISOString(),
+        } : undefined}
         onSave={handleSaveTag}
-        onDelete={editingTag && !editingTag.is_system ? handleDeleteTag : undefined}
+        onDelete={editingTag && !editingTag.isSystem ? handleDeleteTag : undefined}
         existingNames={existingNames}
       />
     </SafeAreaView>

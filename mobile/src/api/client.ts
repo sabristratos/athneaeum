@@ -3,9 +3,9 @@ import type { ApiError } from '@/types';
 
 const getBaseUrl = (): string => {
   if (__DEV__) {
-    return 'http://192.168.1.102:8000/api';
+    return process.env.EXPO_PUBLIC_API_URL ?? 'http://localhost:8000/api';
   }
-  return 'https://api.athenaeum.app/api';
+  return process.env.EXPO_PUBLIC_PRODUCTION_API_URL ?? 'https://api.athenaeum.app/api';
 };
 
 const API_URL = getBaseUrl();

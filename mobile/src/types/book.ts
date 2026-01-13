@@ -205,13 +205,16 @@ export interface ReadThrough {
   user_book_id: number;
   read_number: number;
   status: BookStatus;
+  status_label: string;
   rating: number | null;
   review: string | null;
   is_dnf: boolean;
   dnf_reason: string | null;
   started_at: string | null;
   finished_at: string | null;
-  total_pages_read: number;
+  total_pages_read?: number;
+  total_reading_seconds?: number;
+  reading_sessions?: ReadingSession[];
   created_at: string;
   updated_at: string;
 }
@@ -257,11 +260,17 @@ export interface UpdateUserBookData {
 
 export interface LogSessionData {
   user_book_id: number;
+  read_through_id?: number | null;
   date: string;
   start_page: number;
   end_page: number;
   duration_seconds?: number | null;
   notes?: string | null;
+}
+
+export interface LogSessionResponse {
+  session: ReadingSession;
+  user_book: UserBook;
 }
 
 export const STATUS_OPTIONS: { value: BookStatus; label: string }[] = [

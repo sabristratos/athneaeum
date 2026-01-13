@@ -4,20 +4,33 @@ import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { Target02Icon, ArrowRight01Icon, Add01Icon } from '@hugeicons/core-free-icons';
 import { triggerHaptic } from '@/hooks/useHaptic';
-import { useQuery } from '@tanstack/react-query';
 import { Text, Card, Icon, Progress, Button } from '@/components';
 import { useTheme } from '@/themes';
-import { goalsApi, GOAL_TYPE_CONFIG, GOAL_PERIOD_CONFIG, type ReadingGoal } from '@/api/goals';
+import { useGoalsWithProgress, type GoalProgress } from '@/database/hooks';
 import type { MainStackParamList } from '@/navigation/MainNavigator';
-import { queryKeys } from '@/lib/queryKeys';
+
+const GOAL_TYPE_CONFIG: Record<string, { label: string }> = {
+  books: { label: 'Books' },
+  pages: { label: 'Pages' },
+  minutes: { label: 'Minutes' },
+  streak: { label: 'Streak' },
+};
+
+const GOAL_PERIOD_CONFIG: Record<string, { label: string }> = {
+  yearly: { label: 'Yearly' },
+  monthly: { label: 'Monthly' },
+  weekly: { label: 'Weekly' },
+  daily: { label: 'Daily' },
+};
 
 interface GoalCardProps {
-  goal: ReadingGoal;
+  goalProgress: GoalProgress;
   onPress: () => void;
 }
 
-function GoalCard({ goal, onPress }: GoalCardProps) {
+function GoalCard({ goalProgress, onPress }: GoalCardProps) {
   const { theme } = useTheme();
+  const { goal, currentValue, progressPercentage, isCompleted, isOnTrack } = goalProgress;
 
   return (
     <RNPressable
@@ -37,17 +50,17 @@ function GoalCard({ goal, onPress }: GoalCardProps) {
           <Icon
             icon={Target02Icon}
             size={18}
-            color={goal.is_completed ? theme.colors.success : goal.is_on_track ? theme.colors.success : theme.colors.warning}
+            color={isCompleted ? theme.colors.success : isOnTrack ? theme.colors.success : theme.colors.warning}
           />
           <Text variant="body" style={{ flex: 1, marginLeft: theme.spacing.sm }}>
-            {GOAL_PERIOD_CONFIG[goal.period].label} {GOAL_TYPE_CONFIG[goal.type].label}
+            {GOAL_PERIOD_CONFIG[goal.period]?.label} {GOAL_TYPE_CONFIG[goal.type]?.label}
           </Text>
           <Text variant="caption" muted>
-            {goal.current_value}/{goal.target}
+            {currentValue}/{goal.target}
           </Text>
         </View>
-        <Progress value={goal.progress_percentage} size="sm" showPercentage={false} />
-        {goal.is_completed && (
+        <Progress value={progressPercentage} size="sm" showPercentage={false} />
+        {isCompleted && (
           <Text variant="caption" style={{ color: theme.colors.success, marginTop: theme.spacing.xs }}>
             Goal completed!
           </Text>
@@ -61,13 +74,7 @@ export function ReadingGoalsSection() {
   const { theme } = useTheme();
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
 
-  const { data: goals, isLoading } = useQuery({
-    queryKey: queryKeys.goals.all,
-    queryFn: goalsApi.getAll,
-    staleTime: 1000 * 60 * 5,
-  });
-
-  const activeGoals = goals?.filter(g => g.is_active) ?? [];
+  const { progress: goalsWithProgress, loading } = useGoalsWithProgress();
 
   return (
     <View>
@@ -91,11 +98,11 @@ export function ReadingGoalsSection() {
       </View>
 
       <Card variant="elevated" padding="none">
-        {isLoading ? (
+        {loading ? (
           <View style={{ padding: theme.spacing.lg, alignItems: 'center' }}>
             <ActivityIndicator color={theme.colors.primary} />
           </View>
-        ) : activeGoals.length === 0 ? (
+        ) : goalsWithProgress.length === 0 ? (
           <View style={{ padding: theme.spacing.lg, alignItems: 'center' }}>
             <Icon icon={Target02Icon} size={32} color={theme.colors.foregroundMuted} />
             <Text variant="body" muted style={{ marginTop: theme.spacing.sm, textAlign: 'center' }}>
@@ -115,10 +122,10 @@ export function ReadingGoalsSection() {
             </View>
           </View>
         ) : (
-          activeGoals.slice(0, 3).map((goal, index) => (
+          goalsWithProgress.slice(0, 3).map((goalProgress) => (
             <GoalCard
-              key={goal.id}
-              goal={goal}
+              key={goalProgress.goal.id}
+              goalProgress={goalProgress}
               onPress={() => navigation.navigate('ReadingGoals')}
             />
           ))

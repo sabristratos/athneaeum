@@ -6,3 +6,5 @@ export { UserBookTag } from '@/database/models/UserBookTag';
 export { ReadThrough } from '@/database/models/ReadThrough';
 export { ReadingSession } from '@/database/models/ReadingSession';
 export { SyncMetadata } from '@/database/models/SyncMetadata';
+export { UserPreference } from '@/database/models/UserPreference';
+export { ReadingGoal } from '@/database/models/ReadingGoal';

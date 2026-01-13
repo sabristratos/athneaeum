@@ -16,7 +16,6 @@ The Tags feature allows users to categorize and organize their books with custom
 - `name` (string, max 50): Display name
 - `slug` (string): URL-safe slug, auto-generated
 - `color` (TagColorEnum): Tag color from 10 predefined colors
-- `emoji` (string, nullable, max 10): Optional emoji
 - `is_system` (boolean): System-defined (immutable) or user-created
 - `sort_order` (integer): Sort order for display
 
@@ -88,8 +87,7 @@ Returns: { data: [{ value, label }] }
 POST /api/tags
 Body: {
   name: string (required, max 50),
-  color: TagColor (required),
-  emoji?: string (max 10)
+  color: TagColor (required)
 }
 ```
 
@@ -98,8 +96,7 @@ Body: {
 PATCH /api/tags/{tag}
 Body: {
   name?: string,
-  color?: TagColor,
-  emoji?: string
+  color?: TagColor
 }
 Authorization: Must own tag, cannot edit system tags
 ```
@@ -258,7 +255,6 @@ interface Tag {
   slug: string;
   color: TagColor;
   color_label: string;
-  emoji?: string;
   is_system: boolean;
   sort_order: number;
   books_count?: number;
@@ -279,7 +275,6 @@ CREATE TABLE tags (
   name VARCHAR(50) NOT NULL,
   slug VARCHAR(255) NOT NULL,
   color VARCHAR(255) NOT NULL,
-  emoji VARCHAR(10) NULLABLE,
   is_system BOOLEAN DEFAULT 0,
   sort_order INT DEFAULT 0,
   UNIQUE (user_id, slug)

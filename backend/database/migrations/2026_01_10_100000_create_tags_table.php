@@ -16,7 +16,6 @@ return new class extends Migration
             $table->string('name', 50);
             $table->string('slug');
             $table->string('color');
-            $table->string('emoji', 10)->nullable();
             $table->boolean('is_system')->default(false);
             $table->integer('sort_order')->default(0);
             $table->timestamps();

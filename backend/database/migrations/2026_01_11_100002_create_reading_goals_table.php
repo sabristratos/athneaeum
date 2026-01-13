@@ -16,7 +16,6 @@ return new class extends Migration
             $table->string('type');
             $table->string('period');
             $table->integer('target');
-            $table->integer('current_value')->default(0);
             $table->integer('year');
             $table->integer('month')->nullable();
             $table->integer('week')->nullable();

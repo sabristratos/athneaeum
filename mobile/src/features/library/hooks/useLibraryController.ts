@@ -3,14 +3,19 @@ import { useNavigation, useRoute, type RouteProp } from '@react-navigation/nativ
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useLibrary } from '@/hooks/useBooks';
 import { useToast } from '@/stores/toastStore';
-import { useTagStore, useTagActions } from '@/stores/tagStore';
-import { apiClient } from '@/api/client';
+import { useTags } from '@/database/hooks';
+import { useMMKVString } from 'react-native-mmkv';
+import { storage } from '@/lib/storage';
 import type { UserBook, BookStatus, UpdateUserBookData } from '@/types';
-import type { Tag, TagFilterMode } from '@/types/tag';
+import type { Tag as WatermelonTag } from '@/database/models/Tag';
+import type { Tag, TagFilterMode, TagColor } from '@/types/tag';
 import type { MainStackParamList, MainTabParamList } from '@/navigation/MainNavigator';
 
 type NavigationProp = NativeStackNavigationProp<MainStackParamList>;
 type LibraryRouteProp = RouteProp<MainTabParamList, 'LibraryTab'>;
+
+const FILTER_STORAGE_KEY = 'library_tag_filters';
+const FILTER_MODE_STORAGE_KEY = 'library_tag_filter_mode';
 
 export interface LibraryControllerState {
   activeTab: BookStatus | 'all';
@@ -29,7 +34,7 @@ export interface LibraryControllerActions {
   fetchLibrary: () => Promise<void>;
   updateBook: (id: number, data: UpdateUserBookData) => Promise<UserBook | null>;
   moveToEndOfList: (id: number) => void;
-  toggleTagFilter: (slug: string) => void;
+  toggleTagFilter: (tagId: string) => void;
   clearTagFilters: () => void;
   toggleFilterMode: () => void;
   navigateToTagManagement: () => void;
@@ -58,10 +63,38 @@ export function useLibraryController(): LibraryControllerReturn {
   const toast = useToast();
   const { books, loading, error, fetchLibrary, updateBook, moveToEndOfList } = useLibrary();
 
-  const tags = useTagStore((s) => s.tags) ?? [];
-  const selectedTagFilters = useTagStore((s) => s.selectedTagFilters) ?? [];
-  const filterMode = useTagStore((s) => s.filterMode);
-  const { setTags, toggleTagFilter, clearTagFilters, setFilterMode } = useTagActions();
+  const { tags: watermelonTags } = useTags();
+
+  const tags: Tag[] = useMemo(() => {
+    return watermelonTags
+      .filter((t) => t.serverId !== null)
+      .map((t) => ({
+        id: t.serverId!,
+        name: t.name,
+        slug: t.slug,
+        color: t.color as TagColor,
+        color_label: t.color,
+        is_system: t.isSystem,
+        sort_order: t.sortOrder,
+        books_count: 0,
+        created_at: new Date().toISOString(),
+        updated_at: new Date().toISOString(),
+      }));
+  }, [watermelonTags]);
+
+  const [storedFilters, setStoredFilters] = useMMKVString(FILTER_STORAGE_KEY, storage ?? undefined);
+  const [storedFilterMode, setStoredFilterMode] = useMMKVString(FILTER_MODE_STORAGE_KEY, storage ?? undefined);
+
+  const selectedTagFilters: string[] = useMemo(() => {
+    if (!storedFilters) return [];
+    try {
+      return JSON.parse(storedFilters);
+    } catch {
+      return [];
+    }
+  }, [storedFilters]);
+
+  const filterMode: TagFilterMode = (storedFilterMode as TagFilterMode) || 'any';
 
   const [activeTab, setActiveTab] = useState<BookStatus | 'all'>('all');
   const [refreshing, setRefreshing] = useState(false);
@@ -73,29 +106,34 @@ export function useLibraryController(): LibraryControllerReturn {
     }
   }, [route.params?.genreSlug]);
 
-  useEffect(() => {
-    const fetchTags = async () => {
-      try {
-        const tagsData = await apiClient<Tag[]>('/tags');
-        setTags(tagsData);
-      } catch {
-        // Silently fail - tags are not critical
-      }
-    };
-    fetchTags();
-  }, [setTags]);
+  const toggleTagFilter = useCallback((tagId: string) => {
+    const current = selectedTagFilters;
+    let updated: string[];
+    if (current.includes(tagId)) {
+      updated = current.filter((id) => id !== tagId);
+    } else {
+      updated = [...current, tagId];
+    }
+    setStoredFilters(JSON.stringify(updated));
+  }, [selectedTagFilters, setStoredFilters]);
+
+  const clearTagFilters = useCallback(() => {
+    setStoredFilters(JSON.stringify([]));
+  }, [setStoredFilters]);
+
+  const setFilterMode = useCallback((mode: TagFilterMode) => {
+    setStoredFilterMode(mode);
+  }, [setStoredFilterMode]);
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
     try {
       await fetchLibrary();
-      const tagsData = await apiClient<Tag[]>('/tags');
-      setTags(tagsData);
     } catch {
       toast.danger('Failed to refresh library');
     }
     setRefreshing(false);
-  }, [fetchLibrary, setTags, toast]);
+  }, [fetchLibrary, toast]);
 
   const navigateToTagManagement = useCallback(() => {
     navigation.navigate('TagManagement');
@@ -105,7 +143,6 @@ export function useLibraryController(): LibraryControllerReturn {
     setFilterMode(filterMode === 'any' ? 'all' : 'any');
   }, [filterMode, setFilterMode]);
 
-  // Compute all tab counts in a single pass (O(n) instead of O(n*m) for m tabs)
   const tabCounts = useMemo(() => {
     const counts: Record<BookStatus | 'all', number> = {
       all: 0,
@@ -179,7 +216,6 @@ export function useLibraryController(): LibraryControllerReturn {
     [books, navigation]
   );
 
-  // Use pre-computed counts for O(1) lookup
   const getTabCount = useCallback(
     (key: BookStatus | 'all') => tabCounts[key],
     [tabCounts]

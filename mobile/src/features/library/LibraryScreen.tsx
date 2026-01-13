@@ -23,7 +23,7 @@ import {
   SwipeableViewContainer,
   useTabScreenPadding,
 } from '@/components';
-import { Cancel01Icon, Layers01Icon } from '@hugeicons/core-free-icons';
+import { Cancel01Icon, Layers01Icon, ArrowLeft02Icon, ArrowRight02Icon } from '@hugeicons/core-free-icons';
 import { useTheme } from '@/themes';
 import { useScrollPhysics, buildSectionBoundaries, useNavBarScrollHandler } from '@/hooks';
 import { useLibraryController, useSearchLens } from '@/features/library/hooks';
@@ -81,7 +81,7 @@ export function LibraryScreen() {
     clearGenreFilter,
   } = useLibraryController();
 
-  // View mode state - default to stack for TBR, list for others
+  // View mode state - persisted per user preference
   const [viewMode, setViewMode] = useState<ViewMode>('list');
 
   // Search lens state
@@ -91,14 +91,12 @@ export function LibraryScreen() {
   // Determine if we should show stack option (only for TBR tab)
   const showStackOption = activeTab === 'want_to_read';
 
-  // Auto-switch to stack view when TBR tab is selected
+  // When leaving TBR tab, reset from stack view to list (stack only makes sense for TBR)
   React.useEffect(() => {
-    if (activeTab === 'want_to_read' && viewMode !== 'stack') {
-      setViewMode('stack');
-    } else if (activeTab !== 'want_to_read' && viewMode === 'stack') {
+    if (activeTab !== 'want_to_read' && viewMode === 'stack') {
       setViewMode('list');
     }
-  }, [activeTab]);
+  }, [activeTab, viewMode]);
 
   // Build filter dial options
   const filterOptions = useMemo(
@@ -396,7 +394,7 @@ export function LibraryScreen() {
         )}
 
         {/* View mode toggle - inline */}
-        <View style={{ marginBottom: theme.spacing.md }}>
+        <View style={{ marginBottom: theme.spacing.sm }}>
           <ViewModeToggle
             currentMode={viewMode}
             onModeChange={setViewMode}
@@ -405,6 +403,21 @@ export function LibraryScreen() {
             variant="inline"
           />
         </View>
+
+        {/* Swipe hint */}
+        {swipeEnabled && availableViewModes.length > 1 && (
+          <View style={styles.swipeHint}>
+            <Icon icon={ArrowLeft02Icon} size={12} color={theme.colors.foregroundSubtle} />
+            <Text
+              variant="caption"
+              emphatic
+              style={{ color: theme.colors.foregroundSubtle, marginHorizontal: theme.spacing.xs }}
+            >
+              Swipe to switch views
+            </Text>
+            <Icon icon={ArrowRight02Icon} size={12} color={theme.colors.foregroundSubtle} />
+          </View>
+        )}
 
         {/* Main content with swipe gesture for view switching */}
         <SwipeableViewContainer
@@ -441,6 +454,12 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+  },
+  swipeHint: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 8,
   },
   contentArea: {
     flex: 1,

@@ -3,7 +3,7 @@ import { View, ScrollView, StyleSheet, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
-import { Text, useTabScreenPadding } from '@/components';
+import { Text, useTabScreenPadding, VignetteOverlay } from '@/components';
 import type { MainTabParamList } from '@/navigation/MainNavigator';
 import { PulseStrip } from '@/components/molecules';
 import {
@@ -125,6 +125,7 @@ export function HomeScreen() {
       glowOpacity={isNightMode ? 0.25 : 0.4}
     >
       <SafeAreaView style={{ flex: 1 }} edges={['top']}>
+        {isScholar && <VignetteOverlay intensity="light" />}
         <ScrollView
           style={{ flex: 1 }}
           contentContainerStyle={{

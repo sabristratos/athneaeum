@@ -13,12 +13,43 @@ interface CalendarDayCellProps {
   isToday?: boolean;
 }
 
-const INTENSITY_COLORS: Record<ThemeName, string[]> = {
-  scholar: ['#2a2622', '#5c3d3d', '#8b4545', '#a33a3a', '#8b2e2e'],
-  dreamer: ['#f0ebe3', '#c5d5c0', '#9ec49b', '#7ab377', '#5a9e55'],
-  wanderer: ['#2a2420', '#5c4a35', '#8b6b45', '#b8860b', '#d4a017'],
-  midnight: ['#1e293b', '#3730a3', '#4f46e5', '#6366f1', '#818cf8'],
-};
+function hexToRgb(hex: string): { r: number; g: number; b: number } | null {
+  const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+  return result
+    ? {
+        r: parseInt(result[1], 16),
+        g: parseInt(result[2], 16),
+        b: parseInt(result[3], 16),
+      }
+    : null;
+}
+
+function generateIntensityColors(
+  primaryColor: string,
+  surfaceColor: string,
+  isDark: boolean
+): string[] {
+  const primary = hexToRgb(primaryColor);
+  const surface = hexToRgb(surfaceColor);
+
+  if (!primary || !surface) {
+    return ['transparent', primaryColor, primaryColor, primaryColor, primaryColor];
+  }
+
+  if (isDark) {
+    const opacities = [0.1, 0.3, 0.5, 0.7, 0.9];
+    return opacities.map(
+      (opacity) =>
+        `rgba(${primary.r}, ${primary.g}, ${primary.b}, ${opacity})`
+    );
+  } else {
+    const opacities = [0.08, 0.2, 0.4, 0.6, 0.85];
+    return opacities.map(
+      (opacity) =>
+        `rgba(${primary.r}, ${primary.g}, ${primary.b}, ${opacity})`
+    );
+  }
+}
 
 export const CalendarDayCell = memo(function CalendarDayCell({
   day,
@@ -30,11 +61,15 @@ export const CalendarDayCell = memo(function CalendarDayCell({
   const { theme, themeName } = useTheme();
   const isScholar = themeName === 'scholar';
 
+  const intensityColors = useMemo(
+    () => generateIntensityColors(theme.colors.primary, theme.colors.surface, theme.isDark),
+    [theme.colors.primary, theme.colors.surface, theme.isDark]
+  );
+
   const backgroundColor = useMemo(() => {
     if (!day) return 'transparent';
-    const colors = INTENSITY_COLORS[themeName] || INTENSITY_COLORS.scholar;
-    return colors[day.intensity];
-  }, [day, themeName]);
+    return intensityColors[day.intensity] || 'transparent';
+  }, [day, intensityColors]);
 
   const hasActivity = day && (day.sessions.length > 0 || day.books_completed.length > 0);
   const booksCompleted = day?.books_completed ?? [];
@@ -181,7 +216,7 @@ export const CalendarDayCell = memo(function CalendarDayCell({
             styles.dayNumber,
             {
               color: day?.intensity && day.intensity > 0
-                ? themeName === 'dreamer' ? theme.colors.foreground : '#fff'
+                ? theme.isDark ? theme.colors.onPrimary : theme.colors.foreground
                 : theme.colors.foregroundMuted,
               fontSize: 12,
               fontFamily: theme.fonts.body,

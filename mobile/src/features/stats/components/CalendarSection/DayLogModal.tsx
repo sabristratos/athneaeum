@@ -217,8 +217,9 @@ export const DayLogModal = memo(function DayLogModal({
                     <Text
                       variant="caption"
                       muted
+                      emphatic
                       numberOfLines={2}
-                      style={{ marginTop: theme.spacing.xs, fontStyle: 'italic' }}
+                      style={{ marginTop: theme.spacing.xs }}
                     >
                       {session.notes}
                     </Text>

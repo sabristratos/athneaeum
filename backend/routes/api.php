@@ -54,35 +54,23 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/library', [LibraryController::class, 'index']);
     Route::get('/library/external-ids', [LibraryController::class, 'externalIds']);
     Route::patch('/library/reorder', [LibraryController::class, 'reorder']);
-    Route::post('/library', [LibraryController::class, 'store']);
     Route::get('/library/{userBook}', [LibraryController::class, 'show']);
-    Route::patch('/library/{userBook}', [LibraryController::class, 'update']);
     Route::patch('/library/{userBook}/pin', [LibraryController::class, 'pin']);
     Route::delete('/library/{userBook}/pin', [LibraryController::class, 'unpin']);
     Route::post('/library/{userBook}/reread', [LibraryController::class, 'startReread']);
     Route::get('/library/{userBook}/history', [LibraryController::class, 'readingHistory']);
-    Route::delete('/library/{userBook}', [LibraryController::class, 'destroy']);
-
-    Route::patch('/read-throughs/{readThrough}', [LibraryController::class, 'updateReadThrough']);
 
     Route::post('/library/{userBook}/tags', [UserBookTagController::class, 'sync']);
     Route::post('/library/{userBook}/tags/{tag}', [UserBookTagController::class, 'attach']);
     Route::delete('/library/{userBook}/tags/{tag}', [UserBookTagController::class, 'detach']);
 
     Route::get('/tags', [TagController::class, 'index']);
-    Route::post('/tags', [TagController::class, 'store']);
-    Route::patch('/tags/{tag}', [TagController::class, 'update']);
-    Route::delete('/tags/{tag}', [TagController::class, 'destroy']);
     Route::get('/tags/colors', [TagController::class, 'colors']);
 
     Route::get('/preferences', [UserPreferenceController::class, 'index']);
     Route::get('/preferences/list', [UserPreferenceController::class, 'list']);
     Route::get('/preferences/options', [UserPreferenceController::class, 'options']);
     Route::get('/preferences/genres', [UserPreferenceController::class, 'genres']);
-    Route::post('/preferences', [UserPreferenceController::class, 'store']);
-    Route::post('/preferences/batch', [UserPreferenceController::class, 'batchStore']);
-    Route::delete('/preferences/batch', [UserPreferenceController::class, 'batchDestroy']);
-    Route::delete('/preferences/{preference}', [UserPreferenceController::class, 'destroy']);
 
     Route::get('/authors/library', [AuthorController::class, 'library']);
     Route::get('/authors/search', [AuthorController::class, 'search']);
@@ -98,7 +86,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/series/{series}/books', [SeriesController::class, 'removeBook']);
 
     Route::get('/sessions', [SessionController::class, 'index']);
-    Route::post('/sessions', [SessionController::class, 'store']);
 
     Route::get('/stats', [StatsController::class, 'index']);
     Route::get('/stats/heatmap', [StatsController::class, 'heatmap']);
@@ -109,13 +96,9 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/stats/calendar', [StatsController::class, 'calendar']);
 
     Route::get('/goals', [ReadingGoalController::class, 'index']);
-    Route::post('/goals', [ReadingGoalController::class, 'store']);
-    Route::post('/goals/recalculate', [ReadingGoalController::class, 'recalculate']);
     Route::get('/goals/types', [ReadingGoalController::class, 'types']);
     Route::get('/goals/periods', [ReadingGoalController::class, 'periods']);
     Route::get('/goals/{goal}', [ReadingGoalController::class, 'show']);
-    Route::patch('/goals/{goal}', [ReadingGoalController::class, 'update']);
-    Route::delete('/goals/{goal}', [ReadingGoalController::class, 'destroy']);
 
     Route::prefix('sync')->group(function () {
         Route::get('/pull', [SyncController::class, 'pull']);

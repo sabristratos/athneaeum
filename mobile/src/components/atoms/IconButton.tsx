@@ -22,8 +22,8 @@ export interface IconButtonProps {
 }
 
 const sizeMap = {
-  sm: { button: 32, icon: 16 },
-  md: { button: 40, icon: 20 },
+  sm: { button: 36, icon: 16 },
+  md: { button: 44, icon: 20 },
   lg: { button: 48, icon: 24 },
 };
 

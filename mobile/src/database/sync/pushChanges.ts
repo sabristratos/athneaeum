@@ -6,6 +6,9 @@ import type { Book } from '@/database/models/Book';
 import type { UserBook } from '@/database/models/UserBook';
 import type { ReadThrough } from '@/database/models/ReadThrough';
 import type { ReadingSession } from '@/database/models/ReadingSession';
+import type { Tag } from '@/database/models/Tag';
+import type { UserPreference } from '@/database/models/UserPreference';
+import type { ReadingGoal } from '@/database/models/ReadingGoal';
 import type {
   PushPayload,
   PushResponse,
@@ -13,6 +16,9 @@ import type {
   UserBookPayload,
   ReadThroughPayload,
   SessionPayload,
+  TagPayload,
+  PreferencePayload,
+  GoalPayload,
 } from '@/database/sync/types';
 
 function transformBookForPush(book: Book): BookPayload {
@@ -99,13 +105,53 @@ function transformSessionForPush(session: ReadingSession): SessionPayload {
   };
 }
 
+function transformTagForPush(tag: Tag): TagPayload {
+  return {
+    local_id: tag.id,
+    server_id: tag.serverId ?? undefined,
+    name: tag.name,
+    slug: tag.slug,
+    color: tag.color,
+    is_system: tag.isSystem,
+    sort_order: tag.sortOrder,
+  };
+}
+
+function transformPreferenceForPush(pref: UserPreference): PreferencePayload {
+  return {
+    local_id: pref.id,
+    server_id: pref.serverId ?? undefined,
+    category: pref.category,
+    type: pref.type,
+    value: pref.value,
+    normalized: pref.normalized,
+  };
+}
+
+function transformGoalForPush(goal: ReadingGoal): GoalPayload {
+  return {
+    local_id: goal.id,
+    server_id: goal.serverId ?? undefined,
+    type: goal.type,
+    period: goal.period,
+    target: goal.target,
+    year: goal.year,
+    month: goal.month,
+    week: goal.week,
+    is_active: goal.isActive,
+    completed_at: goal.completedAt ? goal.completedAt.toISOString() : null,
+  };
+}
+
 export async function pushChanges(): Promise<PushResponse> {
   const booksCollection = database.get<Book>('books');
   const userBooksCollection = database.get<UserBook>('user_books');
   const readThroughsCollection = database.get<ReadThrough>('read_throughs');
   const sessionsCollection = database.get<ReadingSession>('reading_sessions');
+  const tagsCollection = database.get<Tag>('tags');
+  const preferencesCollection = database.get<UserPreference>('user_preferences');
+  const goalsCollection = database.get<ReadingGoal>('reading_goals');
 
-  // Gather pending records (not deleted)
   const pendingBooks = await booksCollection
     .query(Q.where('is_pending_sync', true), Q.where('is_deleted', false))
     .fetch();
@@ -122,7 +168,22 @@ export async function pushChanges(): Promise<PushResponse> {
     .query(Q.where('is_pending_sync', true), Q.where('is_deleted', false))
     .fetch();
 
-  // Gather deleted records
+  const pendingTags = await tagsCollection
+    .query(
+      Q.where('is_pending_sync', true),
+      Q.where('is_deleted', false),
+      Q.where('is_system', false)
+    )
+    .fetch();
+
+  const pendingPreferences = await preferencesCollection
+    .query(Q.where('is_pending_sync', true), Q.where('is_deleted', false))
+    .fetch();
+
+  const pendingGoals = await goalsCollection
+    .query(Q.where('is_pending_sync', true), Q.where('is_deleted', false))
+    .fetch();
+
   const deletedUserBooks = await userBooksCollection
     .query(Q.where('is_deleted', true), Q.where('is_pending_sync', true))
     .fetch();
@@ -132,6 +193,22 @@ export async function pushChanges(): Promise<PushResponse> {
     .fetch();
 
   const deletedSessions = await sessionsCollection
+    .query(Q.where('is_deleted', true), Q.where('is_pending_sync', true))
+    .fetch();
+
+  const deletedTags = await tagsCollection
+    .query(
+      Q.where('is_deleted', true),
+      Q.where('is_pending_sync', true),
+      Q.where('is_system', false)
+    )
+    .fetch();
+
+  const deletedPreferences = await preferencesCollection
+    .query(Q.where('is_deleted', true), Q.where('is_pending_sync', true))
+    .fetch();
+
+  const deletedGoals = await goalsCollection
     .query(Q.where('is_deleted', true), Q.where('is_pending_sync', true))
     .fetch();
 
@@ -176,26 +253,84 @@ export async function pushChanges(): Promise<PushResponse> {
         .filter((s) => s.serverId)
         .map((s) => s.serverId!),
     },
+    tags: {
+      created: pendingTags
+        .filter((t) => !t.serverId)
+        .map(transformTagForPush),
+      updated: pendingTags
+        .filter((t) => t.serverId)
+        .map(transformTagForPush),
+      deleted: deletedTags
+        .filter((t) => t.serverId)
+        .map((t) => t.serverId!),
+    },
+    user_preferences: {
+      created: pendingPreferences
+        .filter((p) => !p.serverId)
+        .map(transformPreferenceForPush),
+      updated: pendingPreferences
+        .filter((p) => p.serverId)
+        .map(transformPreferenceForPush),
+      deleted: deletedPreferences
+        .filter((p) => p.serverId)
+        .map((p) => p.serverId!),
+    },
+    reading_goals: {
+      created: pendingGoals
+        .filter((g) => !g.serverId)
+        .map(transformGoalForPush),
+      updated: pendingGoals
+        .filter((g) => g.serverId)
+        .map(transformGoalForPush),
+      deleted: deletedGoals
+        .filter((g) => g.serverId)
+        .map((g) => g.serverId!),
+    },
   };
 
-  // Skip API call if nothing to push
-  if (
-    payload.books.created.length === 0 &&
-    payload.books.updated.length === 0 &&
-    payload.user_books.created.length === 0 &&
-    payload.user_books.updated.length === 0 &&
-    payload.user_books.deleted.length === 0 &&
-    payload.read_throughs.created.length === 0 &&
-    payload.read_throughs.updated.length === 0 &&
-    payload.read_throughs.deleted.length === 0 &&
-    payload.reading_sessions.created.length === 0 &&
-    payload.reading_sessions.updated.length === 0 &&
-    payload.reading_sessions.deleted.length === 0
-  ) {
+  const hasChanges =
+    payload.books.created.length > 0 ||
+    payload.books.updated.length > 0 ||
+    payload.user_books.created.length > 0 ||
+    payload.user_books.updated.length > 0 ||
+    payload.user_books.deleted.length > 0 ||
+    payload.read_throughs.created.length > 0 ||
+    payload.read_throughs.updated.length > 0 ||
+    payload.read_throughs.deleted.length > 0 ||
+    payload.reading_sessions.created.length > 0 ||
+    payload.reading_sessions.updated.length > 0 ||
+    payload.reading_sessions.deleted.length > 0 ||
+    payload.tags.created.length > 0 ||
+    payload.tags.updated.length > 0 ||
+    payload.tags.deleted.length > 0 ||
+    payload.user_preferences.created.length > 0 ||
+    payload.user_preferences.updated.length > 0 ||
+    payload.user_preferences.deleted.length > 0 ||
+    payload.reading_goals.created.length > 0 ||
+    payload.reading_goals.updated.length > 0 ||
+    payload.reading_goals.deleted.length > 0;
+
+  if (!hasChanges) {
     return {
       status: 'success',
-      id_mappings: { books: [], user_books: [], read_throughs: [], reading_sessions: [] },
-      counts: { books: 0, user_books: 0, read_throughs: 0, reading_sessions: 0 },
+      id_mappings: {
+        books: [],
+        user_books: [],
+        read_throughs: [],
+        reading_sessions: [],
+        tags: [],
+        user_preferences: [],
+        reading_goals: [],
+      },
+      counts: {
+        books: 0,
+        user_books: 0,
+        read_throughs: 0,
+        reading_sessions: 0,
+        tags: 0,
+        user_preferences: 0,
+        reading_goals: 0,
+      },
       skipped: { user_books: [], read_throughs: [], reading_sessions: [] },
       timestamp: Date.now(),
     };
@@ -206,9 +341,7 @@ export async function pushChanges(): Promise<PushResponse> {
     body: payload as unknown as Record<string, unknown>,
   });
 
-  // Update local records with server IDs and clear pending flags
   await database.write(async () => {
-    // Update books
     for (const mapping of response.id_mappings.books) {
       const book = pendingBooks.find((b) => b.id === mapping.local_id);
       if (book) {
@@ -219,7 +352,6 @@ export async function pushChanges(): Promise<PushResponse> {
       }
     }
 
-    // Update user_books
     for (const mapping of response.id_mappings.user_books) {
       const userBook = pendingUserBooks.find(
         (ub) => ub.id === mapping.local_id
@@ -235,7 +367,6 @@ export async function pushChanges(): Promise<PushResponse> {
       }
     }
 
-    // Update read_throughs
     for (const mapping of response.id_mappings.read_throughs ?? []) {
       const readThrough = pendingReadThroughs.find(
         (rt) => rt.id === mapping.local_id
@@ -251,7 +382,6 @@ export async function pushChanges(): Promise<PushResponse> {
       }
     }
 
-    // Update reading_sessions
     for (const mapping of response.id_mappings.reading_sessions) {
       const session = pendingSessions.find((s) => s.id === mapping.local_id);
       if (session) {
@@ -268,7 +398,36 @@ export async function pushChanges(): Promise<PushResponse> {
       }
     }
 
-    // Permanently delete soft-deleted records that were synced
+    for (const mapping of response.id_mappings.tags ?? []) {
+      const tag = pendingTags.find((t) => t.id === mapping.local_id);
+      if (tag) {
+        await tag.update((record) => {
+          record.serverId = mapping.server_id;
+          record.isPendingSync = false;
+        });
+      }
+    }
+
+    for (const mapping of response.id_mappings.user_preferences ?? []) {
+      const pref = pendingPreferences.find((p) => p.id === mapping.local_id);
+      if (pref) {
+        await pref.update((record) => {
+          record.serverId = mapping.server_id;
+          record.isPendingSync = false;
+        });
+      }
+    }
+
+    for (const mapping of response.id_mappings.reading_goals ?? []) {
+      const goal = pendingGoals.find((g) => g.id === mapping.local_id);
+      if (goal) {
+        await goal.update((record) => {
+          record.serverId = mapping.server_id;
+          record.isPendingSync = false;
+        });
+      }
+    }
+
     for (const ub of deletedUserBooks.filter((ub) => ub.serverId)) {
       await ub.destroyPermanently();
     }
@@ -278,9 +437,17 @@ export async function pushChanges(): Promise<PushResponse> {
     for (const s of deletedSessions.filter((s) => s.serverId)) {
       await s.destroyPermanently();
     }
+    for (const t of deletedTags.filter((t) => t.serverId)) {
+      await t.destroyPermanently();
+    }
+    for (const p of deletedPreferences.filter((p) => p.serverId)) {
+      await p.destroyPermanently();
+    }
+    for (const g of deletedGoals.filter((g) => g.serverId)) {
+      await g.destroyPermanently();
+    }
   });
 
-  // Log warning if any records were skipped (they'll retry on next sync)
   const skippedCount =
     response.skipped.user_books.length +
     (response.skipped.read_throughs?.length ?? 0) +

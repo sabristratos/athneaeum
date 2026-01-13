@@ -59,7 +59,11 @@
       "Bash(powershell.exe -Command \"cd ''C:\\\\Work\\\\Athenaeum\\\\backend''; php artisan migrate:fresh --seed\")",
       "Bash(powershell.exe -Command:*)",
       "WebFetch(domain:dev.to)",
-      "Bash(Select-String -Pattern \"LLM|classify|Gemini|error\" -Context 2,2)"
+      "Bash(Select-String -Pattern \"LLM|classify|Gemini|error\" -Context 2,2)",
+      "Bash(ls:*)",
+      "Bash(Remove-Item \"C:\\\\Websites\\\\atheneum\\\\mobile\\\\src\\\\stores\\\\tagStore.ts\")",
+      "Bash(Remove-Item \"C:\\\\Websites\\\\atheneum\\\\backend\\\\app\\\\Services\\\\Goals\\\\ReadingGoalService.php\")",
+      "Bash(./vendor/bin/pint:*)"
     ]
   }
 }

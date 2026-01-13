@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState } from 'react';
 import {
   View,
   ScrollView,
@@ -17,16 +17,14 @@ import {
   Icon,
   Pressable,
   Button,
-  SectionHeader,
 } from '@/components';
 import { useTheme } from '@/themes';
 import { useToast } from '@/stores/toastStore';
 import {
-  usePreferencesQuery,
-  useGenresQuery,
-  useAddPreferenceMutation,
-  useRemovePreferenceByValueMutation,
-} from '@/queries/usePreferences';
+  useGroupedPreferences,
+  usePreferenceActions,
+} from '@/database/hooks';
+import { useGenresQuery } from '@/queries/usePreferences';
 import {
   ArrowLeft01Icon,
   Cancel01Icon,
@@ -39,6 +37,7 @@ import {
 } from '@hugeicons/core-free-icons';
 import type { MainStackParamList } from '@/navigation/MainNavigator';
 import type { GenreOption, PreferenceType } from '@/types';
+import type { PreferenceCategory, PreferenceType as DbPreferenceType } from '@/database/models/UserPreference';
 import { sharedSpacing } from '@/themes/shared';
 
 type GenreState = 'none' | 'favorite' | 'excluded';
@@ -49,15 +48,30 @@ export function PreferencesScreen() {
   const toast = useToast();
   const isScholar = themeName === 'scholar';
 
-  const { data: preferences, isLoading, refetch, isRefetching } = usePreferencesQuery();
-  const { data: genreCategories } = useGenresQuery();
-  const addMutation = useAddPreferenceMutation();
-  const removeMutation = useRemovePreferenceByValueMutation();
+  const { grouped, loading } = useGroupedPreferences();
+  const { addPreference, removePreferenceByValue, loading: actionLoading } = usePreferenceActions();
+  const { data: genreCategories, refetch: refetchGenres, isRefetching } = useGenresQuery();
+
+  const [refreshing, setRefreshing] = useState(false);
+
+  const favoriteAuthors = grouped.favorite.authors.map((p) => p.value);
+  const excludedAuthors = grouped.exclude.authors.map((p) => p.value);
+  const favoriteSeries = grouped.favorite.series.map((p) => p.value);
+  const excludedSeries = grouped.exclude.series.map((p) => p.value);
+  const favoriteGenres = grouped.favorite.genres.map((p) => p.normalized);
+  const excludedGenres = grouped.exclude.genres.map((p) => p.normalized);
 
   const getGenreState = (genre: GenreOption): GenreState => {
-    if (genre.is_favorite) return 'favorite';
-    if (genre.is_excluded) return 'excluded';
+    const normalizedLabel = genre.label.toLowerCase().trim();
+    if (favoriteGenres.includes(normalizedLabel)) return 'favorite';
+    if (excludedGenres.includes(normalizedLabel)) return 'excluded';
     return 'none';
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await refetchGenres();
+    setRefreshing(false);
   };
 
   const handleGenrePress = useCallback(
@@ -75,39 +89,21 @@ export function PreferencesScreen() {
 
       try {
         if (currentState === 'favorite') {
-          await removeMutation.mutateAsync({
-            category: 'genre',
-            type: 'favorite',
-            value: genre.label,
-          });
+          await removePreferenceByValue('genre', 'favorite', genre.label);
         } else if (currentState === 'excluded') {
-          await removeMutation.mutateAsync({
-            category: 'genre',
-            type: 'exclude',
-            value: genre.label,
-          });
+          await removePreferenceByValue('genre', 'exclude', genre.label);
         }
 
         if (newState === 'favorite') {
-          await addMutation.mutateAsync({
-            category: 'genre',
-            type: 'favorite',
-            value: genre.label,
-          });
+          await addPreference('genre', 'favorite', genre.label);
         } else if (newState === 'excluded') {
-          await addMutation.mutateAsync({
-            category: 'genre',
-            type: 'exclude',
-            value: genre.label,
-          });
+          await addPreference('genre', 'exclude', genre.label);
         }
-
-        refetch();
       } catch {
         toast.danger('Failed to update preference');
       }
     },
-    [addMutation, removeMutation, refetch, toast]
+    [addPreference, removePreferenceByValue, toast, favoriteGenres, excludedGenres]
   );
 
   const handleRemoveAuthor = useCallback(
@@ -122,7 +118,7 @@ export function PreferencesScreen() {
             style: 'destructive',
             onPress: async () => {
               try {
-                await removeMutation.mutateAsync({ category: 'author', type, value });
+                await removePreferenceByValue('author', type as DbPreferenceType, value);
                 toast.success('Removed');
               } catch {
                 toast.danger('Failed to remove');
@@ -132,7 +128,7 @@ export function PreferencesScreen() {
         ]
       );
     },
-    [removeMutation, toast]
+    [removePreferenceByValue, toast]
   );
 
   const handleRemoveSeries = useCallback(
@@ -147,7 +143,7 @@ export function PreferencesScreen() {
             style: 'destructive',
             onPress: async () => {
               try {
-                await removeMutation.mutateAsync({ category: 'series', type, value });
+                await removePreferenceByValue('series', type as DbPreferenceType, value);
                 toast.success('Removed');
               } catch {
                 toast.danger('Failed to remove');
@@ -157,7 +153,7 @@ export function PreferencesScreen() {
         ]
       );
     },
-    [removeMutation, toast]
+    [removePreferenceByValue, toast]
   );
 
   const renderChip = (
@@ -236,7 +232,7 @@ export function PreferencesScreen() {
     );
   };
 
-  if (isLoading && !preferences) {
+  if (loading && !grouped) {
     return (
       <SafeAreaView
         style={[styles.container, { backgroundColor: theme.colors.canvas }]}
@@ -248,11 +244,6 @@ export function PreferencesScreen() {
       </SafeAreaView>
     );
   }
-
-  const favoriteAuthors = preferences?.favorites.authors ?? [];
-  const excludedAuthors = preferences?.excludes.authors ?? [];
-  const favoriteSeries = preferences?.favorites.series ?? [];
-  const excludedSeries = preferences?.excludes.series ?? [];
 
   return (
     <SafeAreaView
@@ -282,8 +273,8 @@ export function PreferencesScreen() {
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
-            refreshing={isRefetching}
-            onRefresh={() => refetch()}
+            refreshing={refreshing || isRefetching}
+            onRefresh={onRefresh}
             tintColor={theme.colors.primary}
           />
         }
@@ -296,7 +287,6 @@ export function PreferencesScreen() {
           </Text>
         </Card>
 
-        {/* Authors Section */}
         <View style={{ marginBottom: theme.spacing.xl }}>
           <View style={styles.sectionHeader}>
             <Icon icon={UserIcon} size={20} color={theme.colors.primary} />
@@ -317,7 +307,7 @@ export function PreferencesScreen() {
               </View>
             ) : (
               <View style={styles.emptyContainer}>
-                <Text variant="caption" muted style={{ fontStyle: 'italic' }}>
+                <Text variant="caption" muted emphatic>
                   No author preferences set
                 </Text>
               </View>
@@ -337,7 +327,6 @@ export function PreferencesScreen() {
           </Button>
         </View>
 
-        {/* Genres Section */}
         <View style={{ marginBottom: theme.spacing.xl }}>
           <View style={styles.sectionHeader}>
             <Icon icon={BookOpen01Icon} size={20} color={theme.colors.primary} />
@@ -371,7 +360,6 @@ export function PreferencesScreen() {
           ))}
         </View>
 
-        {/* Series Section */}
         <View style={{ marginBottom: theme.spacing.xl }}>
           <View style={styles.sectionHeader}>
             <Icon icon={Bookmark01Icon} size={20} color={theme.colors.primary} />
@@ -392,7 +380,7 @@ export function PreferencesScreen() {
               </View>
             ) : (
               <View style={styles.emptyContainer}>
-                <Text variant="caption" muted style={{ fontStyle: 'italic' }}>
+                <Text variant="caption" muted emphatic>
                   No series preferences set
                 </Text>
               </View>

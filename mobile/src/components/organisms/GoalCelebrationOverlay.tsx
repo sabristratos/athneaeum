@@ -16,8 +16,21 @@ import { CheckmarkCircle02Icon, Target02Icon } from '@hugeicons/core-free-icons'
 import { Text, Icon } from '@/components';
 import { useTheme } from '@/themes';
 import { useCelebrationStore } from '@/stores/celebrationStore';
-import { GOAL_TYPE_CONFIG, GOAL_PERIOD_CONFIG } from '@/api/goals';
 import { SPRINGS } from '@/animations/constants';
+
+const GOAL_TYPE_CONFIG: Record<string, { label: string; unit: string }> = {
+  books: { label: 'Books', unit: 'books' },
+  pages: { label: 'Pages', unit: 'pages' },
+  minutes: { label: 'Minutes', unit: 'minutes' },
+  streak: { label: 'Streak', unit: 'days' },
+};
+
+const GOAL_PERIOD_CONFIG: Record<string, { label: string }> = {
+  yearly: { label: 'Yearly' },
+  monthly: { label: 'Monthly' },
+  weekly: { label: 'Weekly' },
+  daily: { label: 'Daily' },
+};
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get('window');
 

@@ -38,7 +38,8 @@ import {
 import { useSearchController } from '@/features/search/hooks';
 import { useLibrary } from '@/hooks/useBooks';
 import { useToast } from '@/stores/toastStore';
-import { useBookEditionsQuery, usePreferencesQuery } from '@/queries';
+import { useBookEditionsQuery } from '@/queries';
+import { useFavoriteAuthors, useExcludedAuthors } from '@/database/hooks';
 import type { SearchResult, BookStatus, UserBook } from '@/types';
 
 type NavigationProp = NativeStackNavigationProp<MainStackParamList>;
@@ -95,20 +96,19 @@ export function SearchScreen() {
     { enabled: editionPickerBook !== null }
   );
 
-  const { data: preferences } = usePreferencesQuery();
+  const { authors: favoriteAuthorPrefs } = useFavoriteAuthors();
+  const { authors: excludedAuthorPrefs } = useExcludedAuthors();
 
   const authorPreferenceMap = useMemo(() => {
     const map: Record<string, AuthorPreferenceStatus> = {};
-    if (preferences) {
-      preferences.favorites?.authors?.forEach((name: string) => {
-        map[name.toLowerCase()] = 'favorite';
-      });
-      preferences.excludes?.authors?.forEach((name: string) => {
-        map[name.toLowerCase()] = 'excluded';
-      });
-    }
+    favoriteAuthorPrefs.forEach((pref) => {
+      map[pref.value.toLowerCase()] = 'favorite';
+    });
+    excludedAuthorPrefs.forEach((pref) => {
+      map[pref.value.toLowerCase()] = 'excluded';
+    });
     return map;
-  }, [preferences]);
+  }, [favoriteAuthorPrefs, excludedAuthorPrefs]);
 
   const getAuthorPreference = useCallback(
     (author: string): AuthorPreferenceStatus => {

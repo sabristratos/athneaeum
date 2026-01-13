@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace Tests\Feature\Services\Stats;
 
 use App\Enums\BookFormatEnum;
-use App\Enums\MoodEnum;
 use App\Models\Book;
 use App\Models\ReadingSession;
 use App\Models\User;

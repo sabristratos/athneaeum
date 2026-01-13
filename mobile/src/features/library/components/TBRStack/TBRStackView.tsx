@@ -169,10 +169,10 @@ export function TBRStackView({
           )}
           <Text
             variant="caption"
+            emphatic
             style={{
               color: theme.colors.foregroundSubtle,
               textAlign: 'center',
-              fontStyle: 'italic',
               marginTop: books.length > maxVisible ? theme.spacing.xs : 0,
             }}
           >

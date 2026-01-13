@@ -120,7 +120,7 @@ export function EditionPreviewModal({
         exiting={FadeOut.duration(150)}
         style={styles.overlay}
       >
-        <Pressable style={styles.backdrop} onPress={onClose} />
+        <Pressable style={[styles.backdrop, { backgroundColor: currentTheme.colors.overlayDark }]} onPress={onClose} />
 
         <Animated.View
           entering={SlideInDown.springify().damping(26).stiffness(180)}
@@ -437,7 +437,6 @@ const styles = StyleSheet.create({
   },
   backdrop: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
   },
   contentContainer: {
     alignItems: 'center',

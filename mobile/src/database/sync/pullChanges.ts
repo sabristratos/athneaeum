@@ -6,9 +6,24 @@ import type { UserBook } from '@/database/models/UserBook';
 import type { ReadThrough } from '@/database/models/ReadThrough';
 import type { ReadingSession } from '@/database/models/ReadingSession';
 import type { Series } from '@/database/models/Series';
+import type { Tag } from '@/database/models/Tag';
+import type { UserPreference } from '@/database/models/UserPreference';
+import type { ReadingGoal } from '@/database/models/ReadingGoal';
 import type { SyncMetadata } from '@/database/models/SyncMetadata';
-import type { PullResponse, ServerBook, ServerUserBook, ServerReadThrough, ServerSession, ServerSeries } from '@/database/sync/types';
+import type {
+  PullResponse,
+  ServerBook,
+  ServerUserBook,
+  ServerReadThrough,
+  ServerSession,
+  ServerSeries,
+  ServerTag,
+  ServerPreference,
+  ServerGoal,
+} from '@/database/sync/types';
 import type { BookStatus } from '@/types/book';
+import type { GoalType, GoalPeriod } from '@/database/models/ReadingGoal';
+import type { PreferenceCategory, PreferenceType } from '@/database/models/UserPreference';
 
 export async function pullChanges(lastPulledAt: number): Promise<number> {
   const response = await apiClient<PullResponse>(
@@ -21,8 +36,10 @@ export async function pullChanges(lastPulledAt: number): Promise<number> {
     const userBooksCollection = database.get<UserBook>('user_books');
     const readThroughsCollection = database.get<ReadThrough>('read_throughs');
     const sessionsCollection = database.get<ReadingSession>('reading_sessions');
+    const tagsCollection = database.get<Tag>('tags');
+    const preferencesCollection = database.get<UserPreference>('user_preferences');
+    const goalsCollection = database.get<ReadingGoal>('reading_goals');
 
-    // Process series first (before books that reference them)
     for (const serverSeries of response.changes.series?.created ?? []) {
       await createOrUpdateSeries(seriesCollection, serverSeries);
     }
@@ -40,17 +57,14 @@ export async function pullChanges(lastPulledAt: number): Promise<number> {
       }
     }
 
-    // Process created books
     for (const serverBook of response.changes.books.created) {
       await createOrUpdateBook(booksCollection, seriesCollection, serverBook);
     }
 
-    // Process updated books
     for (const serverBook of response.changes.books.updated) {
       await createOrUpdateBook(booksCollection, seriesCollection, serverBook);
     }
 
-    // Process created user_books
     for (const serverUserBook of response.changes.user_books.created) {
       await createOrUpdateUserBook(
         userBooksCollection,
@@ -59,7 +73,6 @@ export async function pullChanges(lastPulledAt: number): Promise<number> {
       );
     }
 
-    // Process updated user_books
     for (const serverUserBook of response.changes.user_books.updated) {
       await createOrUpdateUserBook(
         userBooksCollection,
@@ -68,7 +81,6 @@ export async function pullChanges(lastPulledAt: number): Promise<number> {
       );
     }
 
-    // Process deleted user_books
     for (const serverId of response.changes.user_books.deleted) {
       const existing = await userBooksCollection
         .query(Q.where('server_id', serverId))
@@ -78,7 +90,6 @@ export async function pullChanges(lastPulledAt: number): Promise<number> {
       }
     }
 
-    // Process created read_throughs
     for (const serverReadThrough of response.changes.read_throughs?.created ?? []) {
       await createOrUpdateReadThrough(
         readThroughsCollection,
@@ -87,7 +98,6 @@ export async function pullChanges(lastPulledAt: number): Promise<number> {
       );
     }
 
-    // Process updated read_throughs
     for (const serverReadThrough of response.changes.read_throughs?.updated ?? []) {
       await createOrUpdateReadThrough(
         readThroughsCollection,
@@ -96,7 +106,6 @@ export async function pullChanges(lastPulledAt: number): Promise<number> {
       );
     }
 
-    // Process deleted read_throughs
     for (const serverId of response.changes.read_throughs?.deleted ?? []) {
       const existing = await readThroughsCollection
         .query(Q.where('server_id', serverId))
@@ -106,7 +115,6 @@ export async function pullChanges(lastPulledAt: number): Promise<number> {
       }
     }
 
-    // Process created reading_sessions
     for (const serverSession of response.changes.reading_sessions.created) {
       await createOrUpdateSession(
         sessionsCollection,
@@ -116,7 +124,6 @@ export async function pullChanges(lastPulledAt: number): Promise<number> {
       );
     }
 
-    // Process updated reading_sessions
     for (const serverSession of response.changes.reading_sessions.updated) {
       await createOrUpdateSession(
         sessionsCollection,
@@ -126,7 +133,6 @@ export async function pullChanges(lastPulledAt: number): Promise<number> {
       );
     }
 
-    // Process deleted reading_sessions
     for (const serverId of response.changes.reading_sessions.deleted) {
       const existing = await sessionsCollection
         .query(Q.where('server_id', serverId))
@@ -136,7 +142,57 @@ export async function pullChanges(lastPulledAt: number): Promise<number> {
       }
     }
 
-    // Update sync metadata
+    for (const serverTag of response.changes.tags?.created ?? []) {
+      await createOrUpdateTag(tagsCollection, serverTag);
+    }
+
+    for (const serverTag of response.changes.tags?.updated ?? []) {
+      await createOrUpdateTag(tagsCollection, serverTag);
+    }
+
+    for (const serverId of response.changes.tags?.deleted ?? []) {
+      const existing = await tagsCollection
+        .query(Q.where('server_id', serverId))
+        .fetch();
+      if (existing[0]) {
+        await existing[0].destroyPermanently();
+      }
+    }
+
+    for (const serverPref of response.changes.user_preferences?.created ?? []) {
+      await createOrUpdatePreference(preferencesCollection, serverPref);
+    }
+
+    for (const serverPref of response.changes.user_preferences?.updated ?? []) {
+      await createOrUpdatePreference(preferencesCollection, serverPref);
+    }
+
+    for (const serverId of response.changes.user_preferences?.deleted ?? []) {
+      const existing = await preferencesCollection
+        .query(Q.where('server_id', serverId))
+        .fetch();
+      if (existing[0]) {
+        await existing[0].destroyPermanently();
+      }
+    }
+
+    for (const serverGoal of response.changes.reading_goals?.created ?? []) {
+      await createOrUpdateGoal(goalsCollection, serverGoal);
+    }
+
+    for (const serverGoal of response.changes.reading_goals?.updated ?? []) {
+      await createOrUpdateGoal(goalsCollection, serverGoal);
+    }
+
+    for (const serverId of response.changes.reading_goals?.deleted ?? []) {
+      const existing = await goalsCollection
+        .query(Q.where('server_id', serverId))
+        .fetch();
+      if (existing[0]) {
+        await existing[0].destroyPermanently();
+      }
+    }
+
     await updateSyncMetadata(response.timestamp);
   });
 
@@ -219,6 +275,11 @@ async function createOrUpdateBook(
       record.serverSeriesId = serverBook.series_id;
       record.volumeNumber = serverBook.volume_number;
       record.volumeTitle = serverBook.volume_title;
+      record.audience = serverBook.audience;
+      record.intensity = serverBook.intensity;
+      record.moodsJson = JSON.stringify(serverBook.moods || []);
+      record.isClassified = serverBook.is_classified ?? false;
+      record.classificationConfidence = serverBook.classification_confidence;
     });
   } else {
     const byExternalId = serverBook.external_id
@@ -245,6 +306,11 @@ async function createOrUpdateBook(
         record.serverSeriesId = serverBook.series_id;
         record.volumeNumber = serverBook.volume_number;
         record.volumeTitle = serverBook.volume_title;
+        record.audience = serverBook.audience;
+        record.intensity = serverBook.intensity;
+        record.moodsJson = JSON.stringify(serverBook.moods || []);
+        record.isClassified = serverBook.is_classified ?? false;
+        record.classificationConfidence = serverBook.classification_confidence;
         record.isPendingSync = false;
       });
     } else {
@@ -267,6 +333,11 @@ async function createOrUpdateBook(
         record.serverSeriesId = serverBook.series_id;
         record.volumeNumber = serverBook.volume_number;
         record.volumeTitle = serverBook.volume_title;
+        record.audience = serverBook.audience;
+        record.intensity = serverBook.intensity;
+        record.moodsJson = JSON.stringify(serverBook.moods || []);
+        record.isClassified = serverBook.is_classified ?? false;
+        record.classificationConfidence = serverBook.classification_confidence;
         record.isPendingSync = false;
         record.isDeleted = false;
       });
@@ -283,7 +354,6 @@ async function createOrUpdateUserBook(
     .query(Q.where('server_id', serverUserBook.id))
     .fetch();
 
-  // Find the local book by server_id
   const book = await booksCollection
     .query(Q.where('server_id', serverUserBook.book_id))
     .fetch();
@@ -293,9 +363,7 @@ async function createOrUpdateUserBook(
   }
 
   if (existing[0]) {
-    // Skip if local has pending changes, but merge page progress
     if (existing[0].isPendingSync) {
-      // Still update page progress to keep higher value
       const serverPage = serverUserBook.current_page;
       const localPage = existing[0].currentPage;
       if (serverPage > localPage) {
@@ -462,6 +530,116 @@ async function createOrUpdateSession(
     record.isPendingSync = false;
     record.isDeleted = false;
   });
+}
+
+async function createOrUpdateTag(
+  collection: ReturnType<typeof database.get<Tag>>,
+  serverTag: ServerTag
+): Promise<void> {
+  const existing = await collection
+    .query(Q.where('server_id', serverTag.id))
+    .fetch();
+
+  if (existing[0]) {
+    if (existing[0].isPendingSync) {
+      return;
+    }
+
+    await existing[0].update((record) => {
+      record.name = serverTag.name;
+      record.slug = serverTag.slug;
+      record.color = serverTag.color;
+      record.isSystem = serverTag.is_system;
+      record.sortOrder = serverTag.sort_order;
+    });
+  } else {
+    await collection.create((record) => {
+      record.serverId = serverTag.id;
+      record.name = serverTag.name;
+      record.slug = serverTag.slug;
+      record.color = serverTag.color;
+      record.isSystem = serverTag.is_system;
+      record.sortOrder = serverTag.sort_order;
+      record.isPendingSync = false;
+      record.isDeleted = false;
+    });
+  }
+}
+
+async function createOrUpdatePreference(
+  collection: ReturnType<typeof database.get<UserPreference>>,
+  serverPref: ServerPreference
+): Promise<void> {
+  const existing = await collection
+    .query(Q.where('server_id', serverPref.id))
+    .fetch();
+
+  if (existing[0]) {
+    if (existing[0].isPendingSync) {
+      return;
+    }
+
+    await existing[0].update((record) => {
+      record.category = serverPref.category as PreferenceCategory;
+      record.type = serverPref.type as PreferenceType;
+      record.value = serverPref.value;
+      record.normalized = serverPref.normalized;
+    });
+  } else {
+    await collection.create((record) => {
+      record.serverId = serverPref.id;
+      record.category = serverPref.category as PreferenceCategory;
+      record.type = serverPref.type as PreferenceType;
+      record.value = serverPref.value;
+      record.normalized = serverPref.normalized;
+      record.isPendingSync = false;
+      record.isDeleted = false;
+    });
+  }
+}
+
+async function createOrUpdateGoal(
+  collection: ReturnType<typeof database.get<ReadingGoal>>,
+  serverGoal: ServerGoal
+): Promise<void> {
+  const existing = await collection
+    .query(Q.where('server_id', serverGoal.id))
+    .fetch();
+
+  if (existing[0]) {
+    if (existing[0].isPendingSync) {
+      return;
+    }
+
+    await existing[0].update((record) => {
+      record.type = serverGoal.type as GoalType;
+      record.period = serverGoal.period as GoalPeriod;
+      record.target = serverGoal.target;
+      record.year = serverGoal.year;
+      record.month = serverGoal.month;
+      record.week = serverGoal.week;
+      record.isActive = serverGoal.is_active;
+      (record as any).completedAt = serverGoal.completed_at
+        ? new Date(serverGoal.completed_at)
+        : null;
+    });
+  } else {
+    await collection.create((record) => {
+      record.serverId = serverGoal.id;
+      record.type = serverGoal.type as GoalType;
+      record.period = serverGoal.period as GoalPeriod;
+      record.target = serverGoal.target;
+      record.year = serverGoal.year;
+      record.month = serverGoal.month;
+      record.week = serverGoal.week;
+      record.isActive = serverGoal.is_active;
+      (record as any).completedAt = serverGoal.completed_at
+        ? new Date(serverGoal.completed_at)
+        : null;
+      record.isPendingSync = false;
+      record.isDeleted = false;
+    });
+  }
 }
 
 async function updateSyncMetadata(timestamp: number): Promise<void> {

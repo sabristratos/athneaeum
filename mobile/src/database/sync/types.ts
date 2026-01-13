@@ -10,6 +10,9 @@ export interface SyncCounts {
   user_books: number;
   read_throughs: number;
   reading_sessions: number;
+  tags: number;
+  user_preferences: number;
+  reading_goals: number;
 }
 
 export interface IdMapping {
@@ -41,6 +44,21 @@ export interface PushPayload {
     updated: SessionPayload[];
     deleted: number[];
   };
+  tags: {
+    created: TagPayload[];
+    updated: TagPayload[];
+    deleted: number[];
+  };
+  user_preferences: {
+    created: PreferencePayload[];
+    updated: PreferencePayload[];
+    deleted: number[];
+  };
+  reading_goals: {
+    created: GoalPayload[];
+    updated: GoalPayload[];
+    deleted: number[];
+  };
 }
 
 export interface SkippedRecord {
@@ -61,6 +79,9 @@ export interface PushResponse {
     user_books: IdMapping[];
     read_throughs: IdMapping[];
     reading_sessions: IdMapping[];
+    tags: IdMapping[];
+    user_preferences: IdMapping[];
+    reading_goals: IdMapping[];
   };
   counts: SyncCounts;
   skipped: SkippedRecords;
@@ -88,6 +109,21 @@ export interface PullResponse {
     series: {
       created: ServerSeries[];
       updated: ServerSeries[];
+      deleted: number[];
+    };
+    tags: {
+      created: ServerTag[];
+      updated: ServerTag[];
+      deleted: number[];
+    };
+    user_preferences: {
+      created: ServerPreference[];
+      updated: ServerPreference[];
+      deleted: number[];
+    };
+    reading_goals: {
+      created: ServerGoal[];
+      updated: ServerGoal[];
       deleted: number[];
     };
   };
@@ -163,6 +199,38 @@ export interface SessionPayload {
   notes: string | null;
 }
 
+export interface TagPayload {
+  local_id: string;
+  server_id?: number;
+  name: string;
+  slug: string;
+  color: string;
+  is_system: boolean;
+  sort_order: number;
+}
+
+export interface PreferencePayload {
+  local_id: string;
+  server_id?: number;
+  category: string;
+  type: string;
+  value: string;
+  normalized: string;
+}
+
+export interface GoalPayload {
+  local_id: string;
+  server_id?: number;
+  type: string;
+  period: string;
+  target: number;
+  year: number;
+  month: number | null;
+  week: number | null;
+  is_active: boolean;
+  completed_at: string | null;
+}
+
 export interface ServerBook {
   id: number;
   external_id: string | null;
@@ -181,6 +249,11 @@ export interface ServerBook {
   description: string | null;
   genres: string[];
   published_date: string | null;
+  audience: string | null;
+  intensity: string | null;
+  moods: string[] | null;
+  is_classified: boolean;
+  classification_confidence: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -229,6 +302,7 @@ export interface ServerSession {
   start_page: number;
   end_page: number;
   duration_seconds: number | null;
+  formatted_duration: string | null;
   notes: string | null;
   created_at: string;
   updated_at: string;
@@ -243,6 +317,41 @@ export interface ServerSeries {
   total_volumes: number | null;
   is_complete: boolean;
   description: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ServerTag {
+  id: number;
+  name: string;
+  slug: string;
+  color: string;
+  is_system: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ServerPreference {
+  id: number;
+  category: string;
+  type: string;
+  value: string;
+  normalized: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ServerGoal {
+  id: number;
+  type: string;
+  period: string;
+  target: number;
+  year: number;
+  month: number | null;
+  week: number | null;
+  is_active: boolean;
+  completed_at: string | null;
   created_at: string;
   updated_at: string;
 }

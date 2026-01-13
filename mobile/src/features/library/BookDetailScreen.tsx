@@ -273,7 +273,7 @@ const SessionTab = memo(function SessionTab({
       </View>
 
       {/* Sessions Section - show even if empty with placeholder */}
-      <View style={{ marginTop: theme.spacing.sm }}>
+      <View>
         <View
           style={{
             flexDirection: 'row',
@@ -347,7 +347,7 @@ const SessionTab = memo(function SessionTab({
 
       {/* Quotes Section */}
       {quotes.length > 0 && (
-        <View style={{ marginTop: theme.spacing.sm }}>
+        <View>
           <Text
             variant="label"
             style={{

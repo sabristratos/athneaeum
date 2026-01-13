@@ -12,6 +12,7 @@ import { Button } from '@/components/atoms/Button';
 import { SegmentedControl } from '@/components/molecules/SegmentedControl';
 import { Card } from '@/components/organisms/cards/Card';
 import { HeatmapChart } from '@/components/organisms/charts/HeatmapChart';
+import { VignetteOverlay } from '@/components/VignetteOverlay';
 import { useThemedRefreshControl } from '@/components/ThemedRefreshControl';
 import { useTabScreenPadding } from '@/components/layout/TabScreenLayout';
 import { useTheme } from '@/themes';
@@ -85,6 +86,8 @@ export function ReaderDNAScreen() {
       style={[styles.container, { backgroundColor: theme.colors.canvas }]}
       edges={['top']}
     >
+      {themeName === 'scholar' && <VignetteOverlay intensity="light" />}
+
       <View style={{ paddingHorizontal: theme.spacing.lg, paddingTop: theme.spacing.lg }}>
         <Text variant="h2" style={{ marginBottom: theme.spacing.xs }}>
           {isScholar ? 'Reading Analytics' : 'Your Stats'}

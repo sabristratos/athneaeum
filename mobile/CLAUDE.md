@@ -99,7 +99,7 @@ All models in `src/database/models/`:
 - **Tag** - User tags (minimal offline storage)
   - Columns: `serverId`, `name`, `color`
   - Sync fields: `isPendingSync`, `isDeleted`
-  - Note: Full tag data (`slug`, `emoji`, `is_system`) comes from API responses
+  - Note: Full tag data (`slug`, `is_system`) comes from API responses
 
 - **UserBookTag** - Pivot table for book-tag relationships
   - Columns: `userBookId`, `tagId`, `serverUserBookId`, `serverTagId`
@@ -401,7 +401,7 @@ const deletedTag = useDeletedTag();
 - `TagPicker` - Select tags for a book (used in BookDetailScreen)
 - `TagList` - Display tags with optional tap action
 - `TagFilterBar` - Filter library by tags ('any'/'all' mode toggle)
-- `TagEditor` - Edit single tag (name, color, emoji)
+- `TagEditor` - Edit single tag (name, color)
 - `TagColorPicker` - Color selection grid
 
 **Colors** (10 options):

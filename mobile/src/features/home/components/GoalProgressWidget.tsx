@@ -1,22 +1,34 @@
 import React, { useEffect } from 'react';
 import { View, StyleSheet, Pressable } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
-import { useQuery } from '@tanstack/react-query';
 import { Target02Icon, ArrowRight01Icon, CheckmarkCircle02Icon } from '@hugeicons/core-free-icons';
-import { Text, Card, Icon, Progress } from '@/components';
+import { Text, Icon, Progress } from '@/components';
 import { useTheme } from '@/themes';
-import { goalsApi, GOAL_TYPE_CONFIG, GOAL_PERIOD_CONFIG, type ReadingGoal } from '@/api/goals';
-import { queryKeys } from '@/lib/queryKeys';
+import { useGoalsWithProgress, type GoalProgress } from '@/database/hooks';
 import { useCelebrationStore } from '@/stores/celebrationStore';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
+const GOAL_TYPE_CONFIG: Record<string, { label: string }> = {
+  books: { label: 'Books' },
+  pages: { label: 'Pages' },
+  minutes: { label: 'Minutes' },
+  streak: { label: 'Streak' },
+};
+
+const GOAL_PERIOD_CONFIG: Record<string, { shortLabel: string }> = {
+  yearly: { shortLabel: 'Year' },
+  monthly: { shortLabel: 'Month' },
+  weekly: { shortLabel: 'Week' },
+  daily: { shortLabel: 'Today' },
+};
+
 interface GoalMiniCardProps {
-  goal: ReadingGoal;
+  goalProgress: GoalProgress;
 }
 
-function GoalMiniCard({ goal }: GoalMiniCardProps) {
+function GoalMiniCard({ goalProgress }: GoalMiniCardProps) {
   const { theme } = useTheme();
-  const isCompleted = goal.is_completed;
+  const { goal, currentValue, progressPercentage, isCompleted, isOnTrack } = goalProgress;
 
   return (
     <View
@@ -44,7 +56,7 @@ function GoalMiniCard({ goal }: GoalMiniCardProps) {
             <Icon
               icon={Target02Icon}
               size={14}
-              color={goal.is_on_track ? theme.colors.primary : theme.colors.warning}
+              color={isOnTrack ? theme.colors.primary : theme.colors.warning}
             />
           )}
           <Text
@@ -55,7 +67,7 @@ function GoalMiniCard({ goal }: GoalMiniCardProps) {
               marginLeft: 4,
             }}
           >
-            {GOAL_PERIOD_CONFIG[goal.period].shortLabel} {GOAL_TYPE_CONFIG[goal.type].label}
+            {GOAL_PERIOD_CONFIG[goal.period]?.shortLabel} {GOAL_TYPE_CONFIG[goal.type]?.label}
           </Text>
         </View>
         <Text
@@ -64,11 +76,11 @@ function GoalMiniCard({ goal }: GoalMiniCardProps) {
             color: isCompleted ? theme.colors.success : theme.colors.foregroundMuted,
           }}
         >
-          {goal.current_value}/{goal.target}
+          {currentValue}/{goal.target}
         </Text>
       </View>
       <View style={{ marginTop: 6 }}>
-        <Progress value={goal.progress_percentage} size="sm" showPercentage={false} />
+        <Progress value={progressPercentage} size="sm" showPercentage={false} />
       </View>
     </View>
   );
@@ -79,35 +91,32 @@ export function GoalProgressWidget() {
   const navigation = useNavigation<NativeStackNavigationProp<any>>();
   const { triggerCelebration, markGoalAsCompleted, hasBeenCelebrated } = useCelebrationStore();
 
-  const { data: goals, isLoading } = useQuery({
-    queryKey: queryKeys.goals.all,
-    queryFn: goalsApi.getAll,
-    staleTime: 1000 * 60 * 5,
-  });
+  const { progress: goalsWithProgress, loading } = useGoalsWithProgress();
 
-  const activeGoals = goals?.filter((g) => g.is_active).slice(0, 3) ?? [];
-  const completedCount = activeGoals.filter((g) => g.is_completed).length;
+  const activeGoals = goalsWithProgress.slice(0, 3);
+  const completedCount = activeGoals.filter((g) => g.isCompleted).length;
   const totalCount = activeGoals.length;
 
   useEffect(() => {
-    if (!goals) return;
+    if (goalsWithProgress.length === 0) return;
 
-    const completedGoals = goals.filter((g) => g.is_completed && g.is_active);
+    const completedGoals = goalsWithProgress.filter((g) => g.isCompleted);
 
-    for (const goal of completedGoals) {
-      if (!hasBeenCelebrated(goal.id)) {
-        markGoalAsCompleted(goal.id);
+    for (const goalProgress of completedGoals) {
+      const goalId = goalProgress.goal.serverId ?? (parseInt(goalProgress.goal.id, 10) || 0);
+      if (goalId && !hasBeenCelebrated(goalId)) {
+        markGoalAsCompleted(goalId);
         triggerCelebration({
-          goalType: goal.type,
-          goalPeriod: goal.period,
-          target: goal.target,
+          goalType: goalProgress.goal.type,
+          goalPeriod: goalProgress.goal.period,
+          target: goalProgress.goal.target,
         });
         break;
       }
     }
-  }, [goals, hasBeenCelebrated, markGoalAsCompleted, triggerCelebration]);
+  }, [goalsWithProgress, hasBeenCelebrated, markGoalAsCompleted, triggerCelebration]);
 
-  if (isLoading || activeGoals.length === 0) {
+  if (loading || activeGoals.length === 0) {
     return null;
   }
 
@@ -146,8 +155,8 @@ export function GoalProgressWidget() {
       </Pressable>
 
       <View style={styles.goalsGrid}>
-        {activeGoals.map((goal) => (
-          <GoalMiniCard key={goal.id} goal={goal} />
+        {activeGoals.map((goalProgress) => (
+          <GoalMiniCard key={goalProgress.goal.id} goalProgress={goalProgress} />
         ))}
       </View>
     </View>

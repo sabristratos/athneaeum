@@ -147,7 +147,7 @@ The API uses Laravel Sanctum for token-based authentication:
 | **Book** | Book metadata | external_id, title, author, cover_url, page_count, dimensions, isbn, genres (JSON) |
 | **UserBook** | User-book pivot | status, rating, current_page, format, price, is_pinned, queue_position, started_at, finished_at |
 | **ReadingSession** | Reading activity | user_book_id, date, pages_read, start_page, end_page, duration_seconds, notes |
-| **Tag** | Organization labels | name, slug, color, emoji, is_system, sort_order |
+| **Tag** | Organization labels | name, slug, color, is_system, sort_order |
 | **ReadingGoal** | Reading targets | type, period, target, current_value, year, month, is_active |
 | **UserStatistics** | Pre-aggregated stats | lifetime totals, current period stats, streaks, velocity metrics, patterns (JSON) |
 | **UserStatisticsMonthly** | Monthly archives | books_read, pages_read, reading_seconds, genres (JSON), top_books (JSON) |

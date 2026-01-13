@@ -7,9 +7,6 @@ import type {
   UserBook,
   ReadingSession,
   ReadThrough,
-  AddToLibraryData,
-  UpdateUserBookData,
-  LogSessionData,
   ReadingStats,
   Series,
   Book,
@@ -71,56 +68,12 @@ export const booksApi = {
   getLibraryExternalIds: (): Promise<LibraryExternalIdsMap> =>
     apiClient('/library/external-ids'),
 
-  getUserBook: (id: number): Promise<UserBook> =>
-    apiClient(`/library/${id}`),
-
-  addToLibrary: (data: AddToLibraryData): Promise<UserBook> =>
-    apiClient('/library', {
-      method: 'POST',
-      body: data,
-    }),
-
-  updateUserBook: (id: number, data: UpdateUserBookData): Promise<UserBook> =>
-    apiClient(`/library/${id}`, {
-      method: 'PATCH',
-      body: data,
-    }),
-
-  removeFromLibrary: (id: number): Promise<{ message: string }> =>
-    apiClient(`/library/${id}`, {
-      method: 'DELETE',
-    }),
+  getUserBook: (id: number): Promise<UserBook> => apiClient(`/library/${id}`),
 
   getSessions: (userBookId?: number): Promise<ReadingSession[]> => {
     const params = userBookId ? `?user_book_id=${userBookId}` : '';
     return apiClient(`/sessions${params}`);
   },
-
-  logSession: (data: LogSessionData): Promise<ReadingSession> =>
-    apiClient('/sessions', {
-      method: 'POST',
-      body: data,
-    }),
-
-  updateSession: (
-    id: number,
-    data: {
-      date?: string;
-      start_page?: number;
-      end_page?: number;
-      duration_seconds?: number | null;
-      notes?: string | null;
-    }
-  ): Promise<ReadingSession> =>
-    apiClient(`/sessions/${id}`, {
-      method: 'PATCH',
-      body: data,
-    }),
-
-  deleteSession: (id: number): Promise<{ message: string }> =>
-    apiClient(`/sessions/${id}`, {
-      method: 'DELETE',
-    }),
 
   getStats: (): Promise<ReadingStats> => apiClient('/stats'),
 

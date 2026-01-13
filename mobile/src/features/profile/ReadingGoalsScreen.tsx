@@ -3,31 +3,50 @@ import { View, ScrollView, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { ArrowLeft02Icon, Target02Icon, Add01Icon, Delete02Icon, PencilEdit01Icon } from '@hugeicons/core-free-icons';
-import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Text, Card, Icon, IconButton, Button, Progress, BottomSheet, Input, SegmentedControl, ConfirmModal } from '@/components';
 import { useTheme } from '@/themes';
-import {
-  goalsApi,
-  GOAL_TYPES,
-  GOAL_PERIODS,
-  GOAL_TYPE_CONFIG,
-  GOAL_PERIOD_CONFIG,
-  type ReadingGoal,
-  type GoalType,
-  type GoalPeriod,
-  type CreateGoalData,
-} from '@/api/goals';
+import { useGoalsWithProgress, useGoalActions, type GoalProgress } from '@/database/hooks';
+import type { GoalType, GoalPeriod } from '@/database/models/ReadingGoal';
+import { formatGoalUnit, formatPeriodLabel } from '@/services/goalComputation';
 import { useToast } from '@/stores/toastStore';
-import { queryKeys } from '@/lib/queryKeys';
+
+const GOAL_TYPES: Array<{ key: GoalType; label: string }> = [
+  { key: 'books', label: 'Books' },
+  { key: 'pages', label: 'Pages' },
+  { key: 'minutes', label: 'Minutes' },
+  { key: 'streak', label: 'Streak' },
+];
+
+const GOAL_PERIODS: Array<{ key: GoalPeriod; label: string }> = [
+  { key: 'yearly', label: 'Yearly' },
+  { key: 'monthly', label: 'Monthly' },
+  { key: 'weekly', label: 'Weekly' },
+  { key: 'daily', label: 'Daily' },
+];
+
+const GOAL_TYPE_CONFIG: Record<GoalType, { label: string; unit: string }> = {
+  books: { label: 'Books', unit: 'books' },
+  pages: { label: 'Pages', unit: 'pages' },
+  minutes: { label: 'Minutes', unit: 'minutes' },
+  streak: { label: 'Streak', unit: 'days' },
+};
+
+const GOAL_PERIOD_CONFIG: Record<GoalPeriod, { label: string }> = {
+  yearly: { label: 'Yearly' },
+  monthly: { label: 'Monthly' },
+  weekly: { label: 'Weekly' },
+  daily: { label: 'Daily' },
+};
 
 interface GoalItemProps {
-  goal: ReadingGoal;
+  goalProgress: GoalProgress;
   onEdit: () => void;
   onDelete: () => void;
 }
 
-function GoalItem({ goal, onEdit, onDelete }: GoalItemProps) {
+function GoalItem({ goalProgress, onEdit, onDelete }: GoalItemProps) {
   const { theme } = useTheme();
+  const { goal, currentValue, progressPercentage, isCompleted, isOnTrack, remaining } = goalProgress;
   const periodLabel = GOAL_PERIOD_CONFIG[goal.period]?.label ?? goal.period;
   const typeLabel = GOAL_TYPE_CONFIG[goal.type]?.label ?? goal.type;
   const typeUnit = GOAL_TYPE_CONFIG[goal.type]?.unit ?? goal.type;
@@ -40,7 +59,7 @@ function GoalItem({ goal, onEdit, onDelete }: GoalItemProps) {
             width: 40,
             height: 40,
             borderRadius: theme.radii.md,
-            backgroundColor: goal.is_on_track ? theme.colors.successSubtle : theme.colors.warningSubtle,
+            backgroundColor: isOnTrack ? theme.colors.successSubtle : theme.colors.warningSubtle,
             alignItems: 'center',
             justifyContent: 'center',
             marginRight: theme.spacing.md,
@@ -49,7 +68,7 @@ function GoalItem({ goal, onEdit, onDelete }: GoalItemProps) {
           <Icon
             icon={Target02Icon}
             size={20}
-            color={goal.is_on_track ? theme.colors.success : theme.colors.warning}
+            color={isOnTrack ? theme.colors.success : theme.colors.warning}
           />
         </View>
 
@@ -58,7 +77,7 @@ function GoalItem({ goal, onEdit, onDelete }: GoalItemProps) {
             {periodLabel} {typeLabel} Goal
           </Text>
           <Text variant="caption" muted style={{ marginTop: 2 }}>
-            {goal.year}{goal.month ? ` • ${new Date(2000, goal.month - 1).toLocaleString('default', { month: 'long' })}` : ''}
+            {formatPeriodLabel(goal)}
           </Text>
         </View>
 
@@ -81,16 +100,16 @@ function GoalItem({ goal, onEdit, onDelete }: GoalItemProps) {
       <View style={{ marginTop: theme.spacing.md }}>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: theme.spacing.xs }}>
           <Text variant="body">
-            {goal.current_value} of {goal.target} {typeUnit}
+            {currentValue} of {goal.target} {typeUnit}
           </Text>
-          <Text variant="body" style={{ color: goal.is_completed ? theme.colors.success : theme.colors.foregroundMuted }}>
-            {goal.progress_percentage.toFixed(0)}%
+          <Text variant="body" style={{ color: isCompleted ? theme.colors.success : theme.colors.foregroundMuted }}>
+            {progressPercentage.toFixed(0)}%
           </Text>
         </View>
-        <Progress value={goal.progress_percentage} size="md" showPercentage={false} />
+        <Progress value={progressPercentage} size="md" showPercentage={false} />
       </View>
 
-      {goal.is_completed && (
+      {isCompleted && (
         <View
           style={{
             backgroundColor: theme.colors.successSubtle,
@@ -105,7 +124,7 @@ function GoalItem({ goal, onEdit, onDelete }: GoalItemProps) {
         </View>
       )}
 
-      {!goal.is_completed && !goal.is_on_track && (
+      {!isCompleted && !isOnTrack && (
         <View
           style={{
             backgroundColor: theme.colors.warningSubtle,
@@ -115,7 +134,7 @@ function GoalItem({ goal, onEdit, onDelete }: GoalItemProps) {
           }}
         >
           <Text variant="caption" style={{ color: theme.colors.warning, textAlign: 'center' }}>
-            {goal.remaining} {typeUnit} remaining to reach your goal
+            {remaining} {typeUnit} remaining to reach your goal
           </Text>
         </View>
       )}
@@ -126,93 +145,55 @@ function GoalItem({ goal, onEdit, onDelete }: GoalItemProps) {
 export function ReadingGoalsScreen() {
   const { theme } = useTheme();
   const navigation = useNavigation();
-  const queryClient = useQueryClient();
   const toast = useToast();
+
+  const { progress: goalsWithProgress, loading, refresh } = useGoalsWithProgress();
+  const { createGoal, updateGoal, deleteGoal, loading: actionLoading } = useGoalActions();
 
   const [showAddSheet, setShowAddSheet] = useState(false);
   const [showEditSheet, setShowEditSheet] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
-  const [goalToEdit, setGoalToEdit] = useState<ReadingGoal | null>(null);
-  const [goalToDelete, setGoalToDelete] = useState<ReadingGoal | null>(null);
+  const [goalToEdit, setGoalToEdit] = useState<GoalProgress | null>(null);
+  const [goalToDelete, setGoalToDelete] = useState<GoalProgress | null>(null);
   const [newGoalType, setNewGoalType] = useState<GoalType>('books');
   const [newGoalPeriod, setNewGoalPeriod] = useState<GoalPeriod>('yearly');
   const [newGoalTarget, setNewGoalTarget] = useState('');
   const [editGoalTarget, setEditGoalTarget] = useState('');
 
-  const { data: goals, isLoading } = useQuery({
-    queryKey: queryKeys.goals.all,
-    queryFn: goalsApi.getAll,
-  });
-
-  const createMutation = useMutation({
-    mutationFn: (data: CreateGoalData) => goalsApi.create(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.goals.all });
-      setShowAddSheet(false);
-      setNewGoalTarget('');
-      toast.success('Goal created');
-    },
-    onError: (error) => {
-      toast.danger(error instanceof Error ? error.message : 'Failed to create goal');
-    },
-  });
-
-  const deleteMutation = useMutation({
-    mutationFn: (id: number) => goalsApi.delete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.goals.all });
-      setShowDeleteModal(false);
-      setGoalToDelete(null);
-      toast.success('Goal deleted');
-    },
-    onError: (error) => {
-      toast.danger(error instanceof Error ? error.message : 'Failed to delete goal');
-    },
-  });
-
-  const updateMutation = useMutation({
-    mutationFn: ({ id, target }: { id: number; target: number }) =>
-      goalsApi.update(id, { target }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: queryKeys.goals.all });
-      setShowEditSheet(false);
-      setGoalToEdit(null);
-      setEditGoalTarget('');
-      toast.success('Goal updated');
-    },
-    onError: (error) => {
-      toast.danger(error instanceof Error ? error.message : 'Failed to update goal');
-    },
-  });
-
-  const handleCreateGoal = useCallback(() => {
+  const handleCreateGoal = useCallback(async () => {
     const target = parseInt(newGoalTarget, 10);
     if (!target || target <= 0) {
       toast.danger('Please enter a valid target');
       return;
     }
 
-    createMutation.mutate({
-      type: newGoalType,
-      period: newGoalPeriod,
-      target,
-      year: new Date().getFullYear(),
-      month: newGoalPeriod === 'monthly' ? new Date().getMonth() + 1 : undefined,
-    });
-  }, [newGoalType, newGoalPeriod, newGoalTarget, createMutation, toast]);
+    try {
+      await createGoal({
+        type: newGoalType,
+        period: newGoalPeriod,
+        target,
+      });
+      setShowAddSheet(false);
+      setNewGoalTarget('');
+      toast.success('Goal created');
+      refresh();
+    } catch (error) {
+      toast.danger(error instanceof Error ? error.message : 'Failed to create goal');
+    }
+  }, [newGoalType, newGoalPeriod, newGoalTarget, createGoal, toast, refresh]);
 
-  const handleDeleteGoal = useCallback((goal: ReadingGoal) => {
-    setGoalToDelete(goal);
+  const handleDeleteGoal = useCallback((goalProgress: GoalProgress) => {
+    setGoalToDelete(goalProgress);
     setShowDeleteModal(true);
   }, []);
 
-  const handleEditGoal = useCallback((goal: ReadingGoal) => {
-    setGoalToEdit(goal);
-    setEditGoalTarget(goal.target.toString());
+  const handleEditGoal = useCallback((goalProgress: GoalProgress) => {
+    setGoalToEdit(goalProgress);
+    setEditGoalTarget(goalProgress.goal.target.toString());
     setShowEditSheet(true);
   }, []);
 
-  const handleUpdateGoal = useCallback(() => {
+  const handleUpdateGoal = useCallback(async () => {
     if (!goalToEdit) return;
 
     const target = parseInt(editGoalTarget, 10);
@@ -221,16 +202,31 @@ export function ReadingGoalsScreen() {
       return;
     }
 
-    updateMutation.mutate({ id: goalToEdit.id, target });
-  }, [goalToEdit, editGoalTarget, updateMutation, toast]);
-
-  const confirmDelete = useCallback(() => {
-    if (goalToDelete) {
-      deleteMutation.mutate(goalToDelete.id);
+    try {
+      await updateGoal(goalToEdit.goal.id, target);
+      setShowEditSheet(false);
+      setGoalToEdit(null);
+      setEditGoalTarget('');
+      toast.success('Goal updated');
+      refresh();
+    } catch (error) {
+      toast.danger(error instanceof Error ? error.message : 'Failed to update goal');
     }
-  }, [goalToDelete, deleteMutation]);
+  }, [goalToEdit, editGoalTarget, updateGoal, toast, refresh]);
 
-  const activeGoals = goals?.filter(g => g.is_active) ?? [];
+  const confirmDelete = useCallback(async () => {
+    if (goalToDelete) {
+      try {
+        await deleteGoal(goalToDelete.goal.id);
+        setShowDeleteModal(false);
+        setGoalToDelete(null);
+        toast.success('Goal deleted');
+        refresh();
+      } catch (error) {
+        toast.danger(error instanceof Error ? error.message : 'Failed to delete goal');
+      }
+    }
+  }, [goalToDelete, deleteGoal, toast, refresh]);
 
   return (
     <SafeAreaView
@@ -266,11 +262,11 @@ export function ReadingGoalsScreen() {
         />
       </View>
 
-      {isLoading ? (
+      {loading ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
           <ActivityIndicator color={theme.colors.primary} size="large" />
         </View>
-      ) : activeGoals.length === 0 ? (
+      ) : goalsWithProgress.length === 0 ? (
         <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: theme.spacing.xl }}>
           <Icon icon={Target02Icon} size={64} color={theme.colors.foregroundMuted} />
           <Text variant="h3" style={{ marginTop: theme.spacing.lg, textAlign: 'center' }}>
@@ -297,12 +293,12 @@ export function ReadingGoalsScreen() {
           style={{ flex: 1 }}
           contentContainerStyle={{ padding: theme.spacing.lg }}
         >
-          {activeGoals.map((goal) => (
+          {goalsWithProgress.map((goalProgress) => (
             <GoalItem
-              key={goal.id}
-              goal={goal}
-              onEdit={() => handleEditGoal(goal)}
-              onDelete={() => handleDeleteGoal(goal)}
+              key={goalProgress.goal.id}
+              goalProgress={goalProgress}
+              onEdit={() => handleEditGoal(goalProgress)}
+              onDelete={() => handleDeleteGoal(goalProgress)}
             />
           ))}
         </ScrollView>
@@ -348,8 +344,8 @@ export function ReadingGoalsScreen() {
             variant="primary"
             size="lg"
             onPress={handleCreateGoal}
-            loading={createMutation.isPending}
-            disabled={!newGoalTarget || createMutation.isPending}
+            loading={actionLoading}
+            disabled={!newGoalTarget || actionLoading}
           >
             Create Goal
           </Button>
@@ -374,17 +370,17 @@ export function ReadingGoalsScreen() {
               }}
             >
               <Text variant="body" style={{ fontWeight: '600' }}>
-                {GOAL_PERIOD_CONFIG[goalToEdit.period].label}{' '}
-                {GOAL_TYPE_CONFIG[goalToEdit.type].label} Goal
+                {GOAL_PERIOD_CONFIG[goalToEdit.goal.period].label}{' '}
+                {GOAL_TYPE_CONFIG[goalToEdit.goal.type].label} Goal
               </Text>
               <Text variant="caption" muted style={{ marginTop: 4 }}>
-                Current progress: {goalToEdit.current_value} of {goalToEdit.target}{' '}
-                {GOAL_TYPE_CONFIG[goalToEdit.type].unit}
+                Current progress: {goalToEdit.currentValue} of {goalToEdit.goal.target}{' '}
+                {GOAL_TYPE_CONFIG[goalToEdit.goal.type].unit}
               </Text>
             </View>
 
             <Input
-              label={`New Target (${GOAL_TYPE_CONFIG[goalToEdit.type].unit})`}
+              label={`New Target (${GOAL_TYPE_CONFIG[goalToEdit.goal.type].unit})`}
               value={editGoalTarget}
               onChangeText={setEditGoalTarget}
               placeholder="Enter new target"
@@ -395,8 +391,8 @@ export function ReadingGoalsScreen() {
               variant="primary"
               size="lg"
               onPress={handleUpdateGoal}
-              loading={updateMutation.isPending}
-              disabled={!editGoalTarget || updateMutation.isPending}
+              loading={actionLoading}
+              disabled={!editGoalTarget || actionLoading}
             >
               Update Goal
             </Button>

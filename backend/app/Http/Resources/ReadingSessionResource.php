@@ -17,6 +17,7 @@ class ReadingSessionResource extends JsonResource
         return [
             'id' => $this->id,
             'user_book_id' => $this->user_book_id,
+            'read_through_id' => $this->read_through_id,
             'date' => $this->date->format('Y-m-d'),
             'pages_read' => $this->pages_read,
             'start_page' => $this->start_page,

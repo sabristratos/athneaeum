@@ -20,6 +20,7 @@ export const midnightTheme: Theme = {
     // Primary (Celestial silver-blue)
     primary: '#6366f1',
     primaryHover: '#818cf8',
+    primaryDark: '#4f46e5',
     primaryGlow: 'rgba(99,102,241,0.3)',
     primarySubtle: 'rgba(99,102,241,0.15)',
 

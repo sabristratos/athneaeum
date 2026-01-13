@@ -118,5 +118,65 @@ export const migrations = schemaMigrations({
         }),
       ],
     },
+    {
+      toVersion: 6,
+      steps: [
+        addColumns({
+          table: 'books',
+          columns: [
+            { name: 'audience', type: 'string', isOptional: true },
+            { name: 'intensity', type: 'string', isOptional: true },
+            { name: 'moods_json', type: 'string', isOptional: true },
+            { name: 'is_classified', type: 'boolean', isOptional: true },
+            { name: 'classification_confidence', type: 'number', isOptional: true },
+          ],
+        }),
+      ],
+    },
+    {
+      toVersion: 7,
+      steps: [
+        addColumns({
+          table: 'tags',
+          columns: [
+            { name: 'slug', type: 'string' },
+            { name: 'is_system', type: 'boolean' },
+            { name: 'sort_order', type: 'number' },
+          ],
+        }),
+        createTable({
+          name: 'user_preferences',
+          columns: [
+            { name: 'server_id', type: 'number', isOptional: true, isIndexed: true },
+            { name: 'category', type: 'string', isIndexed: true },
+            { name: 'type', type: 'string', isIndexed: true },
+            { name: 'value', type: 'string' },
+            { name: 'normalized', type: 'string', isIndexed: true },
+            { name: 'created_at', type: 'number' },
+            { name: 'updated_at', type: 'number' },
+            { name: 'is_pending_sync', type: 'boolean' },
+            { name: 'is_deleted', type: 'boolean' },
+          ],
+        }),
+        createTable({
+          name: 'reading_goals',
+          columns: [
+            { name: 'server_id', type: 'number', isOptional: true, isIndexed: true },
+            { name: 'type', type: 'string' },
+            { name: 'period', type: 'string' },
+            { name: 'target', type: 'number' },
+            { name: 'year', type: 'number', isIndexed: true },
+            { name: 'month', type: 'number', isOptional: true },
+            { name: 'week', type: 'number', isOptional: true },
+            { name: 'is_active', type: 'boolean', isIndexed: true },
+            { name: 'completed_at', type: 'number', isOptional: true },
+            { name: 'created_at', type: 'number' },
+            { name: 'updated_at', type: 'number' },
+            { name: 'is_pending_sync', type: 'boolean' },
+            { name: 'is_deleted', type: 'boolean' },
+          ],
+        }),
+      ],
+    },
   ],
 });

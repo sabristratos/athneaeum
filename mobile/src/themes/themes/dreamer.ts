@@ -37,8 +37,8 @@ export const dreamerTheme: Theme = {
     // Semantic
     success: '#7d9a82',
     successSubtle: 'rgba(125,154,130,0.15)',
-    danger: '#c48b8b',
-    dangerSubtle: 'rgba(196,139,139,0.15)',
+    danger: '#a85656',
+    dangerSubtle: 'rgba(168,86,86,0.15)',
     warning: '#d4a855',
     warningSubtle: 'rgba(212,168,85,0.15)',
 

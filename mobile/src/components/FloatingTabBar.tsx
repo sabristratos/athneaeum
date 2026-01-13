@@ -24,7 +24,7 @@ interface FloatingTabBarProps<T extends string> {
   bare?: boolean;
 }
 
-const CELL_HEIGHT = 40;
+const CELL_HEIGHT = 44;
 const CELL_GAP = 4;
 const PADDING = 4;
 const INDICATOR_INSET = 2;
