@@ -47,5 +47,9 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('opds-api', function () {
             return Limit::perMinute(60)->by('opds');
         });
+
+        RateLimiter::for('llm-classification', function () {
+            return Limit::perMinute(10)->by('llm');
+        });
     }
 }

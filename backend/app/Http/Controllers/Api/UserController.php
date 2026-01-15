@@ -28,6 +28,13 @@ class UserController extends Controller
         return new UserResource($request->user());
     }
 
+    public function completeOnboarding(Request $request): JsonResponse
+    {
+        $request->user()->update(['onboarded_at' => now()]);
+
+        return response()->json(['success' => true]);
+    }
+
     public function update(UpdateProfileRequest $request): JsonResponse
     {
         $user = $request->user();

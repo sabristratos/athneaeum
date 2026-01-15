@@ -13,7 +13,6 @@ return new class extends Migration
         Schema::create('reading_sessions', function (Blueprint $table) {
             $table->id();
             $table->foreignId('user_book_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('read_through_id')->nullable()->constrained()->nullOnDelete();
             $table->date('date');
             $table->integer('pages_read');
             $table->integer('start_page');

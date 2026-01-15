@@ -21,6 +21,8 @@ Basic reading statistics are calculated **locally from WatermelonDB** for offlin
 
 Advanced Reader DNA features (format velocity, mood ring, page economy) require server sync for complete data.
 
+Note: The backend also includes pre-aggregated statistics tables (`user_statistics` and `user_statistics_monthly`) that are updated via observers and can be recalculated via an artisan command. The current API endpoints (`/api/stats` and `/api/stats/*`) compute their responses from sessions and user books.
+
 ---
 
 ## 1. Statistics Data Model
@@ -335,6 +337,6 @@ interface DnfPattern {
 7. Components re-render with new values
 
 **Full Recalculation:**
-- Available via `POST /goals/recalculate`
-- Rebuilds all stats from raw session data
+- Available via an artisan command (see backend console commands)
+- Rebuilds stats from raw session data
 - Used for data correction or initial setup

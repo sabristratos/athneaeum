@@ -23,6 +23,7 @@ interface ConfirmModalProps {
   onConfirm?: () => void;
   onCancel?: () => void;
   confirmDestructive?: boolean;
+  loading?: boolean;
 }
 
 const STATUS_CONFIG = {
@@ -59,6 +60,7 @@ export function ConfirmModal({
   onConfirm,
   onCancel,
   confirmDestructive = false,
+  loading = false,
 }: ConfirmModalProps) {
   const { theme, themeName } = useTheme();
   const isScholar = themeName === 'scholar';
@@ -89,7 +91,6 @@ export function ConfirmModal({
 
   const handleConfirm = () => {
     onConfirm?.();
-    onClose();
   };
 
   const handleCancel = () => {
@@ -199,6 +200,7 @@ export function ConfirmModal({
                       variant="secondary"
                       onPress={handleCancel}
                       fullWidth
+                      disabled={loading}
                     >
                       {cancelLabel}
                     </Button>
@@ -209,6 +211,8 @@ export function ConfirmModal({
                     variant={confirmDestructive ? 'danger' : 'primary'}
                     onPress={handleConfirm}
                     fullWidth
+                    loading={loading}
+                    disabled={loading}
                   >
                     {confirmLabel}
                   </Button>

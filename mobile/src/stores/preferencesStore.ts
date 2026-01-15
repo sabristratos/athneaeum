@@ -26,6 +26,7 @@ export function getCurrencySymbol(code: Currency): string {
 
 export interface UserPreferences {
   defaultFormat: BookFormat;
+  preferredFormats: BookFormat[];
   defaultPrivate: boolean;
   spoilerShield: boolean;
   showReadingStreak: boolean;
@@ -47,6 +48,7 @@ interface PreferencesStore {
 
 const DEFAULT_PREFERENCES: UserPreferences = {
   defaultFormat: 'physical',
+  preferredFormats: ['physical'],
   defaultPrivate: false,
   spoilerShield: false,
   showReadingStreak: true,

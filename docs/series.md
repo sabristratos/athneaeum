@@ -219,9 +219,8 @@ DELETE /series/{series}            - Delete series (nullifies book FKs)
 
 ### Book-Series Assignment
 ```
-POST   /books/{book}/series        - Assign book to series
-DELETE /books/{book}/series        - Remove book from series
-PATCH  /books/{book}/series        - Update volume number
+POST   /series/{series}/books      - Assign book to series
+DELETE /series/{series}/books      - Remove book from series
 ```
 
 ### Request/Response Examples
@@ -239,7 +238,7 @@ POST /series
 
 **Assign to Series:**
 ```json
-POST /books/123/series
+POST /series/45/books
 {
   "series_id": 45,
   "volume_number": 1,
@@ -331,12 +330,3 @@ const pushChanges = async (changes: SyncChanges) => {
   });
 };
 ```
-
----
-
-## 11. Future Enhancements
-
-- Series progress visualization (bar chart of volumes read)
-- Series recommendations based on completed series
-- Import series info from external sources (OpenLibrary, Goodreads)
-- Series completion badges/achievements

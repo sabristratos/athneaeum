@@ -2,7 +2,7 @@
 
 ## Overview
 
-The Search feature is a comprehensive book discovery system that allows users to find books from the Google Books API, apply advanced filters, and seamlessly add them to their library.
+The Search feature is a comprehensive book discovery system that allows users to search via Google Books and (optionally) an OPDS catalog, apply advanced filters, and seamlessly add results to their library.
 
 ---
 
@@ -139,6 +139,7 @@ Parameters:
   - genres (optional, comma-separated)
   - min_rating (optional, 0-5)
   - year_from, year_to (optional)
+  - source (optional: google | opds | both)
 
 Response:
 {
@@ -149,6 +150,8 @@ Response:
   "provider": "google_books"
 }
 ```
+
+If `source` includes `opds`, the user must have OPDS settings configured via the user OPDS endpoints.
 
 ### Get Book Editions
 ```
@@ -248,9 +251,9 @@ SafeAreaView
 1. User taps "Want to Read" or "Reading" on SearchResultCard
 2. If multiple editions exist, EditionPickerModal opens
 3. `handleAddToLibrary()` maps SearchResult to AddToLibraryData
-4. POST to `/api/library`
-5. Haptic feedback + toast with "View" action
-6. Invalidate library queries
+4. Book is added locally (offline-first) and marked for sync
+5. Background sync pushes changes to the backend via `/api/sync/push`
+6. Haptic feedback + toast with "View" action
 
 ### Data Mapping
 ```typescript
@@ -265,6 +268,8 @@ const addData: AddToLibraryData = {
   status: 'want_to_read',
 };
 ```
+
+The backend receives these changes as part of the sync payload (`POST /api/sync/push`).
 
 ---
 

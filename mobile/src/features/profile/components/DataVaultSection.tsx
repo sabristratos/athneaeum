@@ -12,6 +12,8 @@ import { usePreferencesActions } from '@/stores/preferencesStore';
 import { authApi, type ImportResult, type ImportOptions } from '@/api/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
+import { resetDatabase } from '@/database/index';
+import { syncWithServer } from '@/database/sync';
 
 let Sharing: typeof import('expo-sharing') | null = null;
 try {
@@ -42,6 +44,8 @@ export function DataVaultSection() {
     import_tags: true,
     import_reviews: true,
   });
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
 
   const handleExport = async () => {
     setExportLoading(true);
@@ -140,6 +144,21 @@ export function DataVaultSection() {
     setImportStatus('idle');
   };
 
+  const handleResetLocalData = async () => {
+    setResetLoading(true);
+    try {
+      await resetDatabase();
+      await syncWithServer();
+      queryClient.invalidateQueries();
+      setShowResetModal(false);
+      Alert.alert('Success', 'Local data has been reset and synced from server.');
+    } catch (error) {
+      Alert.alert('Error', 'Failed to reset data. Please try again.');
+    } finally {
+      setResetLoading(false);
+    }
+  };
+
   const handleConfirmDelete = () => {
     setShowDeleteModal(false);
     setDeleteError(undefined);
@@ -203,6 +222,25 @@ export function DataVaultSection() {
             </Text>
             <Button variant="secondary" onPress={handleImport}>
               Select CSV File
+            </Button>
+          </View>
+
+          {/* Reset Local Data */}
+          <View
+            style={{
+              paddingTop: theme.spacing.md,
+              borderTopWidth: theme.borders.thin,
+              borderTopColor: theme.colors.border,
+            }}
+          >
+            <Text variant="body" style={{ marginBottom: theme.spacing.xs }}>
+              Reset Local Data
+            </Text>
+            <Text variant="caption" muted style={{ marginBottom: theme.spacing.sm }}>
+              Clear local cache and re-sync from server. Use this if you see stale data or sync issues.
+            </Text>
+            <Button variant="secondary" onPress={() => setShowResetModal(true)}>
+              Reset & Sync
             </Button>
           </View>
 
@@ -283,6 +321,19 @@ export function DataVaultSection() {
         loading={deleteLoading}
         error={deleteError}
         requireConfirmWord="DELETE"
+      />
+
+      <ConfirmModal
+        visible={showResetModal}
+        onClose={() => setShowResetModal(false)}
+        title="Reset Local Data?"
+        message="This will clear all locally cached data and re-download everything from the server. Any unsynced changes will be lost."
+        status="info"
+        confirmLabel="Reset & Sync"
+        cancelLabel="Cancel"
+        onConfirm={handleResetLocalData}
+        onCancel={() => setShowResetModal(false)}
+        loading={resetLoading}
       />
 
       <ImportProgressModal

@@ -452,6 +452,7 @@ interface InfoTabProps {
   moods: Mood[] | null;
   isClassified: boolean;
   isAnalyzing: boolean;
+  isPendingClassification: boolean;
   classificationConfidence: number | null;
   onAddTag: () => void;
   onEditBookDetails: () => void;
@@ -491,6 +492,7 @@ const InfoTab = memo(function InfoTab({
   moods,
   isClassified,
   isAnalyzing,
+  isPendingClassification,
   classificationConfidence,
   onAddTag,
   onEditBookDetails,
@@ -733,7 +735,7 @@ const InfoTab = memo(function InfoTab({
       )}
 
       {/* Content Classification Section */}
-      {(isClassified || isAnalyzing || description) && (
+      {(isClassified || isAnalyzing || isPendingClassification || description) && (
         <View key="classification-section">
           <Text
             variant="label"
@@ -752,8 +754,9 @@ const InfoTab = memo(function InfoTab({
             moods={moods}
             isClassified={isClassified}
             isAnalyzing={isAnalyzing}
+            isPending={isPendingClassification}
             confidence={classificationConfidence}
-            onAnalyzePress={description ? onAnalyzeContent : undefined}
+            onAnalyzePress={description && !isPendingClassification ? onAnalyzeContent : undefined}
           />
         </View>
       )}
@@ -1795,6 +1798,7 @@ export const BookDetailScreen = memo(function BookDetailScreen() {
                 moods={book.moods ?? null}
                 isClassified={book.is_classified ?? false}
                 isAnalyzing={isAnalyzing}
+                isPendingClassification={!!(book.description && !(book.is_classified ?? false) && !isAnalyzing)}
                 classificationConfidence={book.classification_confidence ?? null}
                 onAddTag={handleOpenTagPicker}
                 onEditBookDetails={handleOpenBookDetailsSheet}

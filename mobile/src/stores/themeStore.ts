@@ -23,6 +23,7 @@ interface ThemeStore {
   themeName: ThemeName;
   isHydrated: boolean;
   setTheme: (name: ThemeName) => void;
+  setThemeSilent: (name: ThemeName) => void;
   toggleTheme: () => void;
   setHydrated: (hydrated: boolean) => void;
 }
@@ -38,6 +39,9 @@ const useThemeStoreBase = create<ThemeStore>()(
           message: `Switched to ${EDITION_LABELS[name]}`,
           variant: 'info',
         });
+      },
+      setThemeSilent: (name: ThemeName) => {
+        set({ themeName: name });
       },
       toggleTheme: () => {
         const newTheme = get().themeName === 'scholar' ? 'dreamer' : 'scholar';
@@ -66,6 +70,7 @@ export const useThemeActions = () =>
   useThemeStoreBase(
     useShallow((state) => ({
       setTheme: state.setTheme,
+      setThemeSilent: state.setThemeSilent,
       toggleTheme: state.toggleTheme,
     }))
   );

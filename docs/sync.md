@@ -20,7 +20,7 @@ const adapter = new SQLiteAdapter({
 
 export const database = new Database({
   adapter,
-  modelClasses: [Book, UserBook, ReadingSession, SyncMetadata],
+  modelClasses: [Book, Series, Tag, UserBook, UserBookTag, ReadThrough, ReadingSession, SyncMetadata, UserPreference, ReadingGoal],
 });
 ```
 
@@ -34,9 +34,15 @@ export const database = new Database({
 
 | Table | Purpose |
 |-------|---------|
+| `series` | Series metadata and grouping |
 | `books` | Book metadata (title, author, cover, etc.) |
 | `user_books` | User's relationship with books |
+| `tags` | Tags (system + user-defined) |
+| `user_book_tags` | Pivot table for book-tag relationships |
+| `read_throughs` | Re-reading tracking |
 | `reading_sessions` | Reading activity logs |
+| `user_preferences` | Favorite/excluded authors/genres/series |
+| `reading_goals` | Reading goal targets (progress computed on mobile) |
 | `sync_metadata` | Sync timestamps |
 
 ### Common Columns
@@ -175,8 +181,13 @@ const deletedUserBooks = await userBooksCollection.query(
 // Build payload
 const payload = {
   books: { created: [], updated: [], deleted: [] },
+  series: { created: [], updated: [], deleted: [] },
   user_books: { created: [], updated: [], deleted: [] },
-  reading_sessions: { created: [], updated: [], deleted: [] }
+  read_throughs: { created: [], updated: [], deleted: [] },
+  reading_sessions: { created: [], updated: [], deleted: [] },
+  tags: { created: [], updated: [], deleted: [] },
+  user_preferences: { created: [], updated: [], deleted: [] },
+  reading_goals: { created: [], updated: [], deleted: [] }
 };
 
 // POST to /sync/push
@@ -342,8 +353,13 @@ Route::middleware('auth:sanctum')->group(function () {
 ```typescript
 {
   books: { created: [], updated: [], deleted: [] },
+  series: { created: [], updated: [], deleted: [] },
   user_books: { created: [], updated: [], deleted: number[] },
-  reading_sessions: { created: [], updated: [], deleted: number[] }
+  read_throughs: { created: [], updated: [], deleted: number[] },
+  reading_sessions: { created: [], updated: [], deleted: number[] },
+  tags: { created: [], updated: [], deleted: number[] },
+  user_preferences: { created: [], updated: [], deleted: number[] },
+  reading_goals: { created: [], updated: [], deleted: number[] }
 }
 ```
 
@@ -353,12 +369,18 @@ Route::middleware('auth:sanctum')->group(function () {
   status: string,
   id_mappings: {
     books: IdMapping[],
+    series: IdMapping[],
     user_books: IdMapping[],
-    reading_sessions: IdMapping[]
+    read_throughs: IdMapping[],
+    reading_sessions: IdMapping[],
+    tags: IdMapping[],
+    user_preferences: IdMapping[],
+    reading_goals: IdMapping[]
   },
   counts: { created, updated, deleted },
   skipped: {
     user_books: SkippedRecord[],
+    read_throughs: SkippedRecord[],
     reading_sessions: SkippedRecord[]
   },
   timestamp: number
@@ -377,8 +399,13 @@ Skipped records retain `isPendingSync = true` and will retry on the next sync.
 {
   changes: {
     books: { created: [], updated: [], deleted: number[] },
+    series: { created: [], updated: [], deleted: number[] },
     user_books: { created: [], updated: [], deleted: number[] },
-    reading_sessions: { created: [], updated: [], deleted: number[] }
+    read_throughs: { created: [], updated: [], deleted: number[] },
+    reading_sessions: { created: [], updated: [], deleted: number[] },
+    tags: { created: [], updated: [], deleted: number[] },
+    user_preferences: { created: [], updated: [], deleted: number[] },
+    reading_goals: { created: [], updated: [], deleted: number[] }
   },
   timestamp: number
 }

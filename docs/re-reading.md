@@ -246,44 +246,26 @@ Statistics now consider multiple read-throughs:
 
 ## 8. API Endpoints
 
-### Read-Through Management
+### Re-read and History
 ```
-GET    /library/{userBook}/read-throughs     - List all read-throughs
-POST   /library/{userBook}/read-throughs     - Start new read-through
-GET    /library/{userBook}/read-throughs/{rt} - Get specific read-through
-PATCH  /library/{userBook}/read-throughs/{rt} - Update rating/review
-DELETE /library/{userBook}/read-throughs/{rt} - Delete read-through
+POST   /library/{userBook}/reread   - Start a new read-through and reset the user book to reading
+GET    /library/{userBook}/history  - Get read count and read-through history (including sessions)
 ```
 
 ### Request/Response
 
 **Start Re-read:**
 ```json
-POST /library/123/read-throughs
-{
-  "started_at": "2024-01-15"
-}
+POST /library/123/reread
 
 Response:
 {
-  "id": 456,
-  "user_book_id": 123,
-  "read_number": 2,
-  "status": "reading",
-  "started_at": "2024-01-15",
-  "finished_at": null,
-  "rating": null
+  "read_through": { /* ReadThrough */ },
+  "user_book": { /* UserBook */ }
 }
 ```
 
-**Update Rating:**
-```json
-PATCH /library/123/read-throughs/456
-{
-  "rating": 4.5,
-  "review": "Even better the second time!"
-}
-```
+Read-through creation and updates are persisted via the sync system (`POST /api/sync/push` and `GET /api/sync/pull`).
 
 ---
 

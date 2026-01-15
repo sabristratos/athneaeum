@@ -54,32 +54,18 @@ The `QuickLogSheet` component provides a streamlined session logging experience:
 
 ### Backend API
 
+The backend exposes a read-only sessions endpoint:
+
 ```
-POST /api/sessions
-Body: {
-  user_book_id: number,
-  date: string,
-  start_page: number,
-  end_page: number,
-  duration_seconds?: number,
-  notes?: string
-}
+GET /api/sessions
 ```
 
-**Process:**
-1. Validates request data
-2. Ensures user has permission for the book
-3. Creates session with calculated `pages_read`
-4. Auto-transitions book status: "want_to_read" → "reading"
-5. Updates UserBook's `current_page` to `end_page`
-6. Returns `ReadingSessionResource`
+Session creation and deletion are performed via the sync system:
 
-**Validation Rules:**
-- `date` - Required, must be before or equal to today
-- `start_page` - Required, integer, min 0
-- `end_page` - Required, must be greater than start_page
-- `duration_seconds` - Optional, integer, min 0
-- `notes` - Optional, string, max 2000 characters
+```
+POST /api/sync/push
+GET  /api/sync/pull
+```
 
 ### Mobile Logging
 
@@ -241,12 +227,12 @@ const deletedSessions = await sessionsCollection.query(
 ## 8. API Endpoints
 
 ```
-GET    /api/sessions              - List all sessions
+GET    /api/sessions                 - List all sessions
 GET    /api/sessions?user_book_id=X  - Sessions for specific book
-POST   /api/sessions              - Create new session
-```
 
-**Note:** Session updates and deletes are handled through the sync system rather than direct API endpoints. Changes made locally are pushed to the server via `/api/sync/push`.
+POST   /api/sync/push                - Create/delete sessions via sync
+GET    /api/sync/pull                - Pull updated sessions via sync
+```
 
 ---
 
@@ -255,7 +241,6 @@ POST   /api/sessions              - Create new session
 ### Backend
 - `backend/app/Http/Controllers/Api/SessionController.php`
 - `backend/app/Models/ReadingSession.php`
-- `backend/app/Http/Requests/Session/StoreReadingSessionRequest.php`
 - `backend/app/Http/Resources/ReadingSessionResource.php`
 
 ### Mobile

@@ -12,6 +12,7 @@ export interface User {
   avatar_url: string | null;
   has_opds_configured: boolean;
   preferred_search_source: SearchSource;
+  onboarded_at: string | null;
   created_at: string;
   updated_at: string;
 }

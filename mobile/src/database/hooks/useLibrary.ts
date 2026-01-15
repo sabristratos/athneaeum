@@ -2,10 +2,11 @@ import { useEffect, useState, useCallback } from 'react';
 import { Q } from '@nozbe/watermelondb';
 import type { Subscription } from 'rxjs';
 import { database } from '@/database/index';
-import { scheduleSyncAfterMutation } from '@/database/sync';
+import { scheduleSyncAfterMutation, syncWithServer } from '@/database/sync';
 import type { UserBook } from '@/database/models/UserBook';
 import type { Book } from '@/database/models/Book';
 import type { BookStatus } from '@/types/book';
+import { useToastStore } from '@/stores/toastStore';
 
 export interface LibraryBook {
   userBook: UserBook;
@@ -132,14 +133,15 @@ export function useAddToLibrary() {
       setLoading(true);
       setError(null);
 
-      try {
-        let userBookId: string | null = null;
+      let userBookId: string | null = null;
+      let createdBookId: string | null = null;
+      let bookWasNew = false;
 
+      try {
         await database.write(async () => {
           const booksCollection = database.get<Book>('books');
           const userBooksCollection = database.get<UserBook>('user_books');
 
-          // Check if book already exists by external_id
           const existingBooks = await booksCollection
             .query(Q.where('external_id', bookData.externalId))
             .fetch();
@@ -149,7 +151,7 @@ export function useAddToLibrary() {
           if (existingBooks.length > 0) {
             book = existingBooks[0];
           } else {
-            // Create new book
+            bookWasNew = true;
             book = await booksCollection.create((record) => {
               record.externalId = bookData.externalId;
               record.externalProvider =
@@ -167,7 +169,8 @@ export function useAddToLibrary() {
             });
           }
 
-          // Check if user already has this book
+          createdBookId = book.id;
+
           const existingUserBooks = await userBooksCollection
             .query(Q.where('book_id', book.id), Q.where('is_deleted', false))
             .fetch();
@@ -176,7 +179,6 @@ export function useAddToLibrary() {
             throw new Error('Book already in library');
           }
 
-          // Create user_book entry
           const userBook = await userBooksCollection.create((record) => {
             record.bookId = book.id;
             record.status = status;
@@ -193,8 +195,24 @@ export function useAddToLibrary() {
           userBookId = userBook.id;
         });
 
-        // Trigger background sync
-        scheduleSyncAfterMutation();
+        const syncResult = await syncWithServer();
+
+        if (syncResult.status === 'error') {
+          await rollbackAddition(userBookId, createdBookId, bookWasNew);
+          useToastStore.getState().addToast({
+            message: 'Failed to add book. Please try again.',
+            variant: 'danger',
+          });
+          throw new Error(syncResult.error || 'Sync failed');
+        }
+
+        // If book has a description, it will be classified by the backend.
+        // Schedule a delayed sync to pick up classification results.
+        if (bookData.description && bookWasNew) {
+          setTimeout(() => {
+            syncWithServer();
+          }, 12000); // 12 seconds - enough time for classification job to complete
+        }
 
         return userBookId;
       } catch (err) {
@@ -209,6 +227,34 @@ export function useAddToLibrary() {
   );
 
   return { addBook, loading, error };
+}
+
+async function rollbackAddition(
+  userBookId: string | null,
+  bookId: string | null,
+  bookWasNew: boolean
+): Promise<void> {
+  await database.write(async () => {
+    if (userBookId) {
+      try {
+        const userBook = await database
+          .get<UserBook>('user_books')
+          .find(userBookId);
+        await userBook.destroyPermanently();
+      } catch {
+        // Record may already be deleted
+      }
+    }
+
+    if (bookId && bookWasNew) {
+      try {
+        const book = await database.get<Book>('books').find(bookId);
+        await book.destroyPermanently();
+      } catch {
+        // Record may already be deleted
+      }
+    }
+  });
 }
 
 export function useRemoveFromLibrary() {

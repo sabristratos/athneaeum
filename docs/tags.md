@@ -82,51 +82,16 @@ GET /api/tags/colors
 Returns: { data: [{ value, label }] }
 ```
 
-### Create Tag
-```
-POST /api/tags
-Body: {
-  name: string (required, max 50),
-  color: TagColor (required)
-}
-```
-
-### Update Tag
-```
-PATCH /api/tags/{tag}
-Body: {
-  name?: string,
-  color?: TagColor
-}
-Authorization: Must own tag, cannot edit system tags
-```
-
-### Delete Tag
-```
-DELETE /api/tags/{tag}
-Authorization: Must own tag, cannot delete system tags
-Cascade: Removes all entries in user_book_tag pivot
-```
+Tag creation, updates, and deletion are performed via the sync system (`POST /api/sync/push` and `GET /api/sync/pull`).
 
 ---
 
 ## 4. Attach/Detach from Books
 
-### Sync Tags (Replace All)
-```
-POST /api/library/{userBook}/tags
-Body: { tag_ids: [1, 2, 3] }
-```
+Book-tag associations are synced as part of `user_books` records.
 
-### Attach Single Tag
-```
-POST /api/library/{userBook}/tags/{tag}
-```
-
-### Detach Single Tag
-```
-DELETE /api/library/{userBook}/tags/{tag}
-```
+- The mobile app sends a `tag_ids` array on `user_books.created` and `user_books.updated` in the sync push payload.
+- The backend applies these using `tags()->sync(tag_ids)`.
 
 ---
 
@@ -234,8 +199,8 @@ Deleted tags cached for 5 seconds:
 const undoDelete = () => {
   const tag = undoDeleteTag();
   if (tag) {
-    // Restore tag via API
-    createTag({ name: tag.name, color: tag.color });
+    // Restore tag locally and let sync propagate the change
+    // (tag creation/deletion is handled through the sync system)
   }
 };
 ```

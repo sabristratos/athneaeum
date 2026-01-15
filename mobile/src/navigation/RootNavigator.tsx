@@ -2,17 +2,19 @@ import React, { useMemo } from 'react';
 import { View, ActivityIndicator, Text } from 'react-native';
 import { NavigationContainer, DefaultTheme, DarkTheme } from '@react-navigation/native';
 import * as Linking from 'expo-linking';
-import { useIsAuthenticated, useAuthHydrated } from '@/stores/authStore';
+import { useIsAuthenticated, useAuthHydrated, useHasCompletedOnboarding } from '@/stores/authStore';
 import { useThemeHydrated } from '@/stores/themeStore';
 import { useTheme } from '@/themes';
 import { AuthNavigator } from '@/navigation/AuthNavigator';
 import { MainNavigator } from '@/navigation/MainNavigator';
+import { OnboardingScreen } from '@/features/onboarding';
 import { GoalCelebrationOverlay } from '@/components/organisms';
 
 const prefix = Linking.createURL('/');
 
 export function RootNavigator() {
   const isAuthenticated = useIsAuthenticated();
+  const hasCompletedOnboarding = useHasCompletedOnboarding();
   const authHydrated = useAuthHydrated();
   const themeHydrated = useThemeHydrated();
   const { theme } = useTheme();
@@ -71,9 +73,21 @@ export function RootNavigator() {
     );
   }
 
+  const renderContent = () => {
+    if (!isAuthenticated) {
+      return <AuthNavigator />;
+    }
+
+    if (!hasCompletedOnboarding) {
+      return <OnboardingScreen />;
+    }
+
+    return <MainNavigator />;
+  };
+
   return (
     <NavigationContainer linking={linking} theme={navigationTheme}>
-      {isAuthenticated ? <MainNavigator /> : <AuthNavigator />}
+      {renderContent()}
       <GoalCelebrationOverlay />
     </NavigationContainer>
   );

@@ -172,13 +172,17 @@ any → want_to_read            (Reset status)
 ```
 GET    /library                    - List user's library
 GET    /library/external-ids       - Map external_id → { status, user_book_id }
-POST   /library                    - Add book to library
 GET    /library/{userBook}         - Get book details
-PATCH  /library/{userBook}         - Update book (status, rating, progress)
-DELETE /library/{userBook}         - Remove from library
 PATCH  /library/reorder            - Reorder TBR queue
 PATCH  /library/{userBook}/pin     - Pin book
 DELETE /library/{userBook}/pin     - Unpin book
+POST   /library/{userBook}/reread  - Start a re-read (creates a new read-through)
+GET    /library/{userBook}/history - Get reading history
+
+Core library mutations (creating/updating/removing books, sessions, tags, preferences, goals) are performed via the sync system:
+
+GET  /sync/pull
+POST /sync/push
 ```
 
 ### Response Format

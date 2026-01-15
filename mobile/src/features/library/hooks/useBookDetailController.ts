@@ -337,6 +337,34 @@ export function useBookDetailController(): BookDetailControllerReturn {
     }, [route.params.userBook.id])
   );
 
+  // Poll for classification updates when book has description but isn't classified yet
+  useEffect(() => {
+    const book = userBook.book;
+    const isPendingClassification = book?.description && !book?.is_classified && !isAnalyzing;
+
+    if (!isPendingClassification) return;
+
+    const pollForClassification = async () => {
+      try {
+        const freshBook = await booksApi.getUserBook(route.params.userBook.id);
+        if (freshBook.book?.is_classified) {
+          setUserBook(freshBook);
+        }
+      } catch {
+        // Silently ignore polling errors
+      }
+    };
+
+    // Poll every 5 seconds for up to 30 seconds
+    const intervalId = setInterval(pollForClassification, 5000);
+    const timeoutId = setTimeout(() => clearInterval(intervalId), 30000);
+
+    return () => {
+      clearInterval(intervalId);
+      clearTimeout(timeoutId);
+    };
+  }, [route.params.userBook.id, userBook.book?.description, userBook.book?.is_classified, isAnalyzing]);
+
   const book = userBook.book;
   const { quotes, createQuote, editQuote, removeQuote } = useQuotes(userBook.id);
 

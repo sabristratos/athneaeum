@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { triggerHaptic } from '@/hooks/useHaptic';
 import { useInfiniteBookSearchQuery, useLibraryExternalIdsQuery } from '@/queries';
 import { queryKeys } from '@/lib/queryKeys';
-import { useLibrary } from '@/hooks/useBooks';
+import { useAddToLibrary } from '@/database/hooks/useLibrary';
 import { useToast } from '@/stores/toastStore';
 import { useRecentSearchActions } from '@/stores/recentSearchesStore';
 import type { SearchResult, BookStatus, SearchFilters, LibraryExternalIdEntry, UserBook } from '@/types';
@@ -71,7 +71,7 @@ export function useSearchController(options: UseSearchControllerOptions = {}): U
     refetch,
   } = useInfiniteBookSearchQuery(debouncedQuery, filters);
 
-  const { addToLibrary } = useLibrary();
+  const { addBook } = useAddToLibrary();
 
   const results = data?.results ?? [];
   const meta = data?.meta;
@@ -107,41 +107,35 @@ export function useSearchController(options: UseSearchControllerOptions = {}): U
     async (book: SearchResult, status: BookStatus) => {
       setAddingId(book.external_id);
       try {
-        const userBook = await addToLibrary({
-          external_id: book.external_id,
-          external_provider: 'google_books',
-          title: book.title,
-          author: book.author,
-          cover_url: book.cover_url,
-          page_count: book.page_count,
-          height_cm: book.height_cm,
-          width_cm: book.width_cm,
-          thickness_cm: book.thickness_cm,
-          isbn: book.isbn,
-          description: book.description,
-          genres: book.genres,
-          published_date: book.published_date,
-          status,
-        });
+        const userBookId = await addBook(
+          {
+            externalId: book.external_id,
+            externalProvider: 'google_books',
+            title: book.title,
+            author: book.author,
+            coverUrl: book.cover_url,
+            pageCount: book.page_count,
+            isbn: book.isbn,
+            description: book.description,
+            genres: book.genres,
+            publishedDate: book.published_date,
+          },
+          status
+        );
         setAddedIds((prev) => new Set(prev).add(book.external_id));
         queryClient.invalidateQueries({ queryKey: queryKeys.library.externalIds() });
         triggerHaptic('success');
 
-        if (book.series_name && book.volume_number && userBook?.book_id) {
+        if (book.series_name && book.volume_number) {
           setPendingSeriesSuggestion({
             seriesName: book.series_name,
             volumeNumber: book.volume_number,
-            bookId: userBook.book_id,
+            bookId: 0,
             bookTitle: book.title,
             bookAuthor: book.author,
           });
         } else {
-          toast.success('Added to library', {
-            action: userBook && onNavigateToBook ? {
-              label: 'View',
-              onPress: () => onNavigateToBook(userBook),
-            } : undefined,
-          });
+          toast.success('Added to library');
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to add book';
@@ -151,7 +145,7 @@ export function useSearchController(options: UseSearchControllerOptions = {}): U
         setAddingId(null);
       }
     },
-    [addToLibrary, queryClient, toast, onNavigateToBook]
+    [addBook, queryClient, toast]
   );
 
   const handleEndReached = useCallback(async () => {

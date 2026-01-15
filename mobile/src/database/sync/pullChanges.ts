@@ -7,6 +7,7 @@ import type { ReadThrough } from '@/database/models/ReadThrough';
 import type { ReadingSession } from '@/database/models/ReadingSession';
 import type { Series } from '@/database/models/Series';
 import type { Tag } from '@/database/models/Tag';
+import type { UserBookTag } from '@/database/models/UserBookTag';
 import type { UserPreference } from '@/database/models/UserPreference';
 import type { ReadingGoal } from '@/database/models/ReadingGoal';
 import type { SyncMetadata } from '@/database/models/SyncMetadata';
@@ -65,10 +66,14 @@ export async function pullChanges(lastPulledAt: number): Promise<number> {
       await createOrUpdateBook(booksCollection, seriesCollection, serverBook);
     }
 
+    const userBookTagsCollection = database.get<UserBookTag>('user_book_tags');
+
     for (const serverUserBook of response.changes.user_books.created) {
       await createOrUpdateUserBook(
         userBooksCollection,
         booksCollection,
+        tagsCollection,
+        userBookTagsCollection,
         serverUserBook
       );
     }
@@ -77,6 +82,8 @@ export async function pullChanges(lastPulledAt: number): Promise<number> {
       await createOrUpdateUserBook(
         userBooksCollection,
         booksCollection,
+        tagsCollection,
+        userBookTagsCollection,
         serverUserBook
       );
     }
@@ -348,6 +355,8 @@ async function createOrUpdateBook(
 async function createOrUpdateUserBook(
   collection: ReturnType<typeof database.get<UserBook>>,
   booksCollection: ReturnType<typeof database.get<Book>>,
+  tagsCollection: ReturnType<typeof database.get<Tag>>,
+  userBookTagsCollection: ReturnType<typeof database.get<UserBookTag>>,
   serverUserBook: ServerUserBook
 ): Promise<void> {
   const existing = await collection
@@ -361,6 +370,8 @@ async function createOrUpdateUserBook(
   if (!book[0]) {
     return;
   }
+
+  let userBook: UserBook;
 
   if (existing[0]) {
     if (existing[0].isPendingSync) {
@@ -395,8 +406,9 @@ async function createOrUpdateUserBook(
         : null;
       record.customCoverUrl = serverUserBook.custom_cover_url;
     });
+    userBook = existing[0];
   } else {
-    await collection.create((record) => {
+    userBook = await collection.create((record) => {
       record.serverId = serverUserBook.id;
       record.bookId = book[0].id;
       record.serverBookId = serverUserBook.book_id;
@@ -421,6 +433,54 @@ async function createOrUpdateUserBook(
       record.pendingCoverUpload = false;
       record.isDeleted = false;
     });
+  }
+
+  if (serverUserBook.tag_ids && serverUserBook.tag_ids.length >= 0) {
+    await syncUserBookTags(
+      userBookTagsCollection,
+      tagsCollection,
+      userBook,
+      serverUserBook.tag_ids
+    );
+  }
+}
+
+async function syncUserBookTags(
+  userBookTagsCollection: ReturnType<typeof database.get<UserBookTag>>,
+  tagsCollection: ReturnType<typeof database.get<Tag>>,
+  userBook: UserBook,
+  serverTagIds: number[]
+): Promise<void> {
+  const existingTags = await userBookTagsCollection
+    .query(Q.where('user_book_id', userBook.id))
+    .fetch();
+
+  const existingServerTagIds = existingTags
+    .map((t) => t.serverTagId)
+    .filter((id): id is number => id !== null);
+
+  const toAdd = serverTagIds.filter((id) => !existingServerTagIds.includes(id));
+  const toRemove = existingTags.filter(
+    (t) => t.serverTagId && !serverTagIds.includes(t.serverTagId)
+  );
+
+  for (const serverTagId of toAdd) {
+    const tags = await tagsCollection
+      .query(Q.where('server_id', serverTagId))
+      .fetch();
+
+    if (tags[0]) {
+      await userBookTagsCollection.create((record) => {
+        record.userBookId = userBook.id;
+        record.tagId = tags[0].id;
+        record.serverUserBookId = userBook.serverId;
+        record.serverTagId = serverTagId;
+      });
+    }
+  }
+
+  for (const tagToRemove of toRemove) {
+    await tagToRemove.destroyPermanently();
   }
 }
 

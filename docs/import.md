@@ -186,13 +186,13 @@ class ImportResult
 
 ### Import Endpoints
 ```
-GET    /import/sources     - List available import sources
-POST   /import             - Process import file
+GET    /user/import/sources     - List available import sources
+POST   /user/import             - Process import file
 ```
 
 ### Request Format
 
-**POST /import** (multipart/form-data):
+**POST /user/import** (multipart/form-data):
 ```
 file: [CSV file]
 source: "goodreads"
@@ -255,57 +255,6 @@ useEffect(() => {
   handleShareIntent();
 }, []);
 ```
-
----
-
-## 10. Adding New Import Sources
-
-The import system is extensible via the `ImportServiceInterface`:
-
-### Step 1: Create Service
-
-```php
-// backend/app/Services/Import/NewSourceImportService.php
-class NewSourceImportService implements ImportServiceInterface
-{
-    public function getProviderName(): string
-    {
-        return 'newsource';
-    }
-
-    public function getSupportedExtensions(): array
-    {
-        return ['json', 'xml'];
-    }
-
-    public function import(User $user, string $filePath, ImportOptions $options): ImportResult
-    {
-        // Parse file and create Book/UserBook records
-    }
-}
-```
-
-### Step 2: Register Service
-
-```php
-// backend/app/Providers/ImportServiceProvider.php
-public function register(): void
-{
-    $this->app->bind(ImportServiceInterface::class, function ($app) {
-        return new GoodreadsImportService();
-    });
-
-    // Add to tagged services
-    $this->app->tag([
-        GoodreadsImportService::class,
-        NewSourceImportService::class,
-    ], 'import.services');
-}
-```
-
-### Step 3: Update Mobile UI
-
-Add new source option to import screen's source selector.
 
 ---
 

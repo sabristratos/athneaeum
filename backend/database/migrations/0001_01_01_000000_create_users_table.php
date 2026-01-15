@@ -18,6 +18,7 @@ return new class extends Migration
             $table->string('name');
             $table->string('email')->unique();
             $table->timestamp('email_verified_at')->nullable();
+            $table->timestamp('onboarded_at')->nullable();
             $table->string('password');
             $table->string('theme')->default('scholar');
             $table->json('preferences')->nullable();
@@ -26,6 +27,7 @@ return new class extends Migration
             $table->string('opds_username')->nullable();
             $table->text('opds_password')->nullable();
             $table->string('preferred_search_source')->default('google');
+            $table->string('expo_push_token')->nullable();
             $table->rememberToken();
             $table->timestamps();
         });

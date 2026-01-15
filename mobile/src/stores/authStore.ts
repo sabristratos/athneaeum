@@ -13,6 +13,7 @@ interface AuthStore {
   clearAuth: () => Promise<void>;
   setUser: (user: User) => void;
   setHydrated: (hydrated: boolean) => void;
+  setOnboardingComplete: () => void;
 }
 
 const useAuthStoreBase = create<AuthStore>()(
@@ -35,6 +36,13 @@ const useAuthStoreBase = create<AuthStore>()(
       setUser: (user: User) => set({ user }),
 
       setHydrated: (hydrated: boolean) => set({ isHydrated: hydrated }),
+
+      setOnboardingComplete: () =>
+        set((state) => ({
+          user: state.user
+            ? { ...state.user, onboarded_at: new Date().toISOString() }
+            : null,
+        })),
     }),
     {
       name: 'athenaeum-auth',
@@ -58,6 +66,7 @@ export const useAuthActions = () =>
       setAuth: state.setAuth,
       clearAuth: state.clearAuth,
       setUser: state.setUser,
+      setOnboardingComplete: state.setOnboardingComplete,
     }))
   );
 
@@ -66,3 +75,6 @@ export const useUser = () => useAuthStoreBase((state) => state.user);
 export const useIsAuthenticated = () => useAuthStoreBase((state) => state.isAuthenticated);
 
 export const useAuthHydrated = () => useAuthStoreBase((state) => state.isHydrated);
+
+export const useHasCompletedOnboarding = () =>
+  useAuthStoreBase((state) => !!state.user?.onboarded_at);

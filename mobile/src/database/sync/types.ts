@@ -167,6 +167,7 @@ export interface UserBookPayload {
   started_at: string | null;
   finished_at: string | null;
   custom_cover_url: string | null;
+  tag_ids?: number[];
 }
 
 export interface ReadThroughPayload {
@@ -274,6 +275,7 @@ export interface ServerUserBook {
   started_at: string | null;
   finished_at: string | null;
   custom_cover_url: string | null;
+  tag_ids: number[];
   created_at: string;
   updated_at: string;
 }

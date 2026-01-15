@@ -1,10 +1,11 @@
 import React from 'react';
-import { View, ActivityIndicator } from 'react-native';
+import { View } from 'react-native';
 import type { IconSvgElement } from '@hugeicons/react-native';
 import { Button, Text, Icon } from '@/components/atoms';
 import { Chip } from './Chip';
 import { useTheme } from '@/themes';
 import { sharedSpacing } from '@/themes/shared';
+import { SkeletonShimmer } from '@/animations/components';
 import type { Audience, Intensity, Mood } from '@/types';
 import {
   UserGroupIcon,
@@ -22,6 +23,7 @@ export interface ClassificationBadgesProps {
   moods?: Mood[] | null;
   isClassified?: boolean;
   isAnalyzing?: boolean;
+  isPending?: boolean;
   confidence?: number | null;
   onAnalyzePress?: () => void;
   compact?: boolean;
@@ -49,6 +51,45 @@ const AUDIENCE_ICONS: Record<Audience, IconSvgElement> = {
   children: ChildIcon,
 };
 
+function ClassificationShimmer({ compact = false }: { compact?: boolean }) {
+  const { theme, themeName } = useTheme();
+  const isScholar = themeName === 'scholar';
+
+  return (
+    <View style={{ gap: compact ? sharedSpacing.sm : sharedSpacing.md }}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: sharedSpacing.sm }}>
+        <SkeletonShimmer
+          width={90}
+          height={28}
+          borderRadius={isScholar ? theme.radii.sm : theme.radii.md}
+        />
+        <SkeletonShimmer
+          width={110}
+          height={28}
+          borderRadius={isScholar ? theme.radii.sm : theme.radii.md}
+        />
+      </View>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: sharedSpacing.xs }}>
+        <SkeletonShimmer
+          width={75}
+          height={24}
+          borderRadius={isScholar ? theme.radii.sm : theme.radii.full}
+        />
+        <SkeletonShimmer
+          width={85}
+          height={24}
+          borderRadius={isScholar ? theme.radii.sm : theme.radii.full}
+        />
+        <SkeletonShimmer
+          width={95}
+          height={24}
+          borderRadius={isScholar ? theme.radii.sm : theme.radii.full}
+        />
+      </View>
+    </View>
+  );
+}
+
 export function ClassificationBadges({
   audience,
   audienceLabel,
@@ -57,6 +98,7 @@ export function ClassificationBadges({
   moods,
   isClassified = false,
   isAnalyzing = false,
+  isPending = false,
   confidence,
   onAnalyzePress,
   compact = false,
@@ -84,19 +126,20 @@ export function ClassificationBadges({
   const displayMoods = moods?.slice(0, 3) || [];
   const AudienceIcon = audience ? AUDIENCE_ICONS[audience] : null;
 
-  if (isAnalyzing) {
+  if (isAnalyzing || isPending) {
     return (
-      <View
-        style={{
-          paddingVertical: sharedSpacing.md,
-          flexDirection: 'row',
-          alignItems: 'center',
-          gap: sharedSpacing.sm,
-        }}
-      >
-        <ActivityIndicator size="small" color={theme.colors.primary} />
-        <Text style={{ color: theme.colors.foregroundMuted, fontFamily: theme.fonts.body }}>
-          Analyzing content...
+      <View style={{ gap: compact ? sharedSpacing.sm : sharedSpacing.md }}>
+        <ClassificationShimmer compact={compact} />
+        <Text
+          style={{
+            color: theme.colors.foregroundMuted,
+            fontFamily: theme.fonts.body,
+            fontSize: 12,
+          }}
+        >
+          {isAnalyzing
+            ? isScholar ? 'Analyzing content...' : 'Analyzing...'
+            : isScholar ? 'Awaiting classification...' : 'Processing...'}
         </Text>
       </View>
     );

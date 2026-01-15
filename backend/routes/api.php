@@ -14,7 +14,6 @@ use App\Http\Controllers\Api\SessionController;
 use App\Http\Controllers\Api\StatsController;
 use App\Http\Controllers\Api\SyncController;
 use App\Http\Controllers\Api\TagController;
-use App\Http\Controllers\Api\UserBookTagController;
 use App\Http\Controllers\Api\UserController;
 use App\Http\Controllers\Api\UserPreferenceController;
 use Illuminate\Support\Facades\Route;
@@ -29,6 +28,7 @@ Route::prefix('auth')->group(function () {
 
 Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', [UserController::class, 'show']);
+    Route::post('/user/onboarding-complete', [UserController::class, 'completeOnboarding']);
     Route::patch('/user', [UserController::class, 'update']);
     Route::patch('/user/password', [UserController::class, 'changePassword']);
     Route::patch('/user/theme', [UserController::class, 'updateTheme']);
@@ -59,10 +59,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::delete('/library/{userBook}/pin', [LibraryController::class, 'unpin']);
     Route::post('/library/{userBook}/reread', [LibraryController::class, 'startReread']);
     Route::get('/library/{userBook}/history', [LibraryController::class, 'readingHistory']);
-
-    Route::post('/library/{userBook}/tags', [UserBookTagController::class, 'sync']);
-    Route::post('/library/{userBook}/tags/{tag}', [UserBookTagController::class, 'attach']);
-    Route::delete('/library/{userBook}/tags/{tag}', [UserBookTagController::class, 'detach']);
 
     Route::get('/tags', [TagController::class, 'index']);
     Route::get('/tags/colors', [TagController::class, 'colors']);

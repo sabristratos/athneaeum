@@ -36,7 +36,7 @@ import {
   type AuthorPreferenceStatus,
 } from '@/features/search/components';
 import { useSearchController } from '@/features/search/hooks';
-import { useLibrary } from '@/hooks/useBooks';
+import { useAddToLibrary } from '@/database/hooks/useLibrary';
 import { useToast } from '@/stores/toastStore';
 import { useBookEditionsQuery } from '@/queries';
 import { useFavoriteAuthors, useExcludedAuthors } from '@/database/hooks';
@@ -52,7 +52,7 @@ export function SearchScreen() {
   const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
   const [editionPickerBook, setEditionPickerBook] = useState<SearchResult | null>(null);
   const [editionPickerStatus, setEditionPickerStatus] = useState<BookStatus>('want_to_read');
-  const { addToLibrary } = useLibrary();
+  const { addBook } = useAddToLibrary();
   const toast = useToast();
   const handleNavigateToBook = useCallback(
     (userBook: UserBook) => {
@@ -140,21 +140,20 @@ export function SearchScreen() {
 
   const handleManualSubmit = useCallback(
     async (data: ManualBookData) => {
-      const userBook = await addToLibrary({
-        title: data.title,
-        author: data.author,
-        page_count: data.page_count,
-        isbn: data.isbn,
-        status: data.status,
-      });
-      toast.success('Book added to library', {
-        action: userBook ? {
-          label: 'View',
-          onPress: () => handleNavigateToBook(userBook),
-        } : undefined,
-      });
+      await addBook(
+        {
+          externalId: `manual-${Date.now()}`,
+          externalProvider: 'manual',
+          title: data.title,
+          author: data.author,
+          pageCount: data.page_count,
+          isbn: data.isbn,
+        },
+        data.status
+      );
+      toast.success('Book added to library');
     },
-    [addToLibrary, toast, handleNavigateToBook]
+    [addBook, toast]
   );
 
   const handleBarcodeScan = useCallback(

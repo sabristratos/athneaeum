@@ -9,6 +9,7 @@ import type { ReadingSession } from '@/database/models/ReadingSession';
 import type { Tag } from '@/database/models/Tag';
 import type { UserPreference } from '@/database/models/UserPreference';
 import type { ReadingGoal } from '@/database/models/ReadingGoal';
+import type { UserBookTag } from '@/database/models/UserBookTag';
 import type {
   PushPayload,
   PushResponse,
@@ -41,7 +42,10 @@ function transformBookForPush(book: Book): BookPayload {
   };
 }
 
-function transformUserBookForPush(userBook: UserBook): UserBookPayload {
+function transformUserBookForPush(
+  userBook: UserBook,
+  tagIds?: number[]
+): UserBookPayload {
   return {
     local_id: userBook.id,
     server_id: userBook.serverId ?? undefined,
@@ -64,6 +68,7 @@ function transformUserBookForPush(userBook: UserBook): UserBookPayload {
       ? toISODateString(new Date(userBook.finishedAt))
       : null,
     custom_cover_url: userBook.customCoverUrl,
+    tag_ids: tagIds,
   };
 }
 
@@ -160,6 +165,24 @@ export async function pushChanges(): Promise<PushResponse> {
     .query(Q.where('is_pending_sync', true), Q.where('is_deleted', false))
     .fetch();
 
+  const userBookTagsCollection = database.get<UserBookTag>('user_book_tags');
+  const userBookIds = pendingUserBooks.map((ub) => ub.id);
+  const allUserBookTags =
+    userBookIds.length > 0
+      ? await userBookTagsCollection
+          .query(Q.where('user_book_id', Q.oneOf(userBookIds)))
+          .fetch()
+      : [];
+
+  const userBookTagsMap = new Map<string, number[]>();
+  for (const ubt of allUserBookTags) {
+    if (ubt.serverTagId) {
+      const existing = userBookTagsMap.get(ubt.userBookId) || [];
+      existing.push(ubt.serverTagId);
+      userBookTagsMap.set(ubt.userBookId, existing);
+    }
+  }
+
   const pendingReadThroughs = await readThroughsCollection
     .query(Q.where('is_pending_sync', true), Q.where('is_deleted', false))
     .fetch();
@@ -223,10 +246,10 @@ export async function pushChanges(): Promise<PushResponse> {
     user_books: {
       created: pendingUserBooks
         .filter((ub) => !ub.serverId)
-        .map(transformUserBookForPush),
+        .map((ub) => transformUserBookForPush(ub, userBookTagsMap.get(ub.id))),
       updated: pendingUserBooks
         .filter((ub) => ub.serverId)
-        .map(transformUserBookForPush),
+        .map((ub) => transformUserBookForPush(ub, userBookTagsMap.get(ub.id))),
       deleted: deletedUserBooks
         .filter((ub) => ub.serverId)
         .map((ub) => ub.serverId!),

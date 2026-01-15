@@ -92,36 +92,7 @@ return $current_value >= $expectedProgress;
 
 ## 5. Auto-Increment Behavior
 
-Goals are updated through explicit operations in `ReadingGoalService`:
-
-### Book Completion
-```php
-public function incrementBookGoals(User $user): void
-// Called when book status → "read"
-// Increments books goals by 1
-```
-
-### Page Addition
-```php
-public function addPagesToGoals(User $user, int $pages): void
-// Called when reading session logs pages
-// Increments pages goals by $pages
-```
-
-### Minutes Addition
-```php
-public function addMinutesToGoals(User $user, int $minutes): void
-// Called when reading session logs duration
-// Increments minutes goals by $minutes
-```
-
-### Streak Calculation
-```php
-public function updateStreakGoals(User $user): void
-// Called after reading session creation
-// Calculates current streak from history
-// Only updates if new streak exceeds current
-```
+Goal progress is computed on the mobile app from local reading data. The backend stores goal targets and metadata.
 
 ---
 
@@ -133,45 +104,22 @@ GET /api/goals
 Returns: ReadingGoalResource[]
 ```
 
-### Create Goal
-```
-POST /api/goals
-Body: {
-  type: 'books' | 'pages' | 'minutes' | 'streak',
-  period: 'daily' | 'weekly' | 'monthly' | 'yearly',
-  target: number,
-  year: number,
-  month?: number,
-  week?: number
-}
-```
+Goal creation, updates, and deletion are performed via the sync system:
 
-**Smart Upsert:** If goal exists for same type/period/timeframe, updates target instead of creating duplicate.
-
-### Update Goal
 ```
-PATCH /api/goals/{id}
-Body: {
-  target?: number,
-  is_active?: boolean
-}
-```
-
-### Delete Goal
-```
-DELETE /api/goals/{id}
-```
-
-### Recalculate All Goals
-```
-POST /api/goals/recalculate
-// Rebuilds all active goal progress from scratch
+POST /api/sync/push
+GET  /api/sync/pull
 ```
 
 ### Get Options
 ```
 GET /api/goals/types    → [{ value, label }]
 GET /api/goals/periods  → [{ value, label }]
+```
+
+### Get Single Goal
+```
+GET /api/goals/{goal}
 ```
 
 ---
@@ -259,19 +207,7 @@ private function checkAndMarkCompleted(ReadingGoal $goal): void {
 
 ## 10. Integration Points
 
-### With Reading Sessions
-```php
-// In session creation handler
-$goalService->addPagesToGoals($user, $session->pages_read);
-$goalService->addMinutesToGoals($user, $session->duration_seconds / 60);
-$goalService->updateStreakGoals($user);
-```
-
-### With Book Status Changes
-```php
-// When status → "read"
-$goalService->incrementBookGoals($user);
-```
+Goal progress is derived on the mobile app from locally stored sessions, books, and streak calculations.
 
 ---
 
@@ -280,15 +216,13 @@ $goalService->incrementBookGoals($user);
 ### Backend
 - `backend/app/Models/ReadingGoal.php`
 - `backend/app/Http/Controllers/Api/ReadingGoalController.php`
-- `backend/app/Services/Goals/ReadingGoalService.php`
 - `backend/app/Enums/GoalTypeEnum.php`
 - `backend/app/Enums/GoalPeriodEnum.php`
 - `backend/app/Http/Requests/ReadingGoal/`
 - `backend/app/Http/Resources/ReadingGoalResource.php`
 
 ### Mobile
-- `mobile/src/api/goals.ts`
-- Goal UI components (planned for future development)
+- Goal UI and computation live in the mobile app (local database + sync)
 
 ---
 

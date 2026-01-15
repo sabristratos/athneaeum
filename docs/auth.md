@@ -217,6 +217,7 @@ POST /auth/reset-password
 | Endpoint | Method | Auth Required | Purpose |
 |----------|--------|---------------|---------|
 | `/user` | GET | Yes | Get current user profile |
+| `/user/onboarding-complete` | POST | Yes | Mark onboarding complete |
 | `/user` | PATCH | Yes | Update user profile (name, email) |
 | `/user` | DELETE | Yes | Delete user account |
 | `/user/password` | PATCH | Yes | Change password |
@@ -224,6 +225,12 @@ POST /auth/reset-password
 | `/user/avatar` | POST | Yes | Upload avatar image |
 | `/user/avatar` | DELETE | Yes | Remove avatar |
 | `/user/preferences` | PATCH | Yes | Update user preferences |
+| `/user/export` | GET | Yes | Export user data |
+| `/user/import` | POST | Yes | Import from Goodreads |
+| `/user/opds` | GET | Yes | Get OPDS settings |
+| `/user/opds` | PATCH | Yes | Update OPDS settings |
+| `/user/opds/test` | POST | Yes | Test OPDS connection |
+| `/user/opds` | DELETE | Yes | Clear OPDS settings |
 
 ### 5.3 Request Validation Rules
 
@@ -405,7 +412,7 @@ interface RegisterData {
 ## 10. Key Files
 
 ### Backend
-- `backend/app/Http/Controllers/Api/SessionController.php` - Login, logout
+- `backend/app/Http/Controllers/Api/AuthController.php` - Login, logout
 - `backend/app/Http/Controllers/Api/UserController.php` - User profile
 - `backend/app/Http/Requests/Auth/` - Validation requests
 - `backend/app/Models/User.php` - User model

@@ -151,6 +151,11 @@ The API uses Laravel Sanctum for token-based authentication:
 | **ReadingGoal** | Reading targets | type, period, target, current_value, year, month, is_active |
 | **UserStatistics** | Pre-aggregated stats | lifetime totals, current period stats, streaks, velocity metrics, patterns (JSON) |
 | **UserStatisticsMonthly** | Monthly archives | books_read, pages_read, reading_seconds, genres (JSON), top_books (JSON) |
+| **Author** | Author metadata | name, bio, birth_date, death_date, image_url, open_library_key |
+| **Series** | Book series | title, description, total_volumes, is_complete |
+| **Genre** | Literary genres | name, slug, parent_id |
+| **Publisher** | Publishing houses | name, slug, country |
+| **BookContentClassification** | LLM analysis | mood, pace, character_types, plot_devices, themes (JSON) |
 
 #### Model Relationships
 
@@ -293,6 +298,22 @@ Two-tab analytics experience:
 - Monthly/yearly activity view
 - Day log modal with session details
 - Monthly wrap cards with highlights
+
+#### Tier List Feature
+Interactive ranking tool for libraries:
+
+- **Drag-and-Drop**: Rank books into S, A, B, C, D tiers
+- **Sharing**: Generate shareable images of your tier list
+- **Filtering**: Filter eligible books by genre or tag before ranking
+
+#### Onboarding Feature
+Five-step guided introduction for new users:
+
+1. **Welcome**: Introduction
+2. **Theme Selection**: Choose initial app aesthetic
+3. **Preferences**: Select favorite genres and book formats
+4. **Goals**: Set initial reading targets
+5. **Completion**: Final setup and transition to Home
 
 ### State Management
 
@@ -612,6 +633,16 @@ class UserBook extends Model {
 }
 ```
 
+#### Other Core Models
+In addition to Book and UserBook, the following models are fully synced:
+
+- **ReadThrough**: Tracks multiple readings of the same book (`read_number`, `dates`).
+- **ReadingSession**: Granular reading logs (`duration`, `pages`, `notes`).
+- **ReadingGoal**: User's active targets (`daily_page_count`, `yearly_books`).
+- **Series**: Collection metadata linked to books.
+- **Tag**: Custom color-coded labels (`is_system` vs user-defined).
+- **UserPreference**: Stored favorites/excludes for algorithmic filtering.
+
 ### Sync System
 
 #### Three-Phase Sync Process
@@ -727,6 +758,7 @@ await updateUserBook(id, { status: 'read' });
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/user` | Get current user |
+| POST | `/api/user/onboarding-complete` | Mark onboarding complete |
 | PATCH | `/api/user` | Update profile |
 | PATCH | `/api/user/password` | Change password |
 | PATCH | `/api/user/theme` | Update theme |
@@ -735,6 +767,10 @@ await updateUserBook(id, { status: 'read' });
 | PATCH | `/api/user/preferences` | Update preferences |
 | GET | `/api/user/export` | Export library data |
 | POST | `/api/user/import` | Import from Goodreads |
+| GET | `/api/user/opds` | Get OPDS settings |
+| PATCH | `/api/user/opds` | Update OPDS settings |
+| POST | `/api/user/opds/test` | Test OPDS connection |
+| DELETE | `/api/user/opds` | Clear OPDS settings |
 | DELETE | `/api/user` | Delete account |
 
 ### Book Search Endpoints
@@ -743,53 +779,82 @@ await updateUserBook(id, { status: 'read' });
 |--------|----------|-------------|
 | GET | `/api/books/search` | Search books (Google Books) |
 | GET | `/api/books/editions` | Get editions by title/author |
+| GET | `/api/books/classification-options` | Get available classification options |
 | GET | `/api/books/{book}` | Get book details |
+| POST | `/api/books/{book}/classify` | Classify book content |
 
 ### Library Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/library` | Get user's library |
-| POST | `/api/library` | Add book to library |
-| GET | `/api/library/{userBook}` | Get single entry |
-| PATCH | `/api/library/{userBook}` | Update book |
-| DELETE | `/api/library/{userBook}` | Remove from library |
 | GET | `/api/library/external-ids` | Map external IDs to status |
+| GET | `/api/library/{userBook}` | Get single entry |
 | PATCH | `/api/library/reorder` | Reorder TBR queue |
 | PATCH | `/api/library/{userBook}/pin` | Pin as featured |
 | DELETE | `/api/library/{userBook}/pin` | Unpin |
+| POST | `/api/library/{userBook}/reread` | Start a re-read (creates a new read-through) |
+| GET | `/api/library/{userBook}/history` | Get reading history (read-throughs + sessions) |
 
 ### Session Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/sessions` | Get sessions |
-| POST | `/api/sessions` | Log new session |
+
+Session creation and deletion are performed via the sync system (`/api/sync/push` and `/api/sync/pull`).
 
 ### Tag Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/tags` | List tags |
-| POST | `/api/tags` | Create tag |
-| PATCH | `/api/tags/{tag}` | Update tag |
-| DELETE | `/api/tags/{tag}` | Delete tag |
 | GET | `/api/tags/colors` | List colors |
-| POST | `/api/library/{userBook}/tags` | Sync tags |
-| POST | `/api/library/{userBook}/tags/{tag}` | Attach tag |
-| DELETE | `/api/library/{userBook}/tags/{tag}` | Detach tag |
+
+Tag creation, updates, deletion, and book-tag assignment are performed via the sync system (`/api/sync/push` and `/api/sync/pull`).
+
+### Preferences Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/preferences` | Get preferences grouped by type/category |
+| GET | `/api/preferences/list` | Get preferences as a flat list |
+| GET | `/api/preferences/options` | Get available categories and types |
+| GET | `/api/preferences/genres` | Get preference genre options (with favorite/excluded flags) |
+
+Preferences are created/updated/deleted via the sync system (`/api/sync/push` and `/api/sync/pull`).
+
+### Author Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/authors/library` | Authors aggregated from user library |
+| GET | `/api/authors/search` | Search authors (OpenLibrary) |
+| GET | `/api/authors/{key}` | Get author details |
+| GET | `/api/authors/{key}/works` | Get author works |
+
+### Series Endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/series` | List series |
+| POST | `/api/series` | Create series |
+| GET | `/api/series/{series}` | Get series |
+| PATCH | `/api/series/{series}` | Update series |
+| DELETE | `/api/series/{series}` | Delete series |
+| POST | `/api/series/{series}/books` | Assign book to series |
+| DELETE | `/api/series/{series}/books` | Remove book from series |
 
 ### Goal Endpoints
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/goals` | Get active goals |
-| POST | `/api/goals` | Create/update goal |
-| PATCH | `/api/goals/{goal}` | Update goal |
-| DELETE | `/api/goals/{goal}` | Delete goal |
 | GET | `/api/goals/types` | Get goal types |
 | GET | `/api/goals/periods` | Get periods |
-| POST | `/api/goals/recalculate` | Recalculate all |
+| GET | `/api/goals/{goal}` | Get single goal |
+
+Goal creation, updates, and deletion are performed via the sync system (`/api/sync/push` and `/api/sync/pull`). Goal progress is computed on the mobile app from local data.
 
 ### Stats Endpoints
 

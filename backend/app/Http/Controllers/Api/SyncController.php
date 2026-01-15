@@ -6,6 +6,7 @@ namespace App\Http\Controllers\Api;
 
 use App\Enums\BookStatusEnum;
 use App\Http\Controllers\Controller;
+use App\Jobs\ClassifyBookJob;
 use App\Models\Book;
 use App\Models\ReadingGoal;
 use App\Models\ReadingSession;
@@ -39,7 +40,7 @@ class SyncController extends Controller
 
         $userBooks = UserBook::where('user_id', $userId)
             ->when($timestamp, fn ($q) => $q->where('updated_at', '>', $timestamp))
-            ->with('book')
+            ->with(['book', 'tags'])
             ->get();
 
         $bookIds = $userBooks->pluck('book_id')->unique();
@@ -128,13 +129,18 @@ class SyncController extends Controller
         $idMappings = ['books' => [], 'user_books' => [], 'read_throughs' => [], 'reading_sessions' => [], 'tags' => [], 'user_preferences' => [], 'reading_goals' => []];
         $counts = ['books' => 0, 'user_books' => 0, 'read_throughs' => 0, 'reading_sessions' => 0, 'tags' => 0, 'user_preferences' => 0, 'reading_goals' => 0];
         $skipped = ['user_books' => [], 'read_throughs' => [], 'reading_sessions' => []];
+        $booksToClassify = [];
 
-        DB::transaction(function () use ($request, &$idMappings, &$counts, &$skipped) {
+        DB::transaction(function () use ($request, &$idMappings, &$counts, &$skipped, &$booksToClassify) {
             $userId = $request->user()->id;
             $data = $request->all();
 
             // Process created books
             foreach ($data['books']['created'] ?? [] as $bookData) {
+                $existingBook = Book::where('external_id', $bookData['external_id'])
+                    ->where('external_provider', $bookData['external_provider'] ?? 'google_books')
+                    ->first();
+
                 $book = Book::updateOrCreate(
                     [
                         'external_id' => $bookData['external_id'],
@@ -154,6 +160,11 @@ class SyncController extends Controller
                         'published_date' => $bookData['published_date'] ?? null,
                     ]
                 );
+
+                if (! $existingBook && ! $book->is_classified && ! empty($book->description)) {
+                    $booksToClassify[] = $book->id;
+                }
+
                 $idMappings['books'][] = [
                     'local_id' => $bookData['local_id'],
                     'server_id' => $book->id,
@@ -209,6 +220,11 @@ class SyncController extends Controller
                         'custom_cover_url' => $ubData['custom_cover_url'] ?? null,
                     ]
                 );
+
+                if (isset($ubData['tag_ids']) && is_array($ubData['tag_ids'])) {
+                    $userBook->tags()->sync($ubData['tag_ids']);
+                }
+
                 $idMappings['user_books'][] = [
                     'local_id' => $ubData['local_id'],
                     'server_id' => $userBook->id,
@@ -269,6 +285,10 @@ class SyncController extends Controller
                     }
 
                     $userBook->update($updateData);
+
+                    if (isset($ubData['tag_ids']) && is_array($ubData['tag_ids'])) {
+                        $userBook->tags()->sync($ubData['tag_ids']);
+                    }
                 }
             }
 
@@ -395,6 +415,7 @@ class SyncController extends Controller
                     'local_id' => $sessionData['local_id'],
                     'server_id' => $session->id,
                     'server_user_book_id' => $userBookId,
+                    'server_read_through_id' => $session->read_through_id,
                 ];
                 $counts['reading_sessions']++;
             }
@@ -533,6 +554,10 @@ class SyncController extends Controller
                     ->delete();
             }
         });
+
+        foreach ($booksToClassify as $bookId) {
+            ClassifyBookJob::dispatch($bookId);
+        }
 
         return response()->json([
             'status' => 'success',
@@ -698,6 +723,7 @@ class SyncController extends Controller
             'started_at' => $userBook->started_at?->toDateString(),
             'finished_at' => $userBook->finished_at?->toDateString(),
             'custom_cover_url' => $userBook->custom_cover_url,
+            'tag_ids' => $userBook->tags->pluck('id')->toArray(),
             'created_at' => $userBook->created_at->toIso8601String(),
             'updated_at' => $userBook->updated_at->toIso8601String(),
         ];

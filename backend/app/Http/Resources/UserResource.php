@@ -23,6 +23,7 @@ class UserResource extends JsonResource
                 : null,
             'has_opds_configured' => $this->hasOpdsConfigured(),
             'preferred_search_source' => $this->preferred_search_source?->value ?? 'google',
+            'onboarded_at' => $this->onboarded_at?->toIso8601String(),
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];
