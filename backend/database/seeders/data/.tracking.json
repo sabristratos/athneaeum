@@ -1,22 +1,148 @@
 {
     "books": {
         "the-hunger-games-suzanne-collins": {
-            "processed_at": "2026-01-16 02:15:26",
+            "processed_at": "2026-01-16 11:41:41",
             "title": "The Hunger Games",
             "has_cover": true,
-            "is_classified": true
+            "is_classified": false
         },
         "harry-potter-and-the-order-of-the-phoenix-jk-rowling": {
-            "processed_at": "2026-01-16 02:15:29",
+            "processed_at": "2026-01-16 11:41:47",
             "title": "Harry Potter and the Order of the Phoenix",
             "has_cover": true,
-            "is_classified": true
+            "is_classified": false
         },
         "to-kill-a-mockingbird-harper-lee": {
-            "processed_at": "2026-01-16 02:15:33",
+            "processed_at": "2026-01-16 11:41:53",
             "title": "To Kill a Mockingbird",
             "has_cover": true,
-            "is_classified": true
+            "is_classified": false
+        },
+        "pride-and-prejudice-jane-austen": {
+            "processed_at": "2026-01-16 11:42:03",
+            "title": "Pride and Prejudice",
+            "has_cover": true,
+            "is_classified": false
+        },
+        "twilight-stephenie-meyer": {
+            "processed_at": "2026-01-16 11:42:12",
+            "title": "Twilight",
+            "has_cover": true,
+            "is_classified": false
+        },
+        "the-complete-poems-of-emily-dickinson-emily-dickinson": {
+            "processed_at": "2026-01-16 11:42:38",
+            "title": "The Complete Poems of Emily Dickinson",
+            "has_cover": true,
+            "is_classified": false
+        },
+        "torment-lauren-kate-goodreads-author": {
+            "processed_at": "2026-01-16 11:42:48",
+            "title": "Torment",
+            "has_cover": true,
+            "is_classified": false
+        },
+        "bloodlines-richelle-mead-goodreads-author": {
+            "processed_at": "2026-01-16 11:42:54",
+            "title": "Bloodlines",
+            "has_cover": true,
+            "is_classified": false
+        },
+        "mistress-suffragette-diana-forbes-goodreads-author": {
+            "processed_at": "2026-01-16 11:42:58",
+            "title": "Mistress Suffragette",
+            "has_cover": false,
+            "is_classified": false
+        },
+        "vanity-fair-william-makepeace-thackeray": {
+            "processed_at": "2026-01-16 11:43:08",
+            "title": "Vanity Fair",
+            "has_cover": true,
+            "is_classified": false
+        },
+        "wizards-first-rule-terry-goodkind": {
+            "processed_at": "2026-01-16 11:43:20",
+            "title": "Wizard's First Rule",
+            "has_cover": true,
+            "is_classified": false
+        },
+        "north-and-south-elizabeth-gaskell": {
+            "processed_at": "2026-01-16 11:43:32",
+            "title": "North and South",
+            "has_cover": true,
+            "is_classified": false
+        },
+        "brideshead-revisited-evelyn-waugh": {
+            "processed_at": "2026-01-16 11:43:43",
+            "title": "Brideshead Revisited",
+            "has_cover": true,
+            "is_classified": false
+        },
+        "the-god-delusion-richard-dawkins-goodreads-author": {
+            "processed_at": "2026-01-16 11:43:55",
+            "title": "The God Delusion",
+            "has_cover": true,
+            "is_classified": false
+        },
+        "pet-sematary-stephen-king-goodreads-author": {
+            "processed_at": "2026-01-16 11:44:06",
+            "title": "Pet Sematary",
+            "has_cover": true,
+            "is_classified": false
+        },
+        "tales-of-hp-lovecraft-hp-lovecraft": {
+            "processed_at": "2026-01-16 11:44:27",
+            "title": "Tales of H.P. Lovecraft",
+            "has_cover": true,
+            "is_classified": false
+        },
+        "invisible-cities-italo-calvino": {
+            "processed_at": "2026-01-16 11:44:37",
+            "title": "Invisible Cities",
+            "has_cover": true,
+            "is_classified": false
+        },
+        "a-darker-shade-of-magic-ve-schwab": {
+            "processed_at": "2026-01-16 11:45:12",
+            "title": "A Darker Shade of Magic",
+            "has_cover": true,
+            "is_classified": false
+        },
+        "everything-everything-nicola-yoon-goodreads-author": {
+            "processed_at": "2026-01-16 11:45:19",
+            "title": "Everything, Everything",
+            "has_cover": true,
+            "is_classified": false
+        },
+        "timeline-michael-crichton": {
+            "processed_at": "2026-01-16 11:45:31",
+            "title": "Timeline",
+            "has_cover": true,
+            "is_classified": false
+        },
+        "this-present-darkness-frank-e-peretti": {
+            "processed_at": "2026-01-16 11:45:41",
+            "title": "This Present Darkness",
+            "has_cover": true,
+            "is_classified": false
+        },
+        "go-dog-go-pd-eastman": {
+            "processed_at": "2026-01-16 11:45:52",
+            "title": "Go, Dog. Go!",
+            "has_cover": true,
+            "is_classified": false
+        },
+        "practical-magic-alice-hoffman-goodreads-author": {
+            "processed_at": "2026-01-16 11:46:02",
+            "title": "Practical Magic",
+            "has_cover": true,
+            "is_classified": false
+        },
+        "blue-moon-alyson-noel-goodreads-author": {
+            "processed_at": "2026-01-16 11:46:13",
+            "title": "Blue Moon",
+            "has_cover": true,
+            "is_classified": false
         }
     }
 }

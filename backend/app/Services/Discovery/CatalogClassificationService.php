@@ -7,37 +7,28 @@ namespace App\Services\Discovery;
 use App\DTOs\Ingestion\ContentClassificationDTO;
 use App\Enums\MoodEnum;
 use App\Models\CatalogBook;
+use App\Services\Concerns\ClassifiesContent;
 use App\Services\Ingestion\LLM\LLMConsultant;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\RateLimiter;
-use RuntimeException;
 
 /**
  * Service for classifying catalog books using LLM.
  *
- * Classifies CatalogBook records with audience, intensity, and mood
- * to enable smarter discovery recommendations.
+ * Uses content-only classification for discovery catalog books.
  */
 class CatalogClassificationService
 {
+    use ClassifiesContent;
+
     private const RATE_LIMITER_KEY = 'catalog-classification';
 
     public function __construct(
-        private LLMConsultant $llmConsultant
+        protected LLMConsultant $llmConsultant
     ) {}
 
     /**
-     * Check if classification service is available.
-     */
-    public function isEnabled(): bool
-    {
-        return $this->llmConsultant->isEnabled();
-    }
-
-    /**
      * Classify a single catalog book.
-     *
-     * @throws RuntimeException If classification fails
      */
     public function classify(CatalogBook $book): ?ContentClassificationDTO
     {

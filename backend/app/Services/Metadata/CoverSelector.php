@@ -350,4 +350,28 @@ class CoverSelector
         return null;
     }
 
+    /**
+     * Apply high-resolution hack to Google Books cover URL.
+     *
+     * Google Books URLs use `&zoom=1` for thumbnails. Removing this
+     * and adding `&fife=w1000` requests a higher resolution version.
+     */
+    public static function applyHighResHack(string $url): string
+    {
+        if (! str_contains($url, 'books.google.com') && ! str_contains($url, 'googleapis.com')) {
+            return $url;
+        }
+
+        $url = preg_replace('/[&?]zoom=\d/', '', $url);
+
+        $fifeParam = config('seed-data.cover_sources.google_books_high_res.fife_param', 'w1000');
+
+        if (str_contains($url, '?')) {
+            $url .= "&fife={$fifeParam}";
+        } else {
+            $url .= "?fife={$fifeParam}";
+        }
+
+        return $url;
+    }
 }

@@ -64,7 +64,7 @@ class OpenLibrarySource extends AbstractMetadataSource
                     'limit' => 1,
                 ]);
 
-            if (!$response->successful()) {
+            if (! $response->successful()) {
                 return null;
             }
 
@@ -74,9 +74,26 @@ class OpenLibrarySource extends AbstractMetadataSource
                 return null;
             }
 
-            // Use the first result - this is what Open Library shows in their UI
             $firstResult = $docs[0];
-            $normalized = $this->normalizeSearchResponse($firstResult);
+            $workKey = $this->cleanWorkKey($firstResult['key'] ?? '');
+
+            // Try to find the best edition with a quality cover and ISBN
+            $bestEdition = null;
+            if (! empty($workKey)) {
+                $bestEdition = $this->findBestEditionCover($workKey);
+
+                if ($bestEdition) {
+                    Log::debug('[OpenLibrarySource] Found best edition', [
+                        'work' => $workKey,
+                        'publisher' => $bestEdition['publisher'],
+                        'year' => $bestEdition['year'],
+                        'isbn13' => $bestEdition['isbn13'] ?? null,
+                        'score' => $bestEdition['score'],
+                    ]);
+                }
+            }
+
+            $normalized = $this->normalizeSearchResponse($firstResult, $bestEdition);
 
             return $this->toResultDTO($normalized, false);
         } catch (\Exception $e) {
@@ -112,7 +129,7 @@ class OpenLibrarySource extends AbstractMetadataSource
                     'limit' => self::EDITIONS_LIMIT,
                 ]);
 
-            if (!$response->successful()) {
+            if (! $response->successful()) {
                 return null;
             }
 
@@ -190,9 +207,42 @@ class OpenLibrarySource extends AbstractMetadataSource
                 continue;
             }
 
-            $score = 0;
-            $hasIsbn = false;
+            $format = strtolower($edition['physical_format'] ?? '');
+            $title = strtolower($edition['title'] ?? '');
             $publisher = strtolower($edition['publishers'][0] ?? '');
+
+            // Skip audiobooks - they have different covers
+            $isAudiobook = str_contains($format, 'audio')
+                || str_contains($format, 'cd')
+                || str_contains($format, 'mp3')
+                || str_contains($title, 'audiobook')
+                || str_contains($title, 'audio book')
+                || str_contains($publisher, 'audible')
+                || str_contains($publisher, 'recorded books')
+                || str_contains($publisher, 'brilliance')
+                || str_contains($publisher, 'listening library')
+                || str_contains($publisher, 'books on tape');
+
+            if ($isAudiobook) {
+                continue;
+            }
+
+            $score = 0;
+
+            // Prefer ebook/digital editions (cleaner, professional covers)
+            $isEbook = str_contains($format, 'ebook')
+                || str_contains($format, 'kindle')
+                || str_contains($format, 'epub')
+                || str_contains($format, 'electronic')
+                || str_contains($format, 'digital')
+                || str_contains($publisher, 'kindle')
+                || str_contains($publisher, 'ebooks');
+
+            if ($isEbook) {
+                $score += 100;
+            }
+
+            $hasIsbn = false;
 
             // Major boost for premium publishers (most popular editions)
             foreach ($premiumPublishers as $name => $bonus) {
@@ -213,10 +263,10 @@ class OpenLibrarySource extends AbstractMetadataSource
             }
 
             // ISBN indicates official publication
-            if (!empty($edition['isbn_13'])) {
+            if (! empty($edition['isbn_13'])) {
                 $score += 40;
                 $hasIsbn = true;
-            } elseif (!empty($edition['isbn_10'])) {
+            } elseif (! empty($edition['isbn_10'])) {
                 $score += 30;
                 $hasIsbn = true;
             }
@@ -260,6 +310,8 @@ class OpenLibrarySource extends AbstractMetadataSource
                 'score' => $score,
                 'cover_id' => $coverId,
                 'publisher' => $edition['publishers'][0] ?? null,
+                'isbn13' => $edition['isbn_13'][0] ?? null,
+                'isbn10' => $edition['isbn_10'][0] ?? null,
             ];
         }
 
@@ -282,57 +334,6 @@ class OpenLibrarySource extends AbstractMetadataSource
         }
 
         return null;
-    }
-
-    /**
-     * Find the best matching result from search docs.
-     *
-     * @param  array<int, array<string, mixed>>  $docs
-     * @return array<string, mixed>|null
-     */
-    private function findBestMatch(array $docs, string $title, ?string $author): ?array
-    {
-        $titleLower = strtolower(trim($title));
-        $primaryAuthor = $author ? strtolower(trim(explode(',', $author)[0])) : null;
-
-        $bestScore = 0;
-        $bestMatch = null;
-
-        foreach ($docs as $doc) {
-            $score = 0;
-            $docTitle = strtolower($doc['title'] ?? '');
-            $docAuthors = array_map('strtolower', $doc['author_name'] ?? []);
-
-            if ($docTitle === $titleLower) {
-                $score += 100;
-            } elseif (str_contains($docTitle, $titleLower) || str_contains($titleLower, $docTitle)) {
-                $score += 50;
-            } else {
-                similar_text($docTitle, $titleLower, $percent);
-                $score += $percent / 2;
-            }
-
-            if ($primaryAuthor) {
-                foreach ($docAuthors as $docAuthor) {
-                    if (str_contains($docAuthor, $primaryAuthor) || str_contains($primaryAuthor, $docAuthor)) {
-                        $score += 30;
-
-                        break;
-                    }
-                }
-            }
-
-            if (!empty($doc['cover_i'])) {
-                $score += 50;
-            }
-
-            if ($score > $bestScore) {
-                $bestScore = $score;
-                $bestMatch = $doc;
-            }
-        }
-
-        return $bestScore >= 30 ? $bestMatch : ($docs[0] ?? null);
     }
 
     public function prepareAsyncQuery(MetadataQueryDTO $query): ?callable
@@ -366,7 +367,7 @@ class OpenLibrarySource extends AbstractMetadataSource
 
     public function parseAsyncResponse(mixed $response): ?MetadataResultDTO
     {
-        if (!$response instanceof Response || !$response->successful()) {
+        if (! $response instanceof Response || ! $response->successful()) {
             return null;
         }
 
@@ -385,7 +386,7 @@ class OpenLibrarySource extends AbstractMetadataSource
             }
         }
 
-        if (isset($data['docs']) && !empty($data['docs'])) {
+        if (isset($data['docs']) && ! empty($data['docs'])) {
             $doc = $data['docs'][0];
 
             return $this->toResultDTO($this->normalizeSearchResponse($doc), false);
@@ -406,6 +407,7 @@ class OpenLibrarySource extends AbstractMetadataSource
             author: $data['author'] ?? null,
             description: $data['description'] ?? null,
             coverUrl: $data['cover_url'] ?? null,
+            coverUrlFallback: $data['cover_url_fallback'] ?? null,
             pageCount: isset($data['page_count']) ? (int) $data['page_count'] : null,
             publishedDate: $data['published_date'] ?? null,
             publisher: $data['publisher'] ?? null,
@@ -421,11 +423,12 @@ class OpenLibrarySource extends AbstractMetadataSource
         $title = preg_replace('/[^\w\s]/', '', $title);
         $parts = ["title:({$title})"];
 
-        if (!empty($author)) {
+        if (! empty($author)) {
             $primaryAuthor = explode(',', $author)[0];
+            $primaryAuthor = preg_replace('/\s*\([^)]*\)\s*/', '', $primaryAuthor);
             $authorName = $this->extractAuthorLastName(trim($primaryAuthor));
 
-            if (!empty($authorName)) {
+            if (! empty($authorName)) {
                 $parts[] = "author:({$authorName})";
             }
         }
@@ -467,7 +470,7 @@ class OpenLibrarySource extends AbstractMetadataSource
     {
         $authors = [];
 
-        if (!empty($data['authors'])) {
+        if (! empty($data['authors'])) {
             foreach ($data['authors'] as $author) {
                 $authors[] = $author['name'] ?? '';
             }
@@ -475,17 +478,13 @@ class OpenLibrarySource extends AbstractMetadataSource
 
         $subjects = [];
 
-        if (!empty($data['subjects'])) {
+        if (! empty($data['subjects'])) {
             foreach (array_slice($data['subjects'], 0, 10) as $subject) {
                 $subjects[] = $subject['name'] ?? $subject;
             }
         }
 
-        $coverUrl = $data['cover']['large']
-            ?? $data['cover']['medium']
-            ?? $this->buildCoverUrl($isbn, 'isbn');
-
-        $identifiers = $data['identifiers'] ?? [];
+        $coverUrl = $isbn ? $this->buildCoverUrl($isbn, 'isbn') : null;
 
         return [
             'title' => $data['title'] ?? null,
@@ -496,48 +495,67 @@ class OpenLibrarySource extends AbstractMetadataSource
             'published_date' => $data['publish_date'] ?? null,
             'publisher' => $data['publishers'][0]['name'] ?? null,
             'isbn' => $isbn,
-            'isbn13' => $identifiers['isbn_13'][0] ?? null,
+            'isbn13' => $data['identifiers']['isbn_13'][0] ?? null,
             'subjects' => $subjects,
             'work_key' => $this->extractWorkKey($data['url'] ?? ''),
         ];
     }
 
     /**
-     * @param  array<string, mixed>  $doc
+     * Normalize search response using best edition data when available.
+     *
+     * @param  array<string, mixed>  $doc  Search result document
+     * @param  array<string, mixed>|null  $bestEdition  Best edition from rankEditions()
      * @return array<string, mixed>
      */
-    private function normalizeSearchResponse(array $doc): array
+    private function normalizeSearchResponse(array $doc, ?array $bestEdition = null): array
     {
-        $isbns = $doc['isbn'] ?? [];
-        $isbn10 = null;
-        $isbn13 = null;
-
-        foreach ($isbns as $isbn) {
-            $cleaned = preg_replace('/[^\dXx]/', '', $isbn);
-
-            if (strlen($cleaned) === 13 && (str_starts_with($cleaned, '978') || str_starts_with($cleaned, '979'))) {
-                $isbn13 = $cleaned;
-            } elseif (strlen($cleaned) === 10) {
-                $isbn10 = $cleaned;
-            }
-
-            if ($isbn13 && $isbn10) {
-                break;
-            }
-        }
-
-        $primaryIsbn = $isbn13 ?? $isbn10 ?? ($isbns[0] ?? null);
-        $coverId = $doc['cover_i'] ?? null;
-
-        $coverUrl = null;
-
-        if ($coverId) {
-            $coverUrl = $this->buildCoverUrl((string) $coverId, 'id');
-        } elseif ($primaryIsbn) {
-            $coverUrl = $this->buildCoverUrl($primaryIsbn, 'isbn');
-        }
-
         $authors = $doc['author_name'] ?? [];
+        $workCoverId = $doc['cover_i'] ?? null;
+
+        // Use best edition data if available (from publisher ranking)
+        if ($bestEdition) {
+            $isbn = $bestEdition['isbn13'] ?? $bestEdition['isbn10'] ?? null;
+            $editionCoverId = $bestEdition['cover_id'] ?? null;
+
+            // Primary: ISBN-based URL (higher quality)
+            $coverUrl = $isbn ? $this->buildCoverUrl($isbn, 'isbn') : null;
+
+            // Fallback chain: edition cover_id, then work cover_i
+            // Work cover_i often has better covers than specific edition covers
+            $coverUrlFallback = null;
+            if ($workCoverId && $workCoverId !== $editionCoverId) {
+                $coverUrlFallback = $this->buildCoverUrl((string) $workCoverId, 'id');
+            } elseif ($editionCoverId) {
+                $coverUrlFallback = $this->buildCoverUrl((string) $editionCoverId, 'id');
+            }
+
+            // If no ISBN, use work cover_i as primary (most reliable)
+            if (! $coverUrl) {
+                $coverUrl = $workCoverId
+                    ? $this->buildCoverUrl((string) $workCoverId, 'id')
+                    : ($editionCoverId ? $this->buildCoverUrl((string) $editionCoverId, 'id') : null);
+                $coverUrlFallback = null;
+            }
+
+            return [
+                'title' => $doc['title'] ?? null,
+                'author' => implode(', ', $authors),
+                'description' => null,
+                'cover_url' => $coverUrl,
+                'cover_url_fallback' => $coverUrlFallback,
+                'page_count' => $doc['number_of_pages_median'] ?? null,
+                'published_date' => isset($doc['first_publish_year']) ? (string) $doc['first_publish_year'] : null,
+                'publisher' => $bestEdition['publisher'] ?? ($doc['publisher'][0] ?? null),
+                'isbn' => $isbn,
+                'isbn13' => $bestEdition['isbn13'] ?? null,
+                'subjects' => $doc['subject'] ?? [],
+                'work_key' => $this->cleanWorkKey($doc['key'] ?? ''),
+            ];
+        }
+
+        // Fallback: use cover_id from search (no edition ranking available)
+        $coverUrl = $workCoverId ? $this->buildCoverUrl((string) $workCoverId, 'id') : null;
 
         return [
             'title' => $doc['title'] ?? null,
@@ -547,8 +565,8 @@ class OpenLibrarySource extends AbstractMetadataSource
             'page_count' => $doc['number_of_pages_median'] ?? null,
             'published_date' => isset($doc['first_publish_year']) ? (string) $doc['first_publish_year'] : null,
             'publisher' => $doc['publisher'][0] ?? null,
-            'isbn' => $primaryIsbn,
-            'isbn13' => $isbn13,
+            'isbn' => null,
+            'isbn13' => null,
             'subjects' => $doc['subject'] ?? [],
             'work_key' => $this->cleanWorkKey($doc['key'] ?? ''),
         ];

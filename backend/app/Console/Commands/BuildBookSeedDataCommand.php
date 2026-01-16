@@ -7,8 +7,13 @@ namespace App\Console\Commands;
 use App\Contracts\Metadata\MetadataAggregatorInterface;
 use App\DTOs\Metadata\MetadataQueryDTO;
 use App\Services\Ingestion\LLM\LLMConsultant;
+use App\Services\Metadata\CoverSelector;
+use App\Services\SeedData\BookFilterService;
+use App\Services\SeedData\CoverQualityValidator;
+use App\Services\SeedData\EditionNormalizer;
 use App\Services\SeedData\SeedDataService;
 use Illuminate\Console\Command;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Str;
 
 /**
@@ -30,7 +35,9 @@ class BuildBookSeedDataCommand extends Command
                             {--no-covers : Skip downloading cover images}
                             {--no-classify : Skip LLM classification}
                             {--force : Reprocess already-processed books}
-                            {--dry-run : Show what would be processed without saving}';
+                            {--dry-run : Show what would be processed without saving}
+                            {--normalize-editions : Enable Phase 2 (ISBN swap to best edition)}
+                            {--strict-covers : Enable Phase 4 (cover quality validation)}';
 
     protected $description = 'Build book seed data from Kaggle CSV + Open Library/Google Books + Gemini';
 
@@ -60,7 +67,10 @@ class BuildBookSeedDataCommand extends Command
     public function __construct(
         private readonly SeedDataService $seedData,
         private readonly MetadataAggregatorInterface $aggregator,
-        private readonly LLMConsultant $llmConsultant
+        private readonly LLMConsultant $llmConsultant,
+        private readonly BookFilterService $filterService,
+        private readonly EditionNormalizer $editionNormalizer,
+        private readonly CoverQualityValidator $coverValidator
     ) {
         parent::__construct();
     }
@@ -74,6 +84,8 @@ class BuildBookSeedDataCommand extends Command
         $classify = ! $this->option('no-classify');
         $force = $this->option('force');
         $dryRun = $this->option('dry-run');
+        $normalizeEditions = $this->option('normalize-editions');
+        $strictCovers = $this->option('strict-covers');
 
         if (! file_exists($sourcePath)) {
             $this->error("Source CSV not found: {$sourcePath}");
@@ -91,6 +103,9 @@ class BuildBookSeedDataCommand extends Command
         $this->info('Enrichment sources: '.implode(', ', $sources));
         $this->info('Download covers: '.($downloadCovers ? 'yes' : 'no'));
         $this->info('Classify with Gemini: '.($classify ? ($this->llmConsultant->isEnabled() ? 'yes' : 'DISABLED - no API key') : 'no'));
+        $this->info('Phase 1 (Kill list filtering): enabled');
+        $this->info('Phase 2 (Edition normalization): '.($normalizeEditions ? 'yes' : 'no'));
+        $this->info('Phase 4 (Strict cover QA): '.($strictCovers ? 'yes' : 'no'));
 
         if ($force) {
             $this->warn('FORCE MODE - Will reprocess already-processed books');
@@ -117,6 +132,9 @@ class BuildBookSeedDataCommand extends Command
         $enrichedCount = 0;
         $classifiedCount = 0;
         $skippedCount = 0;
+        $filteredCount = 0;
+        $editionSwapCount = 0;
+        $coverRejectedCount = 0;
 
         $progressBar = $this->output->createProgressBar(count($sourceBooks));
         $progressBar->start();
@@ -131,7 +149,26 @@ class BuildBookSeedDataCommand extends Command
                 continue;
             }
 
-            $processed = $this->processBook($sourceBook, $downloadCovers, $classify, $dryRun);
+            $filterResult = $this->filterService->filter($sourceBook);
+            if (! $filterResult->passed) {
+                $filteredCount++;
+                $progressBar->advance();
+                $this->line('');
+                $this->comment("  Filtered out: {$sourceBook['title']} - {$filterResult->getDebugMessage()}");
+
+                continue;
+            }
+
+            $processed = $this->processBook(
+                $sourceBook,
+                $downloadCovers,
+                $classify,
+                $dryRun,
+                $normalizeEditions,
+                $strictCovers,
+                $editionSwapCount,
+                $coverRejectedCount
+            );
 
             if ($processed) {
                 $processedBooks[] = $processed;
@@ -175,9 +212,12 @@ class BuildBookSeedDataCommand extends Command
             ['Metric', 'Count'],
             [
                 ['New books processed', $newCount],
+                ['Books filtered out (kill list)', $filteredCount],
                 ['Books skipped (already processed)', $skippedCount],
+                ['Edition swaps performed', $editionSwapCount],
                 ['Books enriched (cover URL)', $enrichedCount],
                 ['Covers downloaded', $coverCount],
+                ['Covers rejected (QA failed)', $coverRejectedCount],
                 ['Books classified (Gemini)', $classifiedCount],
                 ['Total books in seed data', count($processedBooks)],
             ]
@@ -262,10 +302,24 @@ class BuildBookSeedDataCommand extends Command
     /**
      * Process a single book from the source CSV.
      *
+     * Phases:
+     * - Phase 1 (filtering) is done before this method is called
+     * - Phase 2 (edition normalization): Find best edition if --normalize-editions
+     * - Phase 3 (asset waterfall): Try multiple cover sources in priority order
+     * - Phase 4 (cover QA): Validate cover quality if --strict-covers
+     *
      * @return array<string, mixed>|null
      */
-    private function processBook(array $sourceBook, bool $downloadCovers, bool $classify, bool $dryRun): ?array
-    {
+    private function processBook(
+        array $sourceBook,
+        bool $downloadCovers,
+        bool $classify,
+        bool $dryRun,
+        bool $normalizeEditions,
+        bool $strictCovers,
+        int &$editionSwapCount,
+        int &$coverRejectedCount
+    ): ?array {
         $title = trim($sourceBook['title'] ?? '');
         $author = $this->cleanAuthor($sourceBook['author'] ?? '');
 
@@ -296,11 +350,43 @@ class BuildBookSeedDataCommand extends Command
             'classification_confidence' => null,
         ];
 
+        $bestEdition = null;
+        if ($normalizeEditions) {
+            $bestEdition = $this->editionNormalizer->normalize($sourceBook);
+
+            if ($bestEdition && $bestEdition->hasIsbn()) {
+                $oldIsbn = $book['isbn13'] ?: $book['isbn'];
+                $newIsbn = $bestEdition->getBestIsbn();
+
+                if ($oldIsbn !== $newIsbn) {
+                    $editionSwapCount++;
+                    $this->line('');
+                    $this->comment("  Edition swap: {$title}");
+                    $this->comment("    From: {$oldIsbn} -> To: {$newIsbn}");
+                    $this->comment("    {$bestEdition->getSummary()}");
+                }
+
+                if ($bestEdition->isbn13) {
+                    $book['isbn13'] = $bestEdition->isbn13;
+                }
+                if ($bestEdition->isbn10) {
+                    $book['isbn'] = $bestEdition->isbn10;
+                }
+                if ($bestEdition->publisher) {
+                    $book['publisher'] = $bestEdition->publisher;
+                }
+            }
+        }
+
         $enrichment = $this->enrichBook(null, $title, $author);
 
         if ($enrichment) {
             if (! empty($enrichment['cover_url'])) {
                 $book['cover_url'] = $enrichment['cover_url'];
+            }
+
+            if (! empty($enrichment['cover_url_fallback'])) {
+                $book['cover_url_fallback'] = $enrichment['cover_url_fallback'];
             }
 
             if (empty($book['description']) && ! empty($enrichment['description'])) {
@@ -315,17 +401,17 @@ class BuildBookSeedDataCommand extends Command
                 $book['published_date'] = $enrichment['published_date'];
             }
 
-            if (! empty($enrichment['isbn'])) {
+            if (empty($book['isbn']) && ! empty($enrichment['isbn'])) {
                 $book['isbn'] = $enrichment['isbn'];
             }
 
-            if (! empty($enrichment['isbn13'])) {
+            if (empty($book['isbn13']) && ! empty($enrichment['isbn13'])) {
                 $book['isbn13'] = $enrichment['isbn13'];
-            } elseif (! empty($enrichment['isbn']) && strlen($enrichment['isbn']) === 13) {
+            } elseif (empty($book['isbn13']) && ! empty($enrichment['isbn']) && strlen($enrichment['isbn']) === 13) {
                 $book['isbn13'] = $enrichment['isbn'];
             }
 
-            if (! empty($enrichment['publisher'])) {
+            if (empty($book['publisher']) && ! empty($enrichment['publisher'])) {
                 $book['publisher'] = $enrichment['publisher'];
             }
 
@@ -338,12 +424,16 @@ class BuildBookSeedDataCommand extends Command
             }
         }
 
-        if ($downloadCovers && ! $dryRun && ! empty($book['cover_url'])) {
-            $identifier = $book['isbn13'] ?: $book['isbn'] ?: Str::slug($title);
-            $filename = $this->seedData->downloadMedia('books', $book['cover_url'], $identifier);
+        if ($downloadCovers && ! $dryRun) {
+            $coverResult = $this->downloadCoverWithWaterfall(
+                $book,
+                $bestEdition,
+                $strictCovers,
+                $coverRejectedCount
+            );
 
-            if ($filename) {
-                $book['cover_filename'] = $filename;
+            if ($coverResult) {
+                $book['cover_filename'] = $coverResult;
             }
         }
 
@@ -368,6 +458,146 @@ class BuildBookSeedDataCommand extends Command
         }
 
         return $book;
+    }
+
+    /**
+     * Phase 3 & 4: Download cover using waterfall strategy with optional QA.
+     *
+     * Priority order:
+     * 1. Open Library Large (ISBN-based)
+     * 2. Google Books High-Res (with fife hack)
+     * 3. Primary cover URL from enrichment
+     * 4. Fallback cover URL
+     */
+    private function downloadCoverWithWaterfall(
+        array $book,
+        ?\App\DTOs\SeedData\EditionCandidateDTO $bestEdition,
+        bool $strictCovers,
+        int &$coverRejectedCount
+    ): ?string {
+        $title = $book['title'];
+        $identifier = $book['isbn13'] ?: $book['isbn'] ?: Str::slug($title);
+
+        $coverUrls = $this->buildCoverWaterfall($book, $bestEdition);
+
+        if (empty($coverUrls)) {
+            return null;
+        }
+
+        foreach ($coverUrls as $source => $url) {
+            if (empty($url)) {
+                continue;
+            }
+
+            if ($strictCovers) {
+                $preValidation = $this->coverValidator->preValidate($url);
+                if (! $preValidation->isValid && $preValidation->failureReason !== null) {
+                    $this->line('');
+                    $this->comment("  Cover pre-check failed ({$source}): {$preValidation->failureReason}");
+                    $coverRejectedCount++;
+
+                    continue;
+                }
+            }
+
+            $filename = $this->downloadAndValidateCover(
+                $url,
+                $identifier,
+                $source,
+                $strictCovers,
+                $coverRejectedCount
+            );
+
+            if ($filename) {
+                return $filename;
+            }
+        }
+
+        $this->line('');
+        $this->warn("  All cover sources failed for: {$title}");
+
+        return null;
+    }
+
+    /**
+     * Build the cover URL waterfall in priority order.
+     *
+     * @return array<string, string|null>
+     */
+    private function buildCoverWaterfall(array $book, ?\App\DTOs\SeedData\EditionCandidateDTO $bestEdition): array
+    {
+        $urls = [];
+
+        $isbn = $book['isbn13'] ?: $book['isbn'];
+        if ($isbn) {
+            $urls['open_library_large'] = "https://covers.openlibrary.org/b/isbn/{$isbn}-L.jpg";
+        }
+
+        if ($bestEdition && $bestEdition->coverUrl) {
+            $urls['best_edition'] = $bestEdition->coverUrl;
+        }
+
+        if (! empty($book['cover_url'])) {
+            $highResUrl = CoverSelector::applyHighResHack($book['cover_url']);
+            if ($highResUrl !== $book['cover_url']) {
+                $urls['google_books_high_res'] = $highResUrl;
+            }
+            $urls['primary'] = $book['cover_url'];
+        }
+
+        if (! empty($book['cover_url_fallback'])) {
+            $urls['fallback'] = $book['cover_url_fallback'];
+        }
+
+        return $urls;
+    }
+
+    /**
+     * Download a cover and optionally validate its quality.
+     */
+    private function downloadAndValidateCover(
+        string $url,
+        string $identifier,
+        string $source,
+        bool $strictCovers,
+        int &$coverRejectedCount
+    ): ?string {
+        try {
+            $response = Http::timeout(30)
+                ->withHeaders(['User-Agent' => 'Athenaeum/1.0'])
+                ->get($url);
+
+            if (! $response->successful()) {
+                return null;
+            }
+
+            $imageData = $response->body();
+
+            if (strlen($imageData) < 1000) {
+                return null;
+            }
+
+            if ($strictCovers) {
+                $validation = $this->coverValidator->validateImageData($imageData, $url);
+
+                if (! $validation->isValid) {
+                    $this->line('');
+                    $this->comment("  Cover rejected ({$source}): {$validation->getDebugMessage()}");
+                    $coverRejectedCount++;
+
+                    return null;
+                }
+
+                $this->line('');
+                $this->info("  Cover accepted ({$source}): {$validation->getDebugMessage()}");
+            }
+
+            $filename = $this->seedData->downloadMedia('books', $url, $identifier);
+
+            return $filename;
+        } catch (\Exception $e) {
+            return null;
+        }
     }
 
     /**
@@ -445,7 +675,7 @@ class BuildBookSeedDataCommand extends Command
 
             $result = $this->aggregator->aggregate($query);
 
-            if (!$result->hasData()) {
+            if (! $result->hasData()) {
                 return null;
             }
 

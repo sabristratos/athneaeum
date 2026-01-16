@@ -264,6 +264,19 @@ class SeedDataService
             $config = self::IMAGE_CONFIG[$type] ?? ['max_width' => 400, 'max_height' => 600];
 
             $image = $this->getImageManager()->read($imageData);
+
+            // Skip placeholder images (too small to be real covers)
+            if ($image->width() < 100 || $image->height() < 100) {
+                Log::warning('[SeedData] Image too small (placeholder?)', [
+                    'type' => $type,
+                    'identifier' => $identifier,
+                    'width' => $image->width(),
+                    'height' => $image->height(),
+                ]);
+
+                return null;
+            }
+
             $image->scaleDown($config['max_width'], $config['max_height']);
 
             $processed = $image->toJpeg(85);

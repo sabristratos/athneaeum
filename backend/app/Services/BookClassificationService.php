@@ -7,6 +7,7 @@ namespace App\Services;
 use App\DTOs\Ingestion\ContentClassificationDTO;
 use App\Enums\MoodEnum;
 use App\Models\Book;
+use App\Services\Concerns\ClassifiesContent;
 use App\Services\Ingestion\LLM\LLMConsultant;
 use InvalidArgumentException;
 use RuntimeException;
@@ -14,22 +15,15 @@ use RuntimeException;
 /**
  * Service for classifying books using LLM.
  *
- * Extracts shared classification logic used by both synchronous API calls
- * and asynchronous job processing.
+ * Uses combined classification (description + content + series) for user library books.
  */
 class BookClassificationService
 {
-    public function __construct(
-        private LLMConsultant $llmConsultant
-    ) {}
+    use ClassifiesContent;
 
-    /**
-     * Check if classification service is available.
-     */
-    public function isEnabled(): bool
-    {
-        return $this->llmConsultant->isEnabled();
-    }
+    public function __construct(
+        protected LLMConsultant $llmConsultant
+    ) {}
 
     /**
      * Classify a book and update its attributes.
@@ -43,7 +37,7 @@ class BookClassificationService
             throw new InvalidArgumentException('Book must have a description to classify');
         }
 
-        $genres ??= $book->genreRelations?->pluck('name')->toArray() ?? $book->genres ?? [];
+        $genres ??= $this->getGenresForClassification($book);
 
         $result = $this->llmConsultant->classifyBook(
             title: $book->title,
@@ -82,21 +76,5 @@ class BookClassificationService
         $book->update(['is_classified' => false]);
 
         return $this->classify($book, $genres);
-    }
-
-    /**
-     * Check if a book can be classified.
-     */
-    public function canClassify(Book $book): bool
-    {
-        return ! empty($book->description) && ! $book->is_classified;
-    }
-
-    /**
-     * Check if a book needs classification (has description but not classified).
-     */
-    public function needsClassification(Book $book): bool
-    {
-        return ! empty($book->description) && ! $book->is_classified;
     }
 }

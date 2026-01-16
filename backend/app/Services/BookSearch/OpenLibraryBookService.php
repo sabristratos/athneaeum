@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\BookSearch;
 
+use App\Support\IsbnUtility;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -28,7 +29,7 @@ class OpenLibraryBookService
      */
     public function lookupByIsbn(string $isbn): ?array
     {
-        $isbn = $this->cleanIsbn($isbn);
+        $isbn = IsbnUtility::clean($isbn) ?? $isbn;
 
         if (empty($isbn)) {
             return null;
@@ -37,7 +38,7 @@ class OpenLibraryBookService
         try {
             $response = Http::timeout(self::TIMEOUT)
                 ->withHeaders(['User-Agent' => 'Athenaeum/1.0'])
-                ->get(self::BASE_URL."/api/books", [
+                ->get(self::BASE_URL.'/api/books', [
                     'bibkeys' => "ISBN:{$isbn}",
                     'jscmd' => 'data',
                     'format' => 'json',
@@ -180,25 +181,11 @@ class OpenLibraryBookService
     }
 
     /**
-     * Get cover URL for a book.
-     *
-     * @param  string  $identifier  ISBN, OLID, or cover ID
-     * @param  string  $type  'isbn', 'olid', or 'id'
-     * @param  string  $size  'S', 'M', or 'L'
-     */
-    public function getCoverUrl(string $identifier, string $type = 'isbn', string $size = 'L'): string
-    {
-        $identifier = $type === 'isbn' ? $this->cleanIsbn($identifier) : $identifier;
-
-        return self::COVERS_URL."/b/{$type}/{$identifier}-{$size}.jpg";
-    }
-
-    /**
      * Check if a cover exists for the given identifier.
      */
     public function coverExists(string $isbn): bool
     {
-        $isbn = $this->cleanIsbn($isbn);
+        $isbn = IsbnUtility::clean($isbn) ?? $isbn;
 
         if (empty($isbn)) {
             return false;
@@ -279,17 +266,12 @@ class OpenLibraryBookService
             }
         }
 
-        $coverUrl = null;
-
-        if (! empty($data['cover']['large'])) {
-            $coverUrl = $data['cover']['large'];
-        } elseif (! empty($data['cover']['medium'])) {
-            $coverUrl = $data['cover']['medium'];
-        } elseif (! empty($isbn)) {
-            $coverUrl = $this->getCoverUrl($isbn, 'isbn', 'L');
-        }
-
         $identifiers = $data['identifiers'] ?? [];
+
+        $coverUrl = $data['cover']['large'] ?? $data['cover']['medium'] ?? null;
+        if (! $coverUrl && $isbn) {
+            $coverUrl = self::COVERS_URL."/b/isbn/{$isbn}-L.jpg";
+        }
 
         return [
             'title' => $data['title'] ?? null,
@@ -337,15 +319,14 @@ class OpenLibraryBookService
             }
         }
 
-        $primaryIsbn = $isbn13 ?? $isbn10 ?? ($isbns[0] ?? null);
+        $primaryIsbn = $isbn13 ?? $isbn10 ?? null;
         $coverId = $doc['cover_i'] ?? null;
 
         $coverUrl = null;
-
-        if ($coverId) {
-            $coverUrl = $this->getCoverUrl((string) $coverId, 'id', 'L');
-        } elseif ($primaryIsbn) {
-            $coverUrl = $this->getCoverUrl($primaryIsbn, 'isbn', 'L');
+        if ($primaryIsbn) {
+            $coverUrl = self::COVERS_URL."/b/isbn/{$primaryIsbn}-L.jpg";
+        } elseif ($coverId) {
+            $coverUrl = self::COVERS_URL."/b/id/{$coverId}-L.jpg";
         }
 
         $authors = $doc['author_name'] ?? [];
@@ -449,14 +430,6 @@ class OpenLibraryBookService
         }
 
         return $bestScore >= 30 ? $bestMatch : ($docs[0] ?? null);
-    }
-
-    /**
-     * Clean and validate ISBN.
-     */
-    private function cleanIsbn(string $isbn): string
-    {
-        return preg_replace('/[^\dXx]/', '', trim($isbn));
     }
 
     /**

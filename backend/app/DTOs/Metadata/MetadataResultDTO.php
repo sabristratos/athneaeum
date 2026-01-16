@@ -19,6 +19,7 @@ final readonly class MetadataResultDTO
         public ?string $author = null,
         public ?string $description = null,
         public ?string $coverUrl = null,
+        public ?string $coverUrlFallback = null,
         public ?int $pageCount = null,
         public ?string $publishedDate = null,
         public ?string $publisher = null,
@@ -39,7 +40,7 @@ final readonly class MetadataResultDTO
      */
     public function hasField(string $field): bool
     {
-        if (!property_exists($this, $field)) {
+        if (! property_exists($this, $field)) {
             return false;
         }
 

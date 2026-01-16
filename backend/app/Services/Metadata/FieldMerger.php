@@ -65,6 +65,7 @@ class FieldMerger implements FieldMergerInterface
 
         $coverResult = $this->selectBestCover($results);
         $merged['coverUrl'] = $coverResult['url'];
+        $merged['coverUrlFallback'] = $coverResult['fallbackUrl'];
 
         if ($coverResult['source']) {
             $fieldSources['coverUrl'] = $coverResult['source'];
@@ -77,6 +78,7 @@ class FieldMerger implements FieldMergerInterface
             author: $merged['author'],
             description: $merged['description'],
             coverUrl: $merged['coverUrl'],
+            coverUrlFallback: $merged['coverUrlFallback'],
             pageCount: $merged['pageCount'],
             publishedDate: $merged['publishedDate'],
             publisher: $merged['publisher'],
@@ -98,11 +100,12 @@ class FieldMerger implements FieldMergerInterface
      * Select the best cover using Calibre-style resolution-based algorithm.
      *
      * @param  array<ScoredResultDTO>  $results
-     * @return array{url: string|null, source: string|null}
+     * @return array{url: string|null, fallbackUrl: string|null, source: string|null}
      */
     private function selectBestCover(array $results): array
     {
         $candidates = [];
+        $fallbackUrl = null;
 
         foreach ($results as $scoredResult) {
             $result = $scoredResult->result;
@@ -110,12 +113,17 @@ class FieldMerger implements FieldMergerInterface
             if ($result->hasField('coverUrl')) {
                 $candidates[$result->source] = $result->coverUrl;
             }
+
+            if ($result->hasField('coverUrlFallback') && ! $fallbackUrl) {
+                $fallbackUrl = $result->coverUrlFallback;
+            }
         }
 
         $selected = $this->coverSelector->selectBest($candidates);
 
         return [
             'url' => $selected['url'],
+            'fallbackUrl' => $fallbackUrl,
             'source' => $selected['source'],
         ];
     }
@@ -138,7 +146,7 @@ class FieldMerger implements FieldMergerInterface
         foreach ($results as $scoredResult) {
             $result = $scoredResult->result;
 
-            if (!$result->hasField($field)) {
+            if (! $result->hasField($field)) {
                 continue;
             }
 
@@ -197,7 +205,7 @@ class FieldMerger implements FieldMergerInterface
 
         $fieldScore = ($populatedFields / $totalFields) * 50;
 
-        $bestScore = !empty($results) ? $results[0]->score : 0;
+        $bestScore = ! empty($results) ? $results[0]->score : 0;
         $matchScore = min($bestScore / 20, 50);
 
         return min($fieldScore + $matchScore, 100);

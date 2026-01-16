@@ -8,7 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMMKVString } from 'react-native-mmkv';
 import { Q } from '@nozbe/watermelondb';
-import { useScrollAnimations } from '@/hooks';
+import { useBookDetailScrollAnimations } from './useBookDetailScrollAnimations';
 import { useToast } from '@/stores/toastStore';
 import { queryKeys } from '@/lib/queryKeys';
 import { booksApi } from '@/api/books';
@@ -221,9 +221,9 @@ export interface BookDetailControllerComputed {
 }
 
 export interface BookDetailControllerScrollAnimations {
-  scrollY: ReturnType<typeof useScrollAnimations>['scrollY'];
-  scrollHandler: ReturnType<typeof useScrollAnimations>['scrollHandler'];
-  fabVisible: ReturnType<typeof useScrollAnimations>['fabVisible'];
+  scrollY: ReturnType<typeof useBookDetailScrollAnimations>['scrollY'];
+  scrollHandler: ReturnType<typeof useBookDetailScrollAnimations>['scrollHandler'];
+  fabVisible: ReturnType<typeof useBookDetailScrollAnimations>['fabVisible'];
   insets: ReturnType<typeof useSafeAreaInsets>;
 }
 
@@ -317,7 +317,7 @@ export function useBookDetailController(): BookDetailControllerReturn {
 
   const stageHeight = measuredHeroHeight ?? windowHeight * STAGE_HEIGHT_PERCENT;
 
-  const { scrollY, scrollHandler, fabVisible } = useScrollAnimations({
+  const { scrollY, scrollHandler, fabVisible } = useBookDetailScrollAnimations({
     titleFadeStart: 150,
     titleFadeEnd: 250,
     fabHideThreshold: 100,

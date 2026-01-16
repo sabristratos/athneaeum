@@ -1,6 +1,5 @@
 export { useHaptic } from '@/hooks/useHaptic';
 export type { HapticFeedback } from '@/hooks/useHaptic';
-export { useScrollAnimations } from '@/hooks/useScrollAnimations';
 export { useScrollPhysics, buildSectionBoundaries } from '@/hooks/useScrollPhysics';
 export { useFPSMonitor, useFPSLogger, usePerformanceTimer } from '@/hooks/useFPSMonitor';
 export { useDebouncedValue } from '@/hooks/useDebouncedValue';

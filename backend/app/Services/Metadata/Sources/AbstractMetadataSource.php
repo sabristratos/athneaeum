@@ -7,6 +7,7 @@ namespace App\Services\Metadata\Sources;
 use App\Contracts\Metadata\MetadataSourceInterface;
 use App\DTOs\Metadata\MetadataQueryDTO;
 use App\DTOs\Metadata\MetadataResultDTO;
+use App\Support\IsbnUtility;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -70,6 +71,6 @@ abstract class AbstractMetadataSource implements MetadataSourceInterface
 
     protected function cleanIsbn(string $isbn): string
     {
-        return preg_replace('/[^\dXx]/', '', trim($isbn));
+        return IsbnUtility::clean($isbn) ?? $isbn;
     }
 }

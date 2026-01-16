@@ -7,6 +7,7 @@ namespace App\Services\BookSearch;
 use App\Contracts\BookSearchServiceInterface;
 use App\Exceptions\BookSearchException;
 use App\Services\BookSearch\Concerns\HasResilientHttp;
+use App\Support\IsbnUtility;
 use Illuminate\Http\Client\Pool;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
@@ -133,7 +134,7 @@ class GoogleBooksService implements BookSearchServiceInterface
             $baseParams['langRestrict'] = $langRestrict;
         }
 
-        if ($this->isIsbn($query)) {
+        if (IsbnUtility::isValid($query)) {
             return $this->executeIsbnSearch($query, $limit, $baseParams, $langRestrict, $genres, $minRating, $yearFrom, $yearTo);
         }
 
@@ -1112,27 +1113,6 @@ class GoogleBooksService implements BookSearchServiceInterface
         }
 
         return true;
-    }
-
-    /**
-     * Check if the query appears to be an ISBN.
-     *
-     * Detects ISBN-13 (13 digits, typically starting with 978 or 979)
-     * and ISBN-10 (10 characters, may end with X).
-     */
-    private function isIsbn(string $query): bool
-    {
-        $cleaned = preg_replace('/[\s\-]/', '', trim($query));
-
-        if (preg_match('/^(978|979)\d{10}$/', $cleaned)) {
-            return true;
-        }
-
-        if (preg_match('/^\d{9}[\dXx]$/', $cleaned)) {
-            return true;
-        }
-
-        return false;
     }
 
     /**

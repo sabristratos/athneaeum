@@ -82,7 +82,13 @@
       "Bash(php test-wuthering.php:*)",
       "Bash(Remove-Item -Path \"C:\\\\Work\\\\Athenaeum\\\\backend\\\\database\\\\seeders\\\\data\\\\.tracking.json\" -Force -ErrorAction SilentlyContinue)",
       "Bash(Remove-Item -Path \"C:\\\\Work\\\\Athenaeum\\\\backend\\\\database\\\\seeders\\\\data\\\\books\" -Recurse -Force -ErrorAction SilentlyContinue)",
-      "Bash(Write-Host \"Seed data cleared\")"
+      "Bash(Write-Host \"Seed data cleared\")",
+      "WebFetch(domain:covers.openlibrary.org)",
+      "Bash(Get-ChildItem -Path \"C:\\\\Websites\\\\atheneum\\\\backend\\\\database\\\\seeders\\\\data\\\\books\\\\covers\")",
+      "Bash(Select-Object Name, Length)",
+      "Bash(Format-Table -AutoSize)",
+      "Bash(php test_lotr_cover.php:*)",
+      "Bash(Remove-Item \"C:\\\\Websites\\\\atheneum\\\\backend\\\\app\\\\Services\\\\SeedData\\\\BookEnrichmentService.php\")"
     ]
   }
 }
