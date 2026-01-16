@@ -4,11 +4,10 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
-use App\Enums\MoodEnum;
 use App\Models\Book;
 use App\Models\User;
+use App\Services\BookClassificationService;
 use App\Services\ExpoPushService;
-use App\Services\Ingestion\LLM\LLMConsultant;
 use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Queue\Queueable;
 use Illuminate\Queue\Middleware\RateLimited;
@@ -32,7 +31,7 @@ class ClassifyBookJob implements ShouldQueue
         return [new RateLimited('llm-classification')];
     }
 
-    public function handle(LLMConsultant $llmConsultant, ExpoPushService $pushService): void
+    public function handle(BookClassificationService $classificationService, ExpoPushService $pushService): void
     {
         $book = Book::find($this->bookId);
 
@@ -40,44 +39,24 @@ class ClassifyBookJob implements ShouldQueue
             return;
         }
 
-        if ($book->is_classified) {
-            return;
-        }
-
-        if (empty($book->description)) {
-            Log::debug('Skipping classification - no description', [
+        if (! $classificationService->canClassify($book)) {
+            Log::debug('Skipping classification', [
                 'book_id' => $book->id,
                 'title' => $book->title,
+                'reason' => $book->is_classified ? 'already classified' : 'no description',
             ]);
 
             return;
         }
 
-        if (! $llmConsultant->isEnabled()) {
+        if (! $classificationService->isEnabled()) {
             Log::debug('LLM classification disabled', ['book_id' => $book->id]);
 
             return;
         }
 
         try {
-            $result = $llmConsultant->classifyBook(
-                title: $book->title,
-                description: $book->description,
-                author: $book->author,
-                genres: $book->genres ?? [],
-                externalId: $book->external_id,
-                externalProvider: $book->external_provider,
-            );
-
-            $contentClassification = $result['content'];
-
-            $book->update([
-                'audience' => $contentClassification->audience,
-                'intensity' => $contentClassification->intensity,
-                'moods' => array_map(fn (MoodEnum $m) => $m->value, $contentClassification->moods),
-                'classification_confidence' => $contentClassification->confidence,
-                'is_classified' => true,
-            ]);
+            $contentClassification = $classificationService->classify($book);
 
             Log::info('Book classified successfully', [
                 'book_id' => $book->id,

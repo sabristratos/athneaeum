@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Resources;
 
+use App\Contracts\MediaStorageServiceInterface;
 use App\Http\Resources\Concerns\SanitizesUtf8;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -20,7 +21,7 @@ class BookResource extends JsonResource
             'external_provider' => $this->external_provider,
             'title' => $this->sanitizeUtf8($this->title),
             'author' => $this->sanitizeUtf8($this->author),
-            'cover_url' => $this->cover_url,
+            'cover_url' => $this->getCoverUrl(),
             'page_count' => $this->page_count,
             'height_cm' => $this->height_cm !== null ? (float) $this->height_cm : null,
             'width_cm' => $this->width_cm !== null ? (float) $this->width_cm : null,
@@ -51,5 +52,12 @@ class BookResource extends JsonResource
             'created_at' => $this->created_at,
             'updated_at' => $this->updated_at,
         ];
+    }
+
+    private function getCoverUrl(): ?string
+    {
+        $mediaStorage = app(MediaStorageServiceInterface::class);
+
+        return $mediaStorage->getUrl('covers', $this->cover_path, $this->cover_url);
     }
 }

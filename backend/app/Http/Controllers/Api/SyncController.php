@@ -4,10 +4,15 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api;
 
+use App\Contracts\Discovery\BookResolutionServiceInterface;
+use App\Contracts\MediaStorageServiceInterface;
 use App\Enums\BookStatusEnum;
+use App\Enums\PreferenceCategoryEnum;
+use App\Enums\PreferenceTypeEnum;
 use App\Http\Controllers\Controller;
 use App\Jobs\ClassifyBookJob;
 use App\Models\Book;
+use App\Models\DeletionLog;
 use App\Models\ReadingGoal;
 use App\Models\ReadingSession;
 use App\Models\ReadThrough;
@@ -15,6 +20,7 @@ use App\Models\Series;
 use App\Models\Tag;
 use App\Models\UserBook;
 use App\Models\UserPreference;
+use App\Services\Authors\AuthorCacheService;
 use Carbon\Carbon;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -23,9 +29,18 @@ use Illuminate\Support\Facades\Storage;
 
 /**
  * Handles synchronization between mobile app's local WatermelonDB and server.
+ *
+ * Now integrates with BookResolutionService to maintain master_books table
+ * for reduced API dependency over time.
  */
 class SyncController extends Controller
 {
+    public function __construct(
+        private AuthorCacheService $authorCacheService,
+        private BookResolutionServiceInterface $bookResolution,
+        private MediaStorageServiceInterface $mediaStorage
+    ) {}
+
     /**
      * Pull changes from server since the given timestamp.
      */
@@ -74,6 +89,13 @@ class SyncController extends Controller
             ->when($timestamp, fn ($q) => $q->where('updated_at', '>', $timestamp))
             ->get();
 
+        $deletedUserBooks = $timestamp ? DeletionLog::getDeletedIds($userId, 'user_books', $timestamp) : [];
+        $deletedReadThroughs = $timestamp ? DeletionLog::getDeletedIds($userId, 'read_throughs', $timestamp) : [];
+        $deletedSessions = $timestamp ? DeletionLog::getDeletedIds($userId, 'reading_sessions', $timestamp) : [];
+        $deletedTags = $timestamp ? DeletionLog::getDeletedIds($userId, 'tags', $timestamp) : [];
+        $deletedPreferences = $timestamp ? DeletionLog::getDeletedIds($userId, 'user_preferences', $timestamp) : [];
+        $deletedGoals = $timestamp ? DeletionLog::getDeletedIds($userId, 'reading_goals', $timestamp) : [];
+
         return response()->json([
             'changes' => [
                 'books' => [
@@ -84,17 +106,17 @@ class SyncController extends Controller
                 'user_books' => [
                     'created' => $timestamp ? [] : $userBooks->map(fn ($ub) => $this->transformUserBook($ub))->toArray(),
                     'updated' => $timestamp ? $userBooks->map(fn ($ub) => $this->transformUserBook($ub))->toArray() : [],
-                    'deleted' => [],
+                    'deleted' => $deletedUserBooks,
                 ],
                 'read_throughs' => [
                     'created' => $timestamp ? [] : $readThroughs->map(fn ($rt) => $this->transformReadThrough($rt))->toArray(),
                     'updated' => $timestamp ? $readThroughs->map(fn ($rt) => $this->transformReadThrough($rt))->toArray() : [],
-                    'deleted' => [],
+                    'deleted' => $deletedReadThroughs,
                 ],
                 'reading_sessions' => [
                     'created' => $timestamp ? [] : $sessions->map(fn ($s) => $this->transformSession($s))->toArray(),
                     'updated' => $timestamp ? $sessions->map(fn ($s) => $this->transformSession($s))->toArray() : [],
-                    'deleted' => [],
+                    'deleted' => $deletedSessions,
                 ],
                 'series' => [
                     'created' => $timestamp ? [] : $series->map(fn ($s) => $this->transformSeries($s))->toArray(),
@@ -104,17 +126,17 @@ class SyncController extends Controller
                 'tags' => [
                     'created' => $timestamp ? [] : $tags->map(fn ($t) => $this->transformTag($t))->toArray(),
                     'updated' => $timestamp ? $tags->map(fn ($t) => $this->transformTag($t))->toArray() : [],
-                    'deleted' => [],
+                    'deleted' => $deletedTags,
                 ],
                 'user_preferences' => [
                     'created' => $timestamp ? [] : $preferences->map(fn ($p) => $this->transformPreference($p))->toArray(),
                     'updated' => $timestamp ? $preferences->map(fn ($p) => $this->transformPreference($p))->toArray() : [],
-                    'deleted' => [],
+                    'deleted' => $deletedPreferences,
                 ],
                 'reading_goals' => [
                     'created' => $timestamp ? [] : $goals->map(fn ($g) => $this->transformGoal($g))->toArray(),
                     'updated' => $timestamp ? $goals->map(fn ($g) => $this->transformGoal($g))->toArray() : [],
-                    'deleted' => [],
+                    'deleted' => $deletedGoals,
                 ],
             ],
             'timestamp' => now()->getTimestampMs(),
@@ -130,8 +152,9 @@ class SyncController extends Controller
         $counts = ['books' => 0, 'user_books' => 0, 'read_throughs' => 0, 'reading_sessions' => 0, 'tags' => 0, 'user_preferences' => 0, 'reading_goals' => 0];
         $skipped = ['user_books' => [], 'read_throughs' => [], 'reading_sessions' => []];
         $booksToClassify = [];
+        $authorsToCache = [];
 
-        DB::transaction(function () use ($request, &$idMappings, &$counts, &$skipped, &$booksToClassify) {
+        DB::transaction(function () use ($request, &$idMappings, &$counts, &$skipped, &$booksToClassify, &$authorsToCache) {
             $userId = $request->user()->id;
             $data = $request->all();
 
@@ -165,9 +188,14 @@ class SyncController extends Controller
                     $booksToClassify[] = $book->id;
                 }
 
+                // Resolve/create in master_books for future local searches
+                $masterBook = $this->bookResolution->resolve($bookData);
+                $masterBookId = $masterBook->id;
+
                 $idMappings['books'][] = [
                     'local_id' => $bookData['local_id'],
                     'server_id' => $book->id,
+                    'master_book_id' => $masterBookId,
                 ];
                 $counts['books']++;
             }
@@ -199,6 +227,9 @@ class SyncController extends Controller
                     continue;
                 }
 
+                // Get master_book_id from id mappings (created during book sync)
+                $masterBookId = $this->resolveMasterBookId($ubData, $idMappings);
+
                 $userBook = UserBook::updateOrCreate(
                     [
                         'user_id' => $userId,
@@ -218,8 +249,17 @@ class SyncController extends Controller
                         'started_at' => $ubData['started_at'] ?? null,
                         'finished_at' => $ubData['finished_at'] ?? null,
                         'custom_cover_url' => $ubData['custom_cover_url'] ?? null,
+                        'master_book_id' => $masterBookId,
                     ]
                 );
+
+                // Increment user count on master book if linked
+                if ($masterBookId) {
+                    $masterBook = \App\Models\MasterBook::find($masterBookId);
+                    if ($masterBook) {
+                        $this->bookResolution->incrementUserCount($masterBook);
+                    }
+                }
 
                 if (isset($ubData['tag_ids']) && is_array($ubData['tag_ids'])) {
                     $userBook->tags()->sync($ubData['tag_ids']);
@@ -229,6 +269,7 @@ class SyncController extends Controller
                     'local_id' => $ubData['local_id'],
                     'server_id' => $userBook->id,
                     'server_book_id' => $bookId,
+                    'master_book_id' => $masterBookId,
                 ];
                 $counts['user_books']++;
             }
@@ -294,9 +335,12 @@ class SyncController extends Controller
 
             // Process deleted user_books
             foreach ($data['user_books']['deleted'] ?? [] as $serverId) {
-                UserBook::where('id', $serverId)
+                $deleted = UserBook::where('id', $serverId)
                     ->where('user_id', $userId)
                     ->delete();
+                if ($deleted) {
+                    DeletionLog::logDeletion($userId, 'user_books', (int) $serverId);
+                }
             }
 
             // Process created read_throughs
@@ -373,9 +417,12 @@ class SyncController extends Controller
 
             // Process deleted read_throughs
             foreach ($data['read_throughs']['deleted'] ?? [] as $serverId) {
-                ReadThrough::whereHas('userBook', fn ($q) => $q->where('user_id', $userId))
+                $deleted = ReadThrough::whereHas('userBook', fn ($q) => $q->where('user_id', $userId))
                     ->where('id', $serverId)
                     ->delete();
+                if ($deleted) {
+                    DeletionLog::logDeletion($userId, 'read_throughs', (int) $serverId);
+                }
             }
 
             // Process created reading_sessions
@@ -422,9 +469,12 @@ class SyncController extends Controller
 
             // Process deleted reading_sessions
             foreach ($data['reading_sessions']['deleted'] ?? [] as $serverId) {
-                ReadingSession::whereHas('userBook', fn ($q) => $q->where('user_id', $userId))
+                $deleted = ReadingSession::whereHas('userBook', fn ($q) => $q->where('user_id', $userId))
                     ->where('id', $serverId)
                     ->delete();
+                if ($deleted) {
+                    DeletionLog::logDeletion($userId, 'reading_sessions', (int) $serverId);
+                }
             }
 
             // Process created tags (only user-created, not system)
@@ -465,10 +515,13 @@ class SyncController extends Controller
 
             // Process deleted tags
             foreach ($data['tags']['deleted'] ?? [] as $serverId) {
-                Tag::where('id', $serverId)
+                $deleted = Tag::where('id', $serverId)
                     ->where('user_id', $userId)
                     ->where('is_system', false)
                     ->delete();
+                if ($deleted) {
+                    DeletionLog::logDeletion($userId, 'tags', (int) $serverId);
+                }
             }
 
             // Process created user_preferences
@@ -484,6 +537,17 @@ class SyncController extends Controller
                         'value' => $prefData['value'],
                     ]
                 );
+
+                if (
+                    $prefData['category'] === PreferenceCategoryEnum::Author->value &&
+                    $prefData['type'] === PreferenceTypeEnum::Favorite->value
+                ) {
+                    $authorsToCache[] = [
+                        'name' => $prefData['value'],
+                        'key' => $prefData['open_library_key'] ?? null,
+                    ];
+                }
+
                 $idMappings['user_preferences'][] = [
                     'local_id' => $prefData['local_id'],
                     'server_id' => $preference->id,
@@ -493,9 +557,12 @@ class SyncController extends Controller
 
             // Process deleted user_preferences
             foreach ($data['user_preferences']['deleted'] ?? [] as $serverId) {
-                UserPreference::where('id', $serverId)
+                $deleted = UserPreference::where('id', $serverId)
                     ->where('user_id', $userId)
                     ->delete();
+                if ($deleted) {
+                    DeletionLog::logDeletion($userId, 'user_preferences', (int) $serverId);
+                }
             }
 
             // Process created reading_goals
@@ -549,14 +616,24 @@ class SyncController extends Controller
 
             // Process deleted reading_goals
             foreach ($data['reading_goals']['deleted'] ?? [] as $serverId) {
-                ReadingGoal::where('id', $serverId)
+                $deleted = ReadingGoal::where('id', $serverId)
                     ->where('user_id', $userId)
                     ->delete();
+                if ($deleted) {
+                    DeletionLog::logDeletion($userId, 'reading_goals', (int) $serverId);
+                }
             }
         });
 
         foreach ($booksToClassify as $bookId) {
             ClassifyBookJob::dispatch($bookId);
+        }
+
+        foreach ($authorsToCache as $authorData) {
+            $this->authorCacheService->ensureAuthorCached(
+                $authorData['name'],
+                $authorData['key']
+            );
         }
 
         return response()->json([
@@ -648,6 +725,39 @@ class SyncController extends Controller
     }
 
     /**
+     * Resolve master_book ID from the book mappings.
+     */
+    private function resolveMasterBookId(array $data, array $idMappings): ?int
+    {
+        // Check book mappings for master_book_id
+        if (isset($data['book_local_id'])) {
+            foreach ($idMappings['books'] as $mapping) {
+                if ($mapping['local_id'] === $data['book_local_id'] && isset($mapping['master_book_id'])) {
+                    return $mapping['master_book_id'];
+                }
+            }
+        }
+
+        // Try to find via server_book_id
+        if (isset($data['server_book_id'])) {
+            $book = Book::find($data['server_book_id']);
+            if ($book) {
+                // Try to find master book by ISBN or external ID
+                $masterBook = $this->bookResolution->findExisting(
+                    isbn13: $book->isbn13,
+                    googleBooksId: $book->external_provider === 'google_books' ? $book->external_id : null,
+                    title: $book->title,
+                    author: $book->author
+                );
+
+                return $masterBook?->id;
+            }
+        }
+
+        return null;
+    }
+
+    /**
      * Resolve read_through ID from local ID using mappings.
      */
     private function resolveReadThroughId(array $data, array $idMappings, int $userId): ?int
@@ -680,7 +790,7 @@ class SyncController extends Controller
             'external_provider' => $book->external_provider,
             'title' => $book->title,
             'author' => $book->author,
-            'cover_url' => $book->cover_url,
+            'cover_url' => $this->mediaStorage->getUrl('covers', $book->cover_path, $book->cover_url),
             'page_count' => $book->page_count,
             'height_cm' => $book->height_cm !== null ? (float) $book->height_cm : null,
             'width_cm' => $book->width_cm !== null ? (float) $book->width_cm : null,

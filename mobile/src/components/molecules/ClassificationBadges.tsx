@@ -6,6 +6,7 @@ import { Chip } from './Chip';
 import { useTheme } from '@/themes';
 import { sharedSpacing } from '@/themes/shared';
 import { SkeletonShimmer } from '@/animations/components';
+import { formatMood } from '@/utils/moodLabels';
 import type { Audience, Intensity, Mood } from '@/types';
 import {
   UserGroupIcon,
@@ -30,19 +31,6 @@ export interface ClassificationBadgesProps {
 }
 
 const CONFIDENCE_THRESHOLD = 0.7;
-
-const MOOD_LABELS: Record<Mood, string> = {
-  adventurous: 'Adventurous',
-  romantic: 'Romantic',
-  suspenseful: 'Suspenseful',
-  humorous: 'Humorous',
-  melancholic: 'Melancholic',
-  inspirational: 'Inspirational',
-  mysterious: 'Mysterious',
-  cozy: 'Cozy',
-  tense: 'Tense',
-  thought_provoking: 'Thought-Provoking',
-};
 
 const AUDIENCE_ICONS: Record<Audience, IconSvgElement> = {
   adult: UserGroupIcon,
@@ -222,7 +210,7 @@ export function ClassificationBadges({
             {displayMoods.map((mood) => (
               <Chip
                 key={mood}
-                label={MOOD_LABELS[mood] || mood}
+                label={formatMood(mood)}
                 variant="muted"
                 size="sm"
               />

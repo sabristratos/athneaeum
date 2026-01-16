@@ -1,6 +1,7 @@
 export * from './BookHero';
 export * from './modals';
 export * from './cards';
+export * from './preferences';
 export { CoverImage } from './CoverImage';
 export { FilterDial, type FilterDialOption } from './FilterDial';
 export { ToastContainer } from './Toast';

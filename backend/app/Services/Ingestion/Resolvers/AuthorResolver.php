@@ -6,21 +6,26 @@ namespace App\Services\Ingestion\Resolvers;
 
 use App\Contracts\AuthorResolverInterface;
 use App\DTOs\Ingestion\AuthorDTO;
+use App\Jobs\EnrichAuthorPhotoJob;
 use App\Models\Author;
 use App\Models\AuthorAlias;
+use App\Services\Authors\OpenLibraryAuthorService;
 use App\Services\Ingestion\Cleaners\AuthorCleaner;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Resolves author strings to Author models.
  *
  * Handles fuzzy matching, alias resolution, and author creation.
+ * Optionally enriches new authors with Open Library data.
  */
 class AuthorResolver implements AuthorResolverInterface
 {
     public function __construct(
-        private readonly AuthorCleaner $cleaner
+        private readonly AuthorCleaner $cleaner,
+        private readonly ?OpenLibraryAuthorService $openLibrary = null,
     ) {}
 
     /**
@@ -39,9 +44,30 @@ class AuthorResolver implements AuthorResolverInterface
     }
 
     /**
+     * Resolve authors with Open Library enrichment for catalog ingestion.
+     *
+     * @return Collection<int, Author>
+     */
+    public function resolveWithEnrichment(string $rawAuthorString): Collection
+    {
+        $authorDTOs = $this->cleaner->clean($rawAuthorString);
+        $authors = collect();
+
+        foreach ($authorDTOs as $dto) {
+            if ($dto->name === 'Unknown Author') {
+                continue;
+            }
+
+            $authors->push($this->findOrCreate($dto, enrichWithOpenLibrary: true));
+        }
+
+        return $authors;
+    }
+
+    /**
      * {@inheritdoc}
      */
-    public function findOrCreate(AuthorDTO $dto): Author
+    public function findOrCreate(AuthorDTO $dto, bool $enrichWithOpenLibrary = false): Author
     {
         $existing = $this->findBySlug($dto->slug);
         if ($existing) {
@@ -61,17 +87,87 @@ class AuthorResolver implements AuthorResolverInterface
             return $bestMatch;
         }
 
-        return DB::transaction(function () use ($dto) {
+        if ($enrichWithOpenLibrary && $this->openLibrary) {
+            return $this->createWithOpenLibraryEnrichment($dto);
+        }
+
+        return $this->createMinimalAuthor($dto);
+    }
+
+    /**
+     * Create a minimal author record without external enrichment.
+     */
+    private function createMinimalAuthor(AuthorDTO $dto, string $source = 'auto'): Author
+    {
+        return DB::transaction(function () use ($dto, $source) {
             $author = Author::create([
                 'name' => $dto->name,
                 'slug' => $dto->slug,
                 'sort_name' => $dto->sortName,
+                'source' => $source,
             ]);
 
-            AuthorAlias::learnAlias($dto->name, $author, AuthorAlias::TYPE_VARIANT, 'auto', true);
+            AuthorAlias::learnAlias($dto->name, $author, AuthorAlias::TYPE_VARIANT, $source, true);
 
             return $author;
         });
+    }
+
+    /**
+     * Create author with Open Library enrichment.
+     */
+    private function createWithOpenLibraryEnrichment(AuthorDTO $dto): Author
+    {
+        try {
+            $olData = $this->openLibrary->findAndEnrichAuthor($dto->name);
+
+            if ($olData) {
+                return $this->createFromOpenLibraryData($olData, $dto);
+            }
+        } catch (\Exception $e) {
+            Log::warning('Open Library enrichment failed', [
+                'author' => $dto->name,
+                'error' => $e->getMessage(),
+            ]);
+        }
+
+        return $this->createMinimalAuthor($dto, 'catalog_import');
+    }
+
+    /**
+     * Create author from Open Library data.
+     */
+    private function createFromOpenLibraryData(array $olData, AuthorDTO $dto): Author
+    {
+        $author = DB::transaction(function () use ($olData, $dto) {
+            $photoUrl = $olData['metadata']['photo_url'] ?? null;
+
+            $author = Author::create([
+                'name' => $olData['name'] ?? $dto->name,
+                'slug' => $dto->slug,
+                'sort_name' => $dto->sortName ?? Author::generateSortName($olData['name'] ?? $dto->name),
+                'metadata' => $olData['metadata'] ?? null,
+                'photo_url' => $photoUrl,
+                'source' => 'open_library',
+                'open_library_key' => $olData['key'] ?? null,
+            ]);
+
+            AuthorAlias::learnAlias($dto->name, $author, AuthorAlias::TYPE_VARIANT, 'catalog', true);
+
+            if (! empty($olData['alternate_names'])) {
+                foreach (array_slice($olData['alternate_names'], 0, 5) as $altName) {
+                    AuthorAlias::learnAlias($altName, $author, AuthorAlias::TYPE_VARIANT, 'open_library');
+                }
+            }
+
+            return $author;
+        });
+
+        if (! empty($author->photo_url)) {
+            EnrichAuthorPhotoJob::dispatch($author->id)->delay(now()->addSeconds(2));
+        }
+
+        return $author;
     }
 
     /**

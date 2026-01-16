@@ -16,14 +16,19 @@ return new class extends Migration
             $table->string('slug')->unique();
             $table->string('sort_name')->nullable();
             $table->json('metadata')->nullable();
+            $table->string('photo_url')->nullable();
+            $table->string('photo_path')->nullable();
             $table->string('external_id')->nullable();
             $table->string('external_provider')->nullable();
             $table->boolean('is_merged')->default(false);
             $table->foreignId('canonical_author_id')->nullable()->constrained('authors')->nullOnDelete();
+            $table->string('source')->default('user');
+            $table->string('open_library_key')->nullable();
             $table->timestamps();
 
             $table->index('external_id');
             $table->index('sort_name');
+            $table->index('open_library_key');
         });
     }
 

@@ -21,10 +21,9 @@ import type { BottomTabBarProps } from '@react-navigation/bottom-tabs';
 import type { IconSvgElement } from '@hugeicons/react-native';
 import {
   Home01Icon,
-  Search01Icon,
   Book02Icon,
-  Analytics01Icon,
   UserIcon,
+  DiscoverCircleIcon,
 } from '@hugeicons/core-free-icons';
 import { Text, Icon } from '@/components/atoms';
 import { useTheme } from '@/themes';
@@ -44,17 +43,15 @@ export function useFloatingNavBarHeight() {
 
 const TAB_ICONS: Record<string, IconSvgElement> = {
   HomeTab: Home01Icon,
-  SearchTab: Search01Icon,
+  DiscoveryTab: DiscoverCircleIcon,
   LibraryTab: Book02Icon,
-  StatsTab: Analytics01Icon,
   ProfileTab: UserIcon,
 };
 
 const TAB_LABELS: Record<string, string> = {
   HomeTab: 'Home',
-  SearchTab: 'Search',
+  DiscoveryTab: 'Discover',
   LibraryTab: 'Library',
-  StatsTab: 'Stats',
   ProfileTab: 'Profile',
 };
 

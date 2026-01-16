@@ -4,18 +4,27 @@ declare(strict_types=1);
 
 namespace App\Services\BookSearch;
 
+use App\Contracts\Discovery\BookResolutionServiceInterface;
 use App\Enums\PreferenceCategoryEnum;
 use App\Enums\PreferenceTypeEnum;
 use App\Enums\SearchSourceEnum;
+use App\Jobs\StoreMasterBookJob;
 use App\Models\User;
+use Illuminate\Support\Facades\Log;
 
 /**
  * Manages book search across multiple providers based on user preference.
+ *
+ * Now includes local search from master_books table to reduce API calls
+ * and build a proprietary book database over time.
  */
 class BookSearchManager
 {
+    private const MIN_LOCAL_COVERAGE = 10;
+
     public function __construct(
-        private GoogleBooksService $googleBooks
+        private GoogleBooksService $googleBooks,
+        private BookResolutionServiceInterface $bookResolution
     ) {}
 
     /**
@@ -82,6 +91,10 @@ class BookSearchManager
     /**
      * Get the appropriate search service(s) based on user preference.
      *
+     * First checks local master_books database for coverage.
+     * Falls back to external APIs if local coverage is insufficient.
+     * Stores new books from external APIs for future local searches.
+     *
      * Automatically applies the user's excluded preferences to filter results.
      */
     public function search(
@@ -103,6 +116,21 @@ class BookSearchManager
         $source = $source ?? SearchSourceEnum::Google;
         $excludes = $this->getUserExcludes($user);
 
+        // Try local search first (only for Google source and first page)
+        if ($source === SearchSourceEnum::Google && $startIndex === 0) {
+            $localResults = $this->searchLocal($query, $limit, $excludes);
+
+            if ($localResults['local_coverage']) {
+                Log::debug('[BookSearchManager] Using local results', [
+                    'query' => $query,
+                    'count' => count($localResults['items']),
+                ]);
+
+                return $localResults;
+            }
+        }
+
+        // Fall back to external APIs
         if ($source === SearchSourceEnum::OPDS && $user->hasOpdsConfigured()) {
             $results = $this->searchOpds($user, $query, $limit, $startIndex, $langRestrict, $genres, $minRating, $yearFrom, $yearTo);
         } elseif ($source === SearchSourceEnum::Both && $user->hasOpdsConfigured()) {
@@ -113,7 +141,96 @@ class BookSearchManager
 
         $results['items'] = $this->applyExcludeFilters($results['items'], $excludes);
 
+        // Store external results to master_books for future local searches (async)
+        if (! empty($results['items']) && $results['provider'] === 'google_books') {
+            $this->storeSearchResults($results['items']);
+        }
+
         return $results;
+    }
+
+    /**
+     * Search local master_books database.
+     *
+     * @param  array{authors: array<string>, genres: array<string>}  $excludes
+     */
+    private function searchLocal(string $query, int $limit, array $excludes): array
+    {
+        $books = $this->bookResolution->searchLocal($query, $limit * 2);
+
+        if ($books->count() < self::MIN_LOCAL_COVERAGE) {
+            return [
+                'items' => [],
+                'totalItems' => 0,
+                'startIndex' => 0,
+                'hasMore' => false,
+                'provider' => 'local',
+                'local_coverage' => false,
+            ];
+        }
+
+        // Transform to search result format
+        $items = $books->map(fn ($book) => $this->masterBookToSearchResult($book))->toArray();
+
+        // Apply exclude filters
+        $items = $this->applyExcludeFilters($items, $excludes);
+
+        return [
+            'items' => array_slice($items, 0, $limit),
+            'totalItems' => count($items),
+            'startIndex' => 0,
+            'hasMore' => count($items) > $limit,
+            'provider' => 'local',
+            'local_coverage' => true,
+        ];
+    }
+
+    /**
+     * Transform a MasterBook to search result format.
+     */
+    private function masterBookToSearchResult(\App\Models\MasterBook $book): array
+    {
+        return [
+            'external_id' => $book->google_books_id ?? 'master_'.$book->id,
+            'external_provider' => $book->google_books_id ? 'google_books' : 'master_books',
+            'master_book_id' => $book->id,
+            'title' => $book->title,
+            'author' => $book->author,
+            'cover_url' => $book->getCoverUrl(),
+            'page_count' => $book->page_count,
+            'isbn' => $book->isbn13 ?? $book->isbn10,
+            'isbn13' => $book->isbn13,
+            'description' => $book->description,
+            'genres' => $book->genres ?? [],
+            'published_date' => $book->published_date?->format('Y-m-d'),
+            'average_rating' => $book->average_rating,
+            'ratings_count' => $book->review_count,
+            'series_name' => $book->series_name,
+            'volume_number' => $book->series_position,
+            '_source' => 'local',
+        ];
+    }
+
+    /**
+     * Store search results to master_books asynchronously.
+     *
+     * @param  array<array<string, mixed>>  $items
+     */
+    private function storeSearchResults(array $items): void
+    {
+        foreach ($items as $item) {
+            // Skip if already in master_books (checked by resolution service)
+            $exists = $this->bookResolution->findExisting(
+                isbn13: $item['isbn13'] ?? $item['isbn'] ?? null,
+                googleBooksId: $item['external_id'] ?? null,
+                title: $item['title'] ?? null,
+                author: $item['author'] ?? null
+            );
+
+            if (! $exists) {
+                StoreMasterBookJob::dispatch($item)->onQueue('low');
+            }
+        }
     }
 
     private function searchGoogle(

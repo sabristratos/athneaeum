@@ -5,7 +5,6 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SharedElementOverlay, FloatingNavBar } from '@/components';
 import { useTheme } from '@/themes';
 import { HomeScreen } from '@/features/home';
-import { SearchScreen } from '@/features/search/SearchScreen';
 import { LibraryScreen } from '@/features/library/LibraryScreen';
 import { BookDetailScreen } from '@/features/library/BookDetailScreen';
 import { SeriesDetailScreen } from '@/features/library/SeriesDetailScreen';
@@ -14,13 +13,14 @@ import { ProfileScreen, EditionGalleryScreen, EditProfileScreen, ChangePasswordS
 import { TagManagementScreen, OPDSSettingsScreen, PreferencesScreen } from '@/features/settings';
 import { TierListScreen } from '@/features/tierList';
 import { AuthorIndexScreen } from '@/features/authors';
+import { DiscoveryScreen, CatalogBookDetailScreen } from '@/features/discovery';
 import type { UserBook } from '@/types';
+import type { CatalogBook } from '@/types/discovery';
 
 export type MainTabParamList = {
   HomeTab: undefined;
-  SearchTab: undefined;
+  DiscoveryTab: undefined;
   LibraryTab: { genreSlug?: string } | undefined;
-  StatsTab: undefined;
   ProfileTab: undefined;
 };
 
@@ -28,6 +28,7 @@ export type MainStackParamList = {
   MainTabs: undefined;
   BookDetail: { userBook: UserBook };
   SeriesDetail: { seriesId: number; seriesTitle: string };
+  CatalogBookDetail: { catalogBook: CatalogBook };
   TagManagement: undefined;
   OPDSSettings: undefined;
   Preferences: undefined;
@@ -36,6 +37,7 @@ export type MainStackParamList = {
   EditProfile: undefined;
   ChangePassword: undefined;
   ReadingGoals: undefined;
+  ReadingStats: undefined;
   TierList: undefined;
 };
 
@@ -53,9 +55,8 @@ function MainTabs() {
       }}
     >
       <Tab.Screen name="HomeTab" component={HomeScreen} />
-      <Tab.Screen name="SearchTab" component={SearchScreen} />
+      <Tab.Screen name="DiscoveryTab" component={DiscoveryScreen} />
       <Tab.Screen name="LibraryTab" component={LibraryScreen} />
-      <Tab.Screen name="StatsTab" component={ReaderDNAScreen} />
       <Tab.Screen name="ProfileTab" component={ProfileScreen} />
     </Tab.Navigator>
   );
@@ -83,6 +84,13 @@ export function MainNavigator() {
         <Stack.Screen
           name="SeriesDetail"
           component={SeriesDetailScreen}
+          options={{
+            animation: 'slide_from_right',
+          }}
+        />
+        <Stack.Screen
+          name="CatalogBookDetail"
+          component={CatalogBookDetailScreen}
           options={{
             animation: 'slide_from_right',
           }}
@@ -139,6 +147,13 @@ export function MainNavigator() {
         <Stack.Screen
           name="ReadingGoals"
           component={ReadingGoalsScreen}
+          options={{
+            animation: 'slide_from_right',
+          }}
+        />
+        <Stack.Screen
+          name="ReadingStats"
+          component={ReaderDNAScreen}
           options={{
             animation: 'slide_from_right',
           }}

@@ -8,7 +8,9 @@ use App\Contracts\ImportServiceInterface;
 use App\DTOs\ImportOptions;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\ImportRequest;
+use App\Models\Book;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class ImportController extends Controller
 {
@@ -53,5 +55,43 @@ class ImportController extends Controller
         }
 
         return response()->json($sources);
+    }
+
+    /**
+     * Get the enrichment status for the user's library.
+     *
+     * Returns counts of books pending enrichment (missing cover/description)
+     * so the mobile app can show progress after import.
+     */
+    public function enrichmentStatus(Request $request): JsonResponse
+    {
+        $user = $request->user();
+
+        $userBookIds = $user->userBooks()->pluck('book_id');
+
+        $total = $userBookIds->count();
+
+        $pendingEnrichment = Book::whereIn('id', $userBookIds)
+            ->where(function ($query) {
+                $query->where(function ($q) {
+                    $q->whereNull('cover_path')
+                        ->orWhere('cover_path', '');
+                })
+                    ->orWhere(function ($q) {
+                        $q->whereNull('description')
+                            ->orWhere('description', '');
+                    });
+            })
+            ->count();
+
+        $enriched = $total - $pendingEnrichment;
+
+        return response()->json([
+            'total' => $total,
+            'enriched' => $enriched,
+            'pending' => $pendingEnrichment,
+            'progress' => $total > 0 ? round(($enriched / $total) * 100) : 100,
+            'is_complete' => $pendingEnrichment === 0,
+        ]);
     }
 }

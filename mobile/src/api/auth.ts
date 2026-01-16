@@ -33,6 +33,14 @@ export interface ImportOptions {
   import_reviews: boolean;
 }
 
+export interface EnrichmentStatus {
+  total: number;
+  enriched: number;
+  pending: number;
+  progress: number;
+  is_complete: boolean;
+}
+
 export interface ExportData {
   user: {
     name: string;
@@ -194,4 +202,7 @@ export const authApi = {
 
     return uploadFile('/user/import', formData);
   },
+
+  getEnrichmentStatus: (): Promise<EnrichmentStatus> =>
+    apiClient('/user/import/enrichment-status'),
 };

@@ -2,58 +2,49 @@ import { useState, useCallback } from 'react';
 import { apiClient } from '@/api/client';
 import { useAuthStore } from '@/stores/authStore';
 import { useThemeStore, EDITION_LABELS } from '@/stores/themeStore';
-import { usePreferencesStore, type BookFormat } from '@/stores/preferencesStore';
+import { useToast } from '@/stores/toastStore';
 import { database } from '@/database/index';
 import type { ReadingGoal } from '@/database/models/ReadingGoal';
+import type { UserPreference } from '@/database/models/UserPreference';
 import { scheduleSyncAfterMutation } from '@/database/sync';
 import type { ThemeName } from '@/types/theme';
+import type { BookFormat } from '@/database/hooks/useFormatPreferences';
 
-export type OnboardingStep = 1 | 2 | 3 | 4 | 5;
+export type OnboardingStep = 1 | 2 | 3 | 4 | 5 | 6;
 
 interface OnboardingState {
   currentStep: OnboardingStep;
   selectedTheme: ThemeName;
   selectedFormats: BookFormat[];
   selectedGenres: string[];
+  selectedAuthors: string[];
   yearlyGoal: number | null;
   isCompleting: boolean;
+  formatError: string | null;
 }
-
-const POPULAR_GENRES = [
-  'Fiction',
-  'Fantasy',
-  'Science Fiction',
-  'Mystery',
-  'Romance',
-  'Thriller',
-  'Historical Fiction',
-  'Literary Fiction',
-  'Horror',
-  'Biography',
-  'Self-Help',
-  'Non-Fiction',
-];
 
 export function useOnboardingController() {
   const user = useAuthStore((state) => state.user);
   const setOnboardingComplete = useAuthStore((state) => state.setOnboardingComplete);
   const currentTheme = useThemeStore((state) => state.themeName);
   const setThemeSilent = useThemeStore((state) => state.setThemeSilent);
-  const setPreference = usePreferencesStore((state) => state.setPreference);
+  const toast = useToast();
 
   const [state, setState] = useState<OnboardingState>({
     currentStep: 1,
     selectedTheme: currentTheme,
     selectedFormats: [],
     selectedGenres: [],
+    selectedAuthors: [],
     yearlyGoal: null,
     isCompleting: false,
+    formatError: null,
   });
 
   const nextStep = useCallback(() => {
     setState((s) => ({
       ...s,
-      currentStep: Math.min(s.currentStep + 1, 5) as OnboardingStep,
+      currentStep: Math.min(s.currentStep + 1, 6) as OnboardingStep,
     }));
   }, []);
 
@@ -82,6 +73,7 @@ export function useOnboardingController() {
       selectedFormats: s.selectedFormats.includes(format)
         ? s.selectedFormats.filter((f) => f !== format)
         : [...s.selectedFormats, format],
+      formatError: null,
     }));
   }, []);
 
@@ -97,6 +89,34 @@ export function useOnboardingController() {
   const setYearlyGoal = useCallback((goal: number | null) => {
     setState((s) => ({ ...s, yearlyGoal: goal }));
   }, []);
+
+  const addAuthor = useCallback((name: string) => {
+    setState((s) => ({
+      ...s,
+      selectedAuthors: s.selectedAuthors.includes(name)
+        ? s.selectedAuthors
+        : [...s.selectedAuthors, name],
+    }));
+  }, []);
+
+  const removeAuthor = useCallback((name: string) => {
+    setState((s) => ({
+      ...s,
+      selectedAuthors: s.selectedAuthors.filter((a) => a !== name),
+    }));
+  }, []);
+
+  const handlePreferencesNext = useCallback(() => {
+    if (state.selectedFormats.length === 0) {
+      setState((s) => ({
+        ...s,
+        formatError: 'Please select at least one reading format',
+      }));
+      return;
+    }
+    setState((s) => ({ ...s, formatError: null }));
+    nextStep();
+  }, [state.selectedFormats.length, nextStep]);
 
   const createYearlyGoal = useCallback(async (target: number) => {
     const currentYear = new Date().getFullYear();
@@ -116,8 +136,60 @@ export function useOnboardingController() {
         record.isDeleted = false;
       });
     });
+  }, []);
 
-    scheduleSyncAfterMutation();
+  const saveFavoriteGenres = useCallback(async (genres: string[]) => {
+    if (genres.length === 0) return;
+
+    await database.write(async () => {
+      const preferencesCollection = database.get<UserPreference>('user_preferences');
+      for (const genre of genres) {
+        await preferencesCollection.create((record) => {
+          record.category = 'genre';
+          record.type = 'favorite';
+          record.value = genre;
+          record.normalized = genre.toLowerCase();
+          record.isPendingSync = true;
+          record.isDeleted = false;
+        });
+      }
+    });
+  }, []);
+
+  const saveFavoriteFormats = useCallback(async (formats: BookFormat[]) => {
+    if (formats.length === 0) return;
+
+    await database.write(async () => {
+      const preferencesCollection = database.get<UserPreference>('user_preferences');
+      for (const format of formats) {
+        await preferencesCollection.create((record) => {
+          record.category = 'format';
+          record.type = 'favorite';
+          record.value = format;
+          record.normalized = format.toLowerCase();
+          record.isPendingSync = true;
+          record.isDeleted = false;
+        });
+      }
+    });
+  }, []);
+
+  const saveFavoriteAuthors = useCallback(async (authors: string[]) => {
+    if (authors.length === 0) return;
+
+    await database.write(async () => {
+      const preferencesCollection = database.get<UserPreference>('user_preferences');
+      for (const author of authors) {
+        await preferencesCollection.create((record) => {
+          record.category = 'author';
+          record.type = 'favorite';
+          record.value = author;
+          record.normalized = author.toLowerCase();
+          record.isPendingSync = true;
+          record.isDeleted = false;
+        });
+      }
+    });
   }, []);
 
   const completeOnboarding = useCallback(async () => {
@@ -125,29 +197,42 @@ export function useOnboardingController() {
 
     try {
       if (state.selectedFormats.length > 0) {
-        setPreference('preferredFormats', state.selectedFormats);
-        setPreference('defaultFormat', state.selectedFormats[0]);
+        await saveFavoriteFormats(state.selectedFormats);
+      }
+
+      if (state.selectedGenres.length > 0) {
+        await saveFavoriteGenres(state.selectedGenres);
+      }
+
+      if (state.selectedAuthors.length > 0) {
+        await saveFavoriteAuthors(state.selectedAuthors);
       }
 
       if (state.yearlyGoal && state.yearlyGoal > 0) {
         await createYearlyGoal(state.yearlyGoal);
       }
 
+      scheduleSyncAfterMutation();
+
       await apiClient('/user/onboarding-complete', { method: 'POST' });
 
       setOnboardingComplete();
     } catch (error) {
       console.error('Failed to complete onboarding:', error);
-      setOnboardingComplete();
-    } finally {
+      toast.danger('Failed to save your preferences. Please try again.');
       setState((s) => ({ ...s, isCompleting: false }));
     }
   }, [
     state.selectedFormats,
+    state.selectedGenres,
+    state.selectedAuthors,
     state.yearlyGoal,
-    setPreference,
+    saveFavoriteFormats,
+    saveFavoriteGenres,
+    saveFavoriteAuthors,
     createYearlyGoal,
     setOnboardingComplete,
+    toast,
   ]);
 
   const getThemeCopy = useCallback(() => {
@@ -177,7 +262,6 @@ export function useOnboardingController() {
     userName: user?.name?.split(' ')[0] || 'Reader',
     themeLabel: EDITION_LABELS[state.selectedTheme],
     themeCopy: getThemeCopy(),
-    popularGenres: POPULAR_GENRES,
     nextStep,
     prevStep,
     goToStep,
@@ -185,6 +269,9 @@ export function useOnboardingController() {
     toggleFormat,
     toggleGenre,
     setYearlyGoal,
+    addAuthor,
+    removeAuthor,
+    handlePreferencesNext,
     completeOnboarding,
   };
 }

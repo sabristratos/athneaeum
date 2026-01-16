@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Jobs;
 
+use App\Contracts\MediaStorageServiceInterface;
 use App\Models\Book;
 use App\Services\BookSearch\GoogleBooksService;
 use Illuminate\Contracts\Queue\ShouldQueue;
@@ -28,7 +29,7 @@ class EnrichBookJob implements ShouldQueue
         return [new RateLimited('google-books-api')];
     }
 
-    public function handle(GoogleBooksService $googleBooks): void
+    public function handle(GoogleBooksService $googleBooks, MediaStorageServiceInterface $mediaStorage): void
     {
         $book = Book::find($this->bookId);
 
@@ -36,7 +37,7 @@ class EnrichBookJob implements ShouldQueue
             return;
         }
 
-        if (! empty($book->cover_url) && ! empty($book->description)) {
+        if (! empty($book->cover_path) && ! empty($book->description)) {
             return;
         }
 
@@ -57,7 +58,14 @@ class EnrichBookJob implements ShouldQueue
 
         $updates = [];
 
-        if (empty($book->cover_url) && ! empty($enrichment['cover_url'])) {
+        if (empty($book->cover_path) && ! empty($enrichment['cover_url'])) {
+            $identifier = $book->isbn13 ?? $book->isbn ?? 'book-'.$book->id;
+            $coverPath = $mediaStorage->store($enrichment['cover_url'], 'covers', $identifier);
+
+            if ($coverPath) {
+                $updates['cover_path'] = $coverPath;
+            }
+
             $updates['cover_url'] = $enrichment['cover_url'];
         }
 

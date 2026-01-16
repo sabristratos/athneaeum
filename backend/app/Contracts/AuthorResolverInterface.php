@@ -25,9 +25,21 @@ interface AuthorResolverInterface
     public function resolve(string $rawAuthorString): array;
 
     /**
-     * Find or create an author from a DTO.
+     * Resolve authors with Open Library enrichment for catalog ingestion.
+     *
+     * Skips "Unknown Author" entries and enriches new authors with
+     * Open Library data when available.
+     *
+     * @return Collection<int, Author>
      */
-    public function findOrCreate(AuthorDTO $dto): Author;
+    public function resolveWithEnrichment(string $rawAuthorString): Collection;
+
+    /**
+     * Find or create an author from a DTO.
+     *
+     * @param  bool  $enrichWithOpenLibrary  If true, fetch data from Open Library for new authors
+     */
+    public function findOrCreate(AuthorDTO $dto, bool $enrichWithOpenLibrary = false): Author;
 
     /**
      * Find an author by slug.

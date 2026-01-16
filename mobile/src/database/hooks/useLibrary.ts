@@ -5,6 +5,7 @@ import { database } from '@/database/index';
 import { scheduleSyncAfterMutation, syncWithServer } from '@/database/sync';
 import type { UserBook } from '@/database/models/UserBook';
 import type { Book } from '@/database/models/Book';
+import type { ReadThrough } from '@/database/models/ReadThrough';
 import type { BookStatus } from '@/types/book';
 import { useToastStore } from '@/stores/toastStore';
 
@@ -320,5 +321,244 @@ export function useUpdateUserBook() {
     []
   );
 
-  return { updateStatus, updateRating, updateProgress };
+  const updateReview = useCallback(
+    async (userBookId: string, review: string | null) => {
+      await database.write(async () => {
+        const userBook = await database
+          .get<UserBook>('user_books')
+          .find(userBookId);
+        await userBook.updateReview(review);
+      });
+      scheduleSyncAfterMutation();
+    },
+    []
+  );
+
+  const markDnf = useCallback(
+    async (userBookId: string, reason?: string) => {
+      await database.write(async () => {
+        const userBook = await database
+          .get<UserBook>('user_books')
+          .find(userBookId);
+        await userBook.markDnf(reason);
+      });
+      scheduleSyncAfterMutation();
+    },
+    []
+  );
+
+  const updateBookDetails = useCallback(
+    async (userBookId: string, format: string | null, price: number | null) => {
+      await database.write(async () => {
+        const userBook = await database
+          .get<UserBook>('user_books')
+          .find(userBookId);
+        await userBook.updateBookDetails(format, price);
+      });
+      scheduleSyncAfterMutation();
+    },
+    []
+  );
+
+  return { updateStatus, updateRating, updateProgress, updateReview, markDnf, updateBookDetails };
+}
+
+/**
+ * Hook for pinning/unpinning books.
+ * Only one book can be pinned at a time.
+ */
+export function usePinBook() {
+  const [loading, setLoading] = useState(false);
+
+  const pinBook = useCallback(async (userBookId: string) => {
+    setLoading(true);
+    try {
+      await database.write(async () => {
+        const userBooksCollection = database.get<UserBook>('user_books');
+
+        const currentlyPinned = await userBooksCollection
+          .query(Q.where('is_pinned', true), Q.where('is_deleted', false))
+          .fetch();
+
+        for (const ub of currentlyPinned) {
+          if (ub.id !== userBookId) {
+            await ub.updatePinned(false);
+          }
+        }
+
+        const userBook = await userBooksCollection.find(userBookId);
+        await userBook.updatePinned(true);
+      });
+
+      scheduleSyncAfterMutation();
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  const unpinBook = useCallback(async (userBookId: string) => {
+    setLoading(true);
+    try {
+      await database.write(async () => {
+        const userBook = await database
+          .get<UserBook>('user_books')
+          .find(userBookId);
+        await userBook.updatePinned(false);
+      });
+
+      scheduleSyncAfterMutation();
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return { pinBook, unpinBook, loading };
+}
+
+/**
+ * Hook for reordering books in the queue (TBR list).
+ */
+export function useReorderBooks() {
+  const [loading, setLoading] = useState(false);
+
+  const reorderBooks = useCallback(async (userBookIds: string[]) => {
+    setLoading(true);
+    try {
+      await database.write(async () => {
+        const userBooksCollection = database.get<UserBook>('user_books');
+
+        for (let i = 0; i < userBookIds.length; i++) {
+          const userBook = await userBooksCollection.find(userBookIds[i]);
+          await userBook.updateQueuePosition(i);
+        }
+      });
+
+      scheduleSyncAfterMutation();
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return { reorderBooks, loading };
+}
+
+/**
+ * Hook for starting a re-read of a book.
+ * Creates a new ReadThrough record and resets the UserBook to reading status.
+ */
+export function useStartReread() {
+  const [loading, setLoading] = useState(false);
+
+  const startReread = useCallback(async (userBookId: string): Promise<ReadThrough> => {
+    setLoading(true);
+    let createdReadThrough: ReadThrough | null = null;
+
+    try {
+      await database.write(async () => {
+        const userBooksCollection = database.get<UserBook>('user_books');
+        const readThroughsCollection = database.get<ReadThrough>('read_throughs');
+
+        const userBook = await userBooksCollection.find(userBookId);
+
+        const existingReadThroughs = await readThroughsCollection
+          .query(
+            Q.where('user_book_id', userBookId),
+            Q.where('is_deleted', false)
+          )
+          .fetch();
+
+        const maxReadNumber = existingReadThroughs.reduce(
+          (max, rt) => Math.max(max, rt.readNumber),
+          0
+        );
+        const newReadNumber = maxReadNumber + 1;
+
+        createdReadThrough = await readThroughsCollection.create((record) => {
+          record.userBookId = userBookId;
+          record.serverUserBookId = userBook.serverId;
+          record.readNumber = newReadNumber;
+          record.status = 'reading';
+          record.rating = null;
+          record.review = null;
+          record.isDnf = false;
+          record.dnfReason = null;
+          record.startedAt = new Date();
+          record.finishedAt = null;
+          record.isPendingSync = true;
+          record.isDeleted = false;
+        });
+
+        await userBook.update((record) => {
+          record.status = 'reading';
+          record.currentPage = 0;
+          record.startedAt = new Date();
+          record.finishedAt = null;
+          record.isDnf = false;
+          record.dnfReason = null;
+          record.isPendingSync = true;
+          record.updatedAt = new Date();
+        });
+      });
+
+      scheduleSyncAfterMutation();
+      return createdReadThrough!;
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return { startReread, loading };
+}
+
+/**
+ * Hook for observing read-throughs for a user book.
+ */
+export function useReadThroughs(userBookId: string) {
+  const [readThroughs, setReadThroughs] = useState<ReadThrough[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const readThroughsCollection = database.get<ReadThrough>('read_throughs');
+
+    const subscription = readThroughsCollection
+      .query(
+        Q.where('user_book_id', userBookId),
+        Q.where('is_deleted', false),
+        Q.sortBy('read_number', Q.asc)
+      )
+      .observe()
+      .subscribe((results) => {
+        setReadThroughs(results);
+        setLoading(false);
+      });
+
+    return () => subscription.unsubscribe();
+  }, [userBookId]);
+
+  return { readThroughs, loading, readCount: readThroughs.length };
+}
+
+/**
+ * Hook for updating a read-through rating.
+ */
+export function useUpdateReadThroughRating() {
+  const [loading, setLoading] = useState(false);
+
+  const updateReadThroughRating = useCallback(async (readThroughId: string, rating: number) => {
+    setLoading(true);
+    try {
+      await database.write(async () => {
+        const readThrough = await database
+          .get<ReadThrough>('read_throughs')
+          .find(readThroughId);
+        await readThrough.updateRating(rating);
+      });
+
+      scheduleSyncAfterMutation();
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return { updateReadThroughRating, loading };
 }

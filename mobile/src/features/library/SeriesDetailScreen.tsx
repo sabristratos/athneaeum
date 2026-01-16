@@ -13,10 +13,10 @@ import {
 import { Text, Card, Icon, Button, CoverImage, IconButton } from '@/components';
 import { useTheme } from '@/themes';
 import { useSeriesDetailQuery } from '@/queries';
-import { useLibrary } from '@/hooks/useBooks';
+import { useLibrary as useWatermelonLibrary, useAddToLibrary, type LibraryBook } from '@/database/hooks';
 import { triggerHaptic } from '@/hooks/useHaptic';
 import type { MainStackParamList } from '@/navigation/MainNavigator';
-import type { UserBook, Book } from '@/types';
+import type { UserBook, Book, BookFormat } from '@/types';
 
 type NavigationProp = NativeStackNavigationProp<MainStackParamList, 'SeriesDetail'>;
 type SeriesDetailRouteProp = RouteProp<MainStackParamList, 'SeriesDetail'>;
@@ -29,17 +29,49 @@ export function SeriesDetailScreen() {
   const isScholar = themeName === 'scholar';
 
   const { data: seriesDetail, isLoading, error } = useSeriesDetailQuery(seriesId);
-  const { addToLibrary, books: library } = useLibrary();
+  const { books: libraryBooks } = useWatermelonLibrary();
+  const { addBook: addToLibrary } = useAddToLibrary();
 
   const libraryBookIds = useMemo(() => {
-    return new Set(library?.map((ub: UserBook) => ub.book.id) ?? []);
-  }, [library]);
+    return new Set(libraryBooks.map((lb) => lb.book.serverId));
+  }, [libraryBooks]);
+
+  const convertToUserBook = useCallback((lb: LibraryBook, bookData: Book): UserBook => {
+    const { userBook: ub, book: b } = lb;
+    return {
+      id: ub.serverId ?? 0,
+      local_id: ub.id,
+      book_id: b.serverId ?? 0,
+      book: bookData,
+      status: ub.status,
+      status_label: ub.status,
+      format: ub.format as BookFormat | null,
+      format_label: ub.format,
+      rating: ub.rating,
+      price: ub.price,
+      current_page: ub.currentPage,
+      progress_percentage: b.pageCount ? Math.round((ub.currentPage / b.pageCount) * 100) : null,
+      is_dnf: ub.isDnf,
+      dnf_reason: ub.dnfReason,
+      is_pinned: ub.isPinned,
+      queue_position: ub.queuePosition,
+      review: ub.review,
+      started_at: ub.startedAt?.toISOString() ?? null,
+      finished_at: ub.finishedAt?.toISOString() ?? null,
+      created_at: ub.createdAt?.toISOString() ?? '',
+      updated_at: ub.updatedAt?.toISOString() ?? '',
+    };
+  }, []);
 
   const getUserBookForBook = useCallback(
     (bookId: number): UserBook | undefined => {
-      return library?.find((ub: UserBook) => ub.book.id === bookId);
+      const lb = libraryBooks.find((lb) => lb.book.serverId === bookId);
+      if (!lb) return undefined;
+      const bookData = seriesDetail?.books?.find((b) => b.id === bookId);
+      if (!bookData) return undefined;
+      return convertToUserBook(lb, bookData);
     },
-    [library]
+    [libraryBooks, seriesDetail?.books, convertToUserBook]
   );
 
   const handleBookPress = useCallback(
@@ -56,22 +88,19 @@ export function SeriesDetailScreen() {
     async (book: Book) => {
       try {
         triggerHaptic('medium');
-        const newUserBook = await addToLibrary({
-          external_id: book.external_id ?? undefined,
-          external_provider: book.external_provider ?? undefined,
+        await addToLibrary({
+          externalId: book.external_id ?? '',
+          externalProvider: book.external_provider ?? undefined,
           title: book.title,
           author: book.author,
-          cover_url: book.cover_url,
-          page_count: book.page_count,
-          isbn: book.isbn,
-          description: book.description,
-          genres: book.genres?.map((g) => g.name) ?? undefined,
-          published_date: book.published_date,
-          status: 'want_to_read',
-        });
-        if (newUserBook) {
-          triggerHaptic('success');
-        }
+          coverUrl: book.cover_url ?? undefined,
+          pageCount: book.page_count ?? undefined,
+          isbn: book.isbn ?? undefined,
+          description: book.description ?? undefined,
+          genres: book.genres?.map((g) => g.name),
+          publishedDate: book.published_date ?? undefined,
+        }, 'want_to_read');
+        triggerHaptic('success');
       } catch {
         triggerHaptic('error');
       }

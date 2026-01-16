@@ -1,6 +1,51 @@
-export type PreferenceCategory = 'author' | 'genre' | 'series';
+import type { ComponentType } from 'react';
 
-export type PreferenceType = 'favorite' | 'exclude';
+export const PREFERENCE_CATEGORIES = ['author', 'genre', 'series', 'format'] as const;
+export type PreferenceCategory = (typeof PREFERENCE_CATEGORIES)[number];
+
+export const PREFERENCE_TYPES = ['favorite', 'exclude'] as const;
+export type PreferenceType = (typeof PREFERENCE_TYPES)[number];
+
+export type PreferenceState = 'none' | 'favorite' | 'excluded';
+
+export interface PreferenceCategoryConfig {
+  category: PreferenceCategory;
+  label: string;
+  pluralLabel: string;
+  supportsExclude: boolean;
+  searchable: boolean;
+}
+
+export const PREFERENCE_CATEGORY_CONFIG: Record<PreferenceCategory, PreferenceCategoryConfig> = {
+  author: {
+    category: 'author',
+    label: 'Author',
+    pluralLabel: 'Authors',
+    supportsExclude: true,
+    searchable: true,
+  },
+  genre: {
+    category: 'genre',
+    label: 'Genre',
+    pluralLabel: 'Genres',
+    supportsExclude: true,
+    searchable: false,
+  },
+  series: {
+    category: 'series',
+    label: 'Series',
+    pluralLabel: 'Series',
+    supportsExclude: true,
+    searchable: true,
+  },
+  format: {
+    category: 'format',
+    label: 'Format',
+    pluralLabel: 'Formats',
+    supportsExclude: false,
+    searchable: false,
+  },
+};
 
 export interface UserPreference {
   id: number;
@@ -16,6 +61,7 @@ export interface GroupedPreferences {
     authors: string[];
     genres: string[];
     series: string[];
+    formats: string[];
   };
   excludes: {
     authors: string[];

@@ -2,6 +2,7 @@
 
 declare(strict_types=1);
 
+use App\Enums\BookStatusEnum;
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\DB;
@@ -26,6 +27,10 @@ return new class extends Migration
 
             $table->unique(['user_book_id', 'read_number']);
         });
+
+        if (DB::getDriverName() === 'pgsql') {
+            DB::statement('ALTER TABLE read_throughs ADD CONSTRAINT read_throughs_rating_check CHECK (rating IS NULL OR (rating >= 0 AND rating <= 5))');
+        }
 
         Schema::table('reading_sessions', function (Blueprint $table) {
             $table->foreignId('read_through_id')

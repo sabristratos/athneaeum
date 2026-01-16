@@ -1,5 +1,5 @@
 import React, { memo, useMemo } from 'react';
-import { View, type ViewProps, type ViewStyle } from 'react-native';
+import { View, StyleSheet, type ViewProps, type ViewStyle, type StyleProp } from 'react-native';
 import { Pressable } from '@/components/atoms';
 import { useTheme } from '@/themes';
 
@@ -11,7 +11,7 @@ interface CardProps extends Omit<ViewProps, 'style'> {
   children: React.ReactNode;
   onPress?: () => void;
   disabled?: boolean;
-  style?: ViewStyle;
+  style?: StyleProp<ViewStyle>;
 }
 
 export const Card = memo(function Card({
@@ -91,12 +91,14 @@ export const Card = memo(function Card({
       variantStyles = dreamerStyles[variant];
     }
 
+    const flattenedStyle = style ? StyleSheet.flatten(style) : {};
+
     return {
       padding: paddingMap[padding],
       borderRadius: variant === 'paper' && isScholar ? 0 : theme.radii.lg,
       overflow: 'hidden',
       ...variantStyles,
-      ...style,
+      ...flattenedStyle,
     };
   }, [variant, padding, isScholar, theme, style]);
 

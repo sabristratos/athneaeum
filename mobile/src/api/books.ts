@@ -22,6 +22,22 @@ import type {
   CalendarData,
 } from '@/types/stats';
 
+/**
+ * Books API - External/Backend-only operations.
+ *
+ * This API handles:
+ * - External APIs: Book search, editions, author data
+ * - Backend statistics: Stats, heatmap, analytics (computed server-side)
+ * - Global catalog: Series CRUD (shared across users, requires online)
+ * - Book classification: LLM-based classification (backend-only)
+ *
+ * User data CRUD (library, sessions, read-throughs) uses WatermelonDB:
+ * - useLibrary() / useAddToLibrary() - local library operations
+ * - useSessions() - local reading session operations
+ * - useStartReread() - local read-through creation
+ *
+ * These local operations sync to backend via /sync/push.
+ */
 export const booksApi = {
   search: (
     query: string,
@@ -105,13 +121,6 @@ export const booksApi = {
     }
     return apiClient(`/stats/calendar?${params.toString()}`);
   },
-
-  startReread: (
-    userBookId: number
-  ): Promise<{ read_through: ReadThrough; user_book: UserBook }> =>
-    apiClient(`/library/${userBookId}/reread`, {
-      method: 'POST',
-    }),
 
   getReadingHistory: (
     userBookId: number

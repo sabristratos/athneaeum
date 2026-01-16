@@ -20,6 +20,8 @@ return new class extends Migration
             $table->integer('duration_seconds')->nullable();
             $table->text('notes')->nullable();
             $table->timestamps();
+
+            $table->index(['user_book_id', 'date']);
         });
     }
 

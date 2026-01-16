@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Feature;
 
+use App\DTOs\Ingestion\ContentClassificationDTO;
 use App\Enums\AudienceEnum;
 use App\Enums\ContentIntensityEnum;
 use App\Enums\MoodEnum;
@@ -125,11 +126,12 @@ class BookClassificationTest extends TestCase
             'is_classified' => false,
         ]);
 
-        $mockClassification = new \stdClass;
-        $mockClassification->audience = AudienceEnum::Adult;
-        $mockClassification->intensity = ContentIntensityEnum::Moderate;
-        $mockClassification->moods = [MoodEnum::Adventurous, MoodEnum::Tense];
-        $mockClassification->confidence = 0.85;
+        $mockClassification = new ContentClassificationDTO(
+            audience: AudienceEnum::Adult,
+            intensity: ContentIntensityEnum::Moderate,
+            moods: [MoodEnum::Adventurous, MoodEnum::Tense],
+            confidence: 0.85,
+        );
 
         $mockConsultant = Mockery::mock(LLMConsultant::class);
         $mockConsultant->shouldReceive('isEnabled')->andReturn(true);

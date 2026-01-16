@@ -113,12 +113,12 @@ export function useSearchController(options: UseSearchControllerOptions = {}): U
             externalProvider: 'google_books',
             title: book.title,
             author: book.author,
-            coverUrl: book.cover_url,
-            pageCount: book.page_count,
-            isbn: book.isbn,
-            description: book.description,
+            coverUrl: book.cover_url ?? undefined,
+            pageCount: book.page_count ?? undefined,
+            isbn: book.isbn ?? undefined,
+            description: book.description ?? undefined,
             genres: book.genres,
-            publishedDate: book.published_date,
+            publishedDate: book.published_date ?? undefined,
           },
           status
         );

@@ -68,6 +68,26 @@ class Genre extends Model
     }
 
     /**
+     * Catalog books linked to this genre.
+     */
+    public function catalogBooks(): BelongsToMany
+    {
+        return $this->belongsToMany(CatalogBook::class, 'catalog_book_genres')
+            ->withPivot('is_primary')
+            ->withTimestamps();
+    }
+
+    /**
+     * Master books linked to this genre.
+     */
+    public function masterBooks(): BelongsToMany
+    {
+        return $this->belongsToMany(MasterBook::class, 'master_book_genres')
+            ->withPivot('is_primary')
+            ->withTimestamps();
+    }
+
+    /**
      * Get the GenreEnum value.
      */
     public function getCanonicalEnum(): ?GenreEnum

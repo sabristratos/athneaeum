@@ -27,9 +27,32 @@ import type { GoalType, GoalPeriod } from '@/database/models/ReadingGoal';
 import type { PreferenceCategory, PreferenceType } from '@/database/models/UserPreference';
 
 export async function pullChanges(lastPulledAt: number): Promise<number> {
+  console.log('[Pull] Fetching changes since:', lastPulledAt);
   const response = await apiClient<PullResponse>(
     `/sync/pull?last_pulled_at=${lastPulledAt}`
   );
+
+  console.log('[Pull] Server returned:', {
+    books: {
+      created: response.changes.books.created.length,
+      updated: response.changes.books.updated.length,
+    },
+    user_books: {
+      created: response.changes.user_books.created.length,
+      updated: response.changes.user_books.updated.length,
+      deleted: response.changes.user_books.deleted.length,
+    },
+    reading_goals: {
+      created: response.changes.reading_goals?.created?.length ?? 0,
+      updated: response.changes.reading_goals?.updated?.length ?? 0,
+      deleted: response.changes.reading_goals?.deleted?.length ?? 0,
+    },
+    tags: {
+      created: response.changes.tags?.created?.length ?? 0,
+      updated: response.changes.tags?.updated?.length ?? 0,
+    },
+    timestamp: response.timestamp,
+  });
 
   await database.write(async () => {
     const seriesCollection = database.get<Series>('series');

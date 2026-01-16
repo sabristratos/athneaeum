@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Services\Authors\AuthorCacheService;
 use App\Services\Authors\AuthorNormalizer;
 use App\Services\Authors\OpenLibraryAuthorService;
 use Illuminate\Http\JsonResponse;
@@ -26,6 +27,7 @@ class AuthorController extends Controller
 
     public function __construct(
         private OpenLibraryAuthorService $openLibraryService,
+        private AuthorCacheService $authorCacheService,
         private AuthorNormalizer $normalizer
     ) {}
 
@@ -83,7 +85,7 @@ class AuthorController extends Controller
     }
 
     /**
-     * Search for authors via OpenLibrary.
+     * Search for authors, prioritizing cached authors over OpenLibrary.
      */
     public function search(Request $request): JsonResponse
     {
@@ -93,7 +95,7 @@ class AuthorController extends Controller
             'offset' => ['nullable', 'integer', 'min:0'],
         ]);
 
-        $results = $this->openLibraryService->searchAuthors(
+        $results = $this->authorCacheService->searchAuthors(
             $request->input('q'),
             (int) $request->input('limit', 20),
             (int) $request->input('offset', 0)

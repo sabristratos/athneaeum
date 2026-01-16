@@ -11,6 +11,7 @@ interface QuoteStore {
   addQuote: (quote: Omit<Quote, 'id' | 'createdAt'>) => Quote;
   updateQuote: (id: string, data: Partial<Quote>) => void;
   deleteQuote: (id: string) => void;
+  clearAllQuotes: () => void;
   getQuotesForBook: (userBookId: number) => Quote[];
 }
 
@@ -47,6 +48,10 @@ const useQuoteStoreBase = create<QuoteStore>()(
         set((state) => ({
           quotes: state.quotes.filter((q) => q.id !== id),
         }));
+      },
+
+      clearAllQuotes: () => {
+        set({ quotes: [] });
       },
 
       getQuotesForBook: (userBookId) => {

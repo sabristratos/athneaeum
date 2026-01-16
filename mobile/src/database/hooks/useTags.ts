@@ -233,3 +233,76 @@ export function useTagsByIds(tagIds: string[]) {
 
   return { tags, loading };
 }
+
+export function useUpdateUserBookTags() {
+  const [loading, setLoading] = useState(false);
+
+  const updateTags = useCallback(
+    async (userBookId: string, serverTagIds: number[]): Promise<void> => {
+      setLoading(true);
+      try {
+        await database.write(async () => {
+          const userBooksCollection = database.get<import('@/database/models/UserBook').UserBook>('user_books');
+          const tagsCollection = database.get<Tag>('tags');
+          const userBookTagsCollection = database.get<import('@/database/models/UserBookTag').UserBookTag>('user_book_tags');
+
+          const userBook = await userBooksCollection.find(userBookId);
+
+          const allTags = await tagsCollection
+            .query(Q.where('is_deleted', false))
+            .fetch();
+          const serverIdToTag = new Map(
+            allTags
+              .filter((t) => t.serverId !== null)
+              .map((t) => [t.serverId!, t])
+          );
+
+          const currentUserBookTags = await userBookTagsCollection
+            .query(Q.where('user_book_id', userBookId))
+            .fetch();
+
+          const currentServerTagIds = new Set(
+            currentUserBookTags
+              .filter((ubt) => ubt.serverTagId !== null)
+              .map((ubt) => ubt.serverTagId!)
+          );
+
+          const newServerTagIds = new Set(serverTagIds);
+
+          const toAdd = serverTagIds.filter((id) => !currentServerTagIds.has(id));
+          const toRemove = currentUserBookTags.filter(
+            (ubt) => ubt.serverTagId !== null && !newServerTagIds.has(ubt.serverTagId)
+          );
+
+          for (const serverTagId of toAdd) {
+            const tag = serverIdToTag.get(serverTagId);
+            if (tag) {
+              await userBookTagsCollection.create((record) => {
+                record.userBookId = userBookId;
+                record.tagId = tag.id;
+                record.serverUserBookId = userBook.serverId;
+                record.serverTagId = serverTagId;
+              });
+            }
+          }
+
+          for (const userBookTag of toRemove) {
+            await userBookTag.destroyPermanently();
+          }
+
+          await userBook.update((record) => {
+            record.isPendingSync = true;
+            record.updatedAt = new Date();
+          });
+        });
+
+        scheduleSyncAfterMutation();
+      } finally {
+        setLoading(false);
+      }
+    },
+    []
+  );
+
+  return { updateTags, loading };
+}

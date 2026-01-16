@@ -6,9 +6,9 @@ import {
   date,
   writer,
 } from '@nozbe/watermelondb/decorators';
+import type { PreferenceCategory, PreferenceType } from '@/types/preference';
 
-export type PreferenceCategory = 'author' | 'genre' | 'series';
-export type PreferenceType = 'favorite' | 'exclude';
+export type { PreferenceCategory, PreferenceType };
 
 export class UserPreference extends Model {
   static table = 'user_preferences';

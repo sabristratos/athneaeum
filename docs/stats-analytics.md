@@ -17,7 +17,7 @@ Basic reading statistics are calculated **locally from WatermelonDB** for offlin
 
 **Hook:** `useLocalStats()` from `@/hooks` provides reactive local stats.
 
-**UI Indicator:** The "Offline" badge appears on ReadingStatsScreen when showing local-only data.
+**UI Indicator:** The "Offline" badge appears on ReaderDNAScreen when showing local-only data.
 
 Advanced Reader DNA features (format velocity, mood ring, page economy) require server sync for complete data.
 

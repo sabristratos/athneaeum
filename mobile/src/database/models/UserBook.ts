@@ -114,4 +114,47 @@ export class UserBook extends Model {
       record.updatedAt = new Date();
     });
   }
+
+  @writer async updatePinned(pinned: boolean) {
+    await this.update((record) => {
+      record.isPinned = pinned;
+      record.isPendingSync = true;
+      record.updatedAt = new Date();
+    });
+  }
+
+  @writer async updateQueuePosition(position: number | null) {
+    await this.update((record) => {
+      record.queuePosition = position;
+      record.isPendingSync = true;
+      record.updatedAt = new Date();
+    });
+  }
+
+  @writer async updateReview(review: string | null) {
+    await this.update((record) => {
+      record.review = review;
+      record.isPendingSync = true;
+      record.updatedAt = new Date();
+    });
+  }
+
+  @writer async markDnf(reason?: string) {
+    await this.update((record) => {
+      record.status = 'dnf' as BookStatus;
+      record.isDnf = true;
+      record.dnfReason = reason || null;
+      record.isPendingSync = true;
+      record.updatedAt = new Date();
+    });
+  }
+
+  @writer async updateBookDetails(format: string | null, price: number | null) {
+    await this.update((record) => {
+      record.format = format;
+      record.price = price;
+      record.isPendingSync = true;
+      record.updatedAt = new Date();
+    });
+  }
 }

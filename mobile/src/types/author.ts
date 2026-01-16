@@ -17,6 +17,8 @@ export interface OpenLibraryAuthor {
   top_work: string | null;
   work_count: number;
   top_subjects: string[];
+  photo_url: string | null;
+  is_cached?: boolean;
 }
 
 export interface OpenLibraryAuthorDetail {

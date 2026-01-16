@@ -63,7 +63,26 @@
       "Bash(ls:*)",
       "Bash(Remove-Item \"C:\\\\Websites\\\\atheneum\\\\mobile\\\\src\\\\stores\\\\tagStore.ts\")",
       "Bash(Remove-Item \"C:\\\\Websites\\\\atheneum\\\\backend\\\\app\\\\Services\\\\Goals\\\\ReadingGoalService.php\")",
-      "Bash(./vendor/bin/pint:*)"
+      "Bash(./vendor/bin/pint:*)",
+      "Bash(tree:*)",
+      "Bash(Get-ChildItem -Path \"backend/app\" -Recurse -Directory)",
+      "Bash(Select-Object FullName)",
+      "Bash(composer require:*)",
+      "Bash(docker exec:*)",
+      "Bash(curl:*)",
+      "Bash(ipconfig:*)",
+      "Bash(Select-String \"IPv4\")",
+      "Bash(Remove-Item -Path \"C:\\\\Work\\\\Athenaeum\\\\backend\\\\app\\\\Services\\\\Catalog\\\\AuthorExtractionService.php\" -Force)",
+      "Bash(Remove-Item \"C:\\\\Work\\\\Athenaeum\\\\mobile\\\\src\\\\animations\\\\hooks\\\\usePressAnimation.ts\", \"C:\\\\Work\\\\Athenaeum\\\\mobile\\\\src\\\\animations\\\\hooks\\\\useFeedbackAnimation.ts\", \"C:\\\\Work\\\\Athenaeum\\\\mobile\\\\src\\\\animations\\\\hooks\\\\useCelebrationAnimation.ts\")",
+      "Bash(xargs:*)",
+      "Bash(grep:*)",
+      "Bash(php -l:*)",
+      "Bash(Set-Location C:WorkAthenaeumbackend)",
+      "Bash(Select-String \"seed-data\")",
+      "Bash(php test-wuthering.php:*)",
+      "Bash(Remove-Item -Path \"C:\\\\Work\\\\Athenaeum\\\\backend\\\\database\\\\seeders\\\\data\\\\.tracking.json\" -Force -ErrorAction SilentlyContinue)",
+      "Bash(Remove-Item -Path \"C:\\\\Work\\\\Athenaeum\\\\backend\\\\database\\\\seeders\\\\data\\\\books\" -Recurse -Force -ErrorAction SilentlyContinue)",
+      "Bash(Write-Host \"Seed data cleared\")"
     ]
   }
 }

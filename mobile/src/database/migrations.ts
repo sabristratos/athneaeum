@@ -178,5 +178,18 @@ export const migrations = schemaMigrations({
         }),
       ],
     },
+    {
+      toVersion: 8,
+      steps: [
+        addColumns({
+          table: 'user_book_tags',
+          columns: [
+            { name: 'updated_at', type: 'number' },
+            { name: 'is_pending_sync', type: 'boolean' },
+            { name: 'is_deleted', type: 'boolean' },
+          ],
+        }),
+      ],
+    },
   ],
 });

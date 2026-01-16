@@ -2,17 +2,27 @@ import { useEffect, useState, useCallback, useMemo } from 'react';
 import { Q } from '@nozbe/watermelondb';
 import { database } from '@/database/index';
 import { scheduleSyncAfterMutation } from '@/database/sync';
+import type { UserPreference } from '@/database/models/UserPreference';
 import type {
-  UserPreference,
   PreferenceCategory,
   PreferenceType,
-} from '@/database/models/UserPreference';
+  PreferenceState,
+} from '@/types/preference';
+
+export type { PreferenceState };
+
+export interface PreferenceItem {
+  key: string;
+  label: string;
+  state: PreferenceState;
+}
 
 export interface GroupedPreferences {
   favorite: {
     authors: UserPreference[];
     genres: UserPreference[];
     series: UserPreference[];
+    formats: UserPreference[];
   };
   exclude: {
     authors: UserPreference[];
@@ -47,11 +57,17 @@ export function useGroupedPreferences() {
 
   const grouped = useMemo((): GroupedPreferences => {
     const result: GroupedPreferences = {
-      favorite: { authors: [], genres: [], series: [] },
+      favorite: { authors: [], genres: [], series: [], formats: [] },
       exclude: { authors: [], genres: [], series: [] },
     };
 
+    const seen = new Set<string>();
+
     for (const pref of preferences) {
+      const key = `${pref.type}-${pref.category}-${pref.normalized}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
       const typeGroup = pref.type === 'favorite' ? result.favorite : result.exclude;
       switch (pref.category) {
         case 'author':
@@ -62,6 +78,11 @@ export function useGroupedPreferences() {
           break;
         case 'series':
           typeGroup.series.push(pref);
+          break;
+        case 'format':
+          if (pref.type === 'favorite') {
+            result.favorite.formats.push(pref);
+          }
           break;
       }
     }
@@ -335,6 +356,62 @@ export function usePreferenceActions() {
   };
 }
 
+/**
+ * Hook for toggling author/genre/series preferences.
+ * Handles the common pattern of removing current state before adding new state.
+ */
+export function useTogglePreference() {
+  const [loading, setLoading] = useState(false);
+  const { addPreference, removePreferenceByValue } = usePreferenceActions();
+
+  const toggle = useCallback(
+    async (
+      category: PreferenceCategory,
+      value: string,
+      currentState: PreferenceState,
+      newState: PreferenceState
+    ): Promise<void> => {
+      setLoading(true);
+      try {
+        if (currentState === 'favorite') {
+          await removePreferenceByValue(category, 'favorite', value);
+        } else if (currentState === 'excluded') {
+          await removePreferenceByValue(category, 'exclude', value);
+        }
+
+        if (newState === 'favorite') {
+          await addPreference(category, 'favorite', value);
+        } else if (newState === 'excluded') {
+          await addPreference(category, 'exclude', value);
+        }
+      } finally {
+        setLoading(false);
+      }
+    },
+    [addPreference, removePreferenceByValue]
+  );
+
+  const toggleAuthor = useCallback(
+    (authorName: string, currentState: PreferenceState, newState: PreferenceState) =>
+      toggle('author', authorName, currentState, newState),
+    [toggle]
+  );
+
+  const toggleGenre = useCallback(
+    (genreName: string, currentState: PreferenceState, newState: PreferenceState) =>
+      toggle('genre', genreName, currentState, newState),
+    [toggle]
+  );
+
+  const toggleSeries = useCallback(
+    (seriesName: string, currentState: PreferenceState, newState: PreferenceState) =>
+      toggle('series', seriesName, currentState, newState),
+    [toggle]
+  );
+
+  return { toggle, toggleAuthor, toggleGenre, toggleSeries, loading };
+}
+
 export function useHasPreference(
   category: PreferenceCategory,
   type: PreferenceType,
@@ -365,4 +442,141 @@ export function useHasPreference(
   }, [category, type, normalized]);
 
   return { exists, loading };
+}
+
+/**
+ * Hook for setting preference to specific state (direct selection).
+ * Optimized for PreferenceStateSelector usage.
+ */
+export function useSetPreferenceState() {
+  const { addPreference, removePreferenceByValue } = usePreferenceActions();
+  const [loading, setLoading] = useState(false);
+
+  const set = useCallback(
+    async (
+      category: PreferenceCategory,
+      value: string,
+      currentState: PreferenceState,
+      newState: PreferenceState
+    ): Promise<void> => {
+      if (currentState === newState) return;
+
+      setLoading(true);
+      try {
+        if (currentState === 'favorite') {
+          await removePreferenceByValue(category, 'favorite', value);
+        } else if (currentState === 'excluded') {
+          await removePreferenceByValue(category, 'exclude', value);
+        }
+
+        if (newState === 'favorite') {
+          await addPreference(category, 'favorite', value);
+        } else if (newState === 'excluded') {
+          await addPreference(category, 'exclude', value);
+        }
+      } finally {
+        setLoading(false);
+      }
+    },
+    [addPreference, removePreferenceByValue]
+  );
+
+  return { set, loading };
+}
+
+/**
+ * Hook to get preference state for a single item.
+ */
+export function usePreferenceState(
+  category: PreferenceCategory,
+  value: string
+): { state: PreferenceState; loading: boolean } {
+  const { preferences, loading } = usePreferences();
+  const normalized = useMemo(() => normalizeValue(value), [value]);
+
+  const state = useMemo((): PreferenceState => {
+    const pref = preferences.find(
+      (p) => p.category === category && p.normalized === normalized
+    );
+
+    if (!pref) return 'none';
+    return pref.type === 'favorite' ? 'favorite' : 'excluded';
+  }, [preferences, category, normalized]);
+
+  return { state, loading };
+}
+
+/**
+ * Hook for getting all preferences as PreferenceItem[] for a category.
+ * Useful for rendering PreferenceChipGroup.
+ */
+export function usePreferenceItems(
+  category: PreferenceCategory,
+  availableValues: string[]
+): { items: PreferenceItem[]; loading: boolean } {
+  const { preferences, loading } = usePreferences();
+
+  const items = useMemo((): PreferenceItem[] => {
+    return availableValues.map((value) => {
+      const normalized = normalizeValue(value);
+      const pref = preferences.find(
+        (p) => p.category === category && p.normalized === normalized
+      );
+
+      const state: PreferenceState = pref
+        ? pref.type === 'favorite'
+          ? 'favorite'
+          : 'excluded'
+        : 'none';
+
+      return { key: value, label: value, state };
+    });
+  }, [preferences, category, availableValues]);
+
+  return { items, loading };
+}
+
+/**
+ * Hook for cycling preference through states: none -> favorite -> excluded -> none.
+ */
+export function useCyclePreference() {
+  const { addPreference, removePreferenceByValue } = usePreferenceActions();
+  const [loading, setLoading] = useState(false);
+
+  const cycle = useCallback(
+    async (
+      category: PreferenceCategory,
+      value: string,
+      currentState: PreferenceState
+    ): Promise<PreferenceState> => {
+      setLoading(true);
+      try {
+        const nextState: PreferenceState =
+          currentState === 'none'
+            ? 'favorite'
+            : currentState === 'favorite'
+              ? 'excluded'
+              : 'none';
+
+        if (currentState === 'favorite') {
+          await removePreferenceByValue(category, 'favorite', value);
+        } else if (currentState === 'excluded') {
+          await removePreferenceByValue(category, 'exclude', value);
+        }
+
+        if (nextState === 'favorite') {
+          await addPreference(category, 'favorite', value);
+        } else if (nextState === 'excluded') {
+          await addPreference(category, 'exclude', value);
+        }
+
+        return nextState;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [addPreference, removePreferenceByValue]
+  );
+
+  return { cycle, loading };
 }

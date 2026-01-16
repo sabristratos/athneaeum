@@ -44,8 +44,9 @@ class ExpoPushService
      */
     public function send(string $pushToken, array $message): bool
     {
-        if (!str_starts_with($pushToken, 'ExponentPushToken[') && !str_starts_with($pushToken, 'ExpoPushToken[')) {
-            Log::warning('Invalid Expo push token format', ['token' => substr($pushToken, 0, 20) . '...']);
+        if (! str_starts_with($pushToken, 'ExponentPushToken[') && ! str_starts_with($pushToken, 'ExpoPushToken[')) {
+            Log::warning('Invalid Expo push token format', ['token' => substr($pushToken, 0, 20).'...']);
+
             return false;
         }
 
@@ -64,11 +65,12 @@ class ExpoPushService
                 ])
                 ->post(self::EXPO_PUSH_URL, $payload);
 
-            if (!$response->successful()) {
+            if (! $response->successful()) {
                 Log::error('Expo push failed', [
                     'status' => $response->status(),
                     'body' => $response->body(),
                 ]);
+
                 return false;
             }
 
@@ -78,6 +80,7 @@ class ExpoPushService
                     'message' => $data['message'] ?? 'Unknown error',
                     'details' => $data['details'] ?? null,
                 ]);
+
                 return false;
             }
 
@@ -86,6 +89,7 @@ class ExpoPushService
             Log::error('Expo push exception', [
                 'message' => $e->getMessage(),
             ]);
+
             return false;
         }
     }

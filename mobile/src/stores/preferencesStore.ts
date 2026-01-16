@@ -3,8 +3,6 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
 import { mmkvStorage } from '@/lib/storage';
 
-export type BookFormat = 'ebook' | 'physical' | 'audiobook';
-
 export type ProgressInputMode = 'absolute' | 'increment' | 'percentage';
 
 export type Currency = 'USD' | 'EUR' | 'GBP' | 'CAD' | 'AUD' | 'JPY' | 'INR' | 'BRL';
@@ -25,8 +23,6 @@ export function getCurrencySymbol(code: Currency): string {
 }
 
 export interface UserPreferences {
-  defaultFormat: BookFormat;
-  preferredFormats: BookFormat[];
   defaultPrivate: boolean;
   spoilerShield: boolean;
   showReadingStreak: boolean;
@@ -47,8 +43,6 @@ interface PreferencesStore {
 }
 
 const DEFAULT_PREFERENCES: UserPreferences = {
-  defaultFormat: 'physical',
-  preferredFormats: ['physical'],
   defaultPrivate: false,
   spoilerShield: false,
   showReadingStreak: true,

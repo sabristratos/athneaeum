@@ -4,9 +4,7 @@ import { FavouriteIcon, Cancel01Icon, LinkSquare01Icon, Add01Icon, Tick01Icon } 
 import { Text, Button, Icon, BottomSheet, Card, SectionHeader, IconButton, Pressable } from '@/components';
 import { useTheme } from '@/themes';
 import { useAuthorDetailQuery, useAuthorWorksQuery } from '@/queries/useAuthors';
-import { useLibraryExternalIdsQuery } from '@/queries/useLibraryExternalIds';
-import { booksApi } from '@/api/books';
-import { useLibrary } from '@/hooks/useBooks';
+import { useAddToLibrary } from '@/database/hooks';
 import { useToast } from '@/stores/toastStore';
 import type { OpenLibraryWork, BookStatus } from '@/types';
 
@@ -36,7 +34,7 @@ export function AuthorDetailSheet({
   const { theme, themeName } = useTheme();
   const isScholar = themeName === 'scholar';
   const toast = useToast();
-  const { addToLibrary } = useLibrary();
+  const { addBook: addToLibrary } = useAddToLibrary();
   const [addingWorkKey, setAddingWorkKey] = useState<string | null>(null);
   const [addedWorkKeys, setAddedWorkKeys] = useState<Set<string>>(new Set());
   const [worksOffset, setWorksOffset] = useState(0);
@@ -101,15 +99,14 @@ export function AuthorDetailSheet({
         : undefined;
 
       await addToLibrary({
-        external_id: work.key,
-        external_provider: 'openlibrary',
+        externalId: work.key,
+        externalProvider: 'openlibrary',
         title: work.title,
         author: authorName,
-        cover_url: coverUrl,
-        published_date: work.first_publish_year ? `${work.first_publish_year}-01-01` : undefined,
+        coverUrl,
+        publishedDate: work.first_publish_year ? `${work.first_publish_year}-01-01` : undefined,
         genres: work.subjects?.slice(0, 5),
-        status,
-      });
+      }, status);
 
       setAddedWorkKeys((prev) => new Set(prev).add(work.key));
       toast.success('Added to library');

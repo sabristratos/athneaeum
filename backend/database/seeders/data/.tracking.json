@@ -1,0 +1,22 @@
+{
+    "books": {
+        "the-hunger-games-suzanne-collins": {
+            "processed_at": "2026-01-16 02:15:26",
+            "title": "The Hunger Games",
+            "has_cover": true,
+            "is_classified": true
+        },
+        "harry-potter-and-the-order-of-the-phoenix-jk-rowling": {
+            "processed_at": "2026-01-16 02:15:29",
+            "title": "Harry Potter and the Order of the Phoenix",
+            "has_cover": true,
+            "is_classified": true
+        },
+        "to-kill-a-mockingbird-harper-lee": {
+            "processed_at": "2026-01-16 02:15:33",
+            "title": "To Kill a Mockingbird",
+            "has_cover": true,
+            "is_classified": true
+        }
+    }
+}

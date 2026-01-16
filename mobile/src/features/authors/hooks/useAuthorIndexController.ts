@@ -1,5 +1,6 @@
 import { useState, useCallback, useMemo } from 'react';
-import { useLibraryAuthorsQuery, useAuthorSearchQuery, useToggleAuthorPreferenceMutation } from '@/queries/useAuthors';
+import { useLibraryAuthorsQuery, useAuthorSearchQuery } from '@/queries/useAuthors';
+import { useTogglePreference } from '@/database/hooks';
 import { useToast } from '@/stores/toastStore';
 import type { LibraryAuthor, LibraryAuthorFilter, LibraryAuthorSort, LibraryAuthorSortOrder, OpenLibraryAuthor } from '@/types';
 
@@ -41,7 +42,7 @@ export function useAuthorIndexController() {
     error: searchError,
   } = useAuthorSearchQuery(searchMode && searchQuery.length >= 2 ? searchQuery : '');
 
-  const toggleMutation = useToggleAuthorPreferenceMutation();
+  const { toggleAuthor, loading: toggleLoading } = useTogglePreference();
 
   const toggleSortOrder = useCallback(() => {
     setSortOrder((prev) => (prev === 'desc' ? 'asc' : 'desc'));
@@ -78,11 +79,7 @@ export function useAuthorIndexController() {
       const newState = author.is_favorite ? 'none' : 'favorite';
 
       try {
-        await toggleMutation.mutateAsync({
-          authorName: author.name,
-          currentState,
-          newState,
-        });
+        await toggleAuthor(author.name, currentState, newState);
         toast.success(
           newState === 'favorite'
             ? `${author.name} added to favorites`
@@ -92,7 +89,7 @@ export function useAuthorIndexController() {
         toast.danger('Failed to update preference');
       }
     },
-    [toggleMutation, toast]
+    [toggleAuthor, toast]
   );
 
   const handleToggleExclude = useCallback(
@@ -105,11 +102,7 @@ export function useAuthorIndexController() {
       const newState = author.is_excluded ? 'none' : 'excluded';
 
       try {
-        await toggleMutation.mutateAsync({
-          authorName: author.name,
-          currentState,
-          newState,
-        });
+        await toggleAuthor(author.name, currentState, newState);
         toast.success(
           newState === 'excluded'
             ? `${author.name} will be hidden from search`
@@ -119,7 +112,7 @@ export function useAuthorIndexController() {
         toast.danger('Failed to update preference');
       }
     },
-    [toggleMutation, toast]
+    [toggleAuthor, toast]
   );
 
   const handleSelectOpenLibraryAuthor = useCallback((author: OpenLibraryAuthor) => {
@@ -146,11 +139,7 @@ export function useAuthorIndexController() {
       : 'none';
 
     try {
-      await toggleMutation.mutateAsync({
-        authorName: selectedAuthor.name,
-        currentState,
-        newState,
-      });
+      await toggleAuthor(selectedAuthor.name, currentState, newState);
       setSelectedAuthor((prev) =>
         prev
           ? { ...prev, isFavorite: newState === 'favorite', isExcluded: false }
@@ -164,7 +153,7 @@ export function useAuthorIndexController() {
     } catch {
       toast.danger('Failed to update preference');
     }
-  }, [selectedAuthor, toggleMutation, toast]);
+  }, [selectedAuthor, toggleAuthor, toast]);
 
   const handleSheetExclude = useCallback(async () => {
     if (!selectedAuthor) return;
@@ -177,11 +166,7 @@ export function useAuthorIndexController() {
       : 'none';
 
     try {
-      await toggleMutation.mutateAsync({
-        authorName: selectedAuthor.name,
-        currentState,
-        newState,
-      });
+      await toggleAuthor(selectedAuthor.name, currentState, newState);
       setSelectedAuthor((prev) =>
         prev
           ? { ...prev, isExcluded: newState === 'excluded', isFavorite: false }
@@ -195,7 +180,7 @@ export function useAuthorIndexController() {
     } catch {
       toast.danger('Failed to update preference');
     }
-  }, [selectedAuthor, toggleMutation, toast]);
+  }, [selectedAuthor, toggleAuthor, toast]);
 
   const closeSheet = useCallback(() => {
     setSelectedAuthor(null);
@@ -230,6 +215,6 @@ export function useAuthorIndexController() {
     closeSheet,
     handleSheetFavorite,
     handleSheetExclude,
-    isPending: toggleMutation.isPending,
+    isPending: toggleLoading,
   };
 }

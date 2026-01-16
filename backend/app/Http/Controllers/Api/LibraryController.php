@@ -11,7 +11,6 @@ use App\Models\UserBook;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
-use Illuminate\Support\Facades\DB;
 
 class LibraryController extends Controller
 {
@@ -101,84 +100,6 @@ class LibraryController extends Controller
             ]);
 
         return response()->json($libraryMap);
-    }
-
-    /**
-     * Pin a book as featured on the home screen.
-     * Only one book can be pinned at a time.
-     */
-    public function pin(Request $request, UserBook $userBook): JsonResponse
-    {
-        if ($userBook->user_id !== $request->user()->id) {
-            abort(403);
-        }
-
-        DB::transaction(function () use ($request, $userBook) {
-            $request->user()
-                ->userBooks()
-                ->where('id', '!=', $userBook->id)
-                ->update(['is_pinned' => false]);
-
-            $userBook->update(['is_pinned' => true]);
-        });
-
-        return response()->json(['success' => true]);
-    }
-
-    /**
-     * Unpin a book from the home screen.
-     */
-    public function unpin(Request $request, UserBook $userBook): JsonResponse
-    {
-        if ($userBook->user_id !== $request->user()->id) {
-            abort(403);
-        }
-
-        $userBook->update(['is_pinned' => false]);
-
-        return response()->json(['success' => true]);
-    }
-
-    /**
-     * Reorder books in the queue (for TBR list).
-     */
-    public function reorder(Request $request): JsonResponse
-    {
-        $request->validate([
-            'book_ids' => ['required', 'array'],
-            'book_ids.*' => ['integer', 'exists:user_books,id'],
-        ]);
-
-        $bookIds = $request->input('book_ids');
-        $userId = $request->user()->id;
-
-        DB::transaction(function () use ($bookIds, $userId) {
-            foreach ($bookIds as $position => $bookId) {
-                UserBook::where('id', $bookId)
-                    ->where('user_id', $userId)
-                    ->update(['queue_position' => $position]);
-            }
-        });
-
-        return response()->json(['success' => true]);
-    }
-
-    /**
-     * Start a re-read of a book.
-     * Creates a new read-through and resets the user book to reading status.
-     */
-    public function startReread(Request $request, UserBook $userBook): JsonResponse
-    {
-        if ($userBook->user_id !== $request->user()->id) {
-            abort(403);
-        }
-
-        $readThrough = $userBook->startReread();
-
-        return response()->json([
-            'read_through' => new ReadThroughResource($readThrough),
-            'user_book' => new UserBookResource($userBook->fresh()->load(['book.series', 'book.genreRelations', 'tags', 'readThroughs'])),
-        ], 201);
     }
 
     /**

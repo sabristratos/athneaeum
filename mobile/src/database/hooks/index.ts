@@ -4,6 +4,11 @@ export {
   useAddToLibrary,
   useRemoveFromLibrary,
   useUpdateUserBook,
+  usePinBook,
+  useReorderBooks,
+  useStartReread,
+  useReadThroughs,
+  useUpdateReadThroughRating,
   type LibraryBook,
 } from '@/database/hooks/useLibrary';
 
@@ -11,6 +16,7 @@ export {
   useReadingSessions,
   useLogSession,
   useDeleteSession,
+  useUpdateSession,
   useSessionStats,
 } from '@/database/hooks/useSessions';
 
@@ -23,6 +29,7 @@ export {
   useTag,
   useTagActions,
   useTagsByIds,
+  useUpdateUserBookTags,
 } from '@/database/hooks/useTags';
 
 export {
@@ -33,9 +40,23 @@ export {
   useFavoriteGenres,
   useExcludedGenres,
   usePreferenceActions,
+  useTogglePreference,
   useHasPreference,
+  useSetPreferenceState,
+  usePreferenceState,
+  usePreferenceItems,
+  useCyclePreference,
   type GroupedPreferences,
+  type PreferenceItem,
+  type PreferenceState,
 } from '@/database/hooks/usePreferences';
+
+export {
+  useFavoriteFormats,
+  useFormatPreferenceActions,
+  FORMAT_OPTIONS,
+  type BookFormat,
+} from '@/database/hooks/useFormatPreferences';
 
 export {
   useGoals,

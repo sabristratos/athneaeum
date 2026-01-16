@@ -141,11 +141,7 @@ class GoodreadsImportService implements ImportServiceInterface
     private function dispatchEnrichmentJobs(array $bookIds): void
     {
         foreach ($bookIds as $index => $bookId) {
-            EnrichBookJob::dispatch($bookId)->delay(now()->addSeconds($index * 2));
-        }
-
-        if (count($bookIds) > 0) {
-            Log::info('Dispatched book enrichment jobs', ['count' => count($bookIds)]);
+            EnrichBookJob::dispatch($bookId)->delay(now()->addSeconds($index * 4));
         }
     }
 

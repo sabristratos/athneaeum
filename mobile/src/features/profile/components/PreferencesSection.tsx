@@ -2,7 +2,13 @@ import React, { useCallback, useRef } from 'react';
 import { View, Switch, StyleSheet, Pressable as RNPressable } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { PaintBoardIcon, ArrowRight01Icon, CloudServerIcon, FavouriteIcon } from '@hugeicons/core-free-icons';
+import {
+  PaintBoardIcon,
+  ArrowRight01Icon,
+  CloudServerIcon,
+  FavouriteIcon,
+  Tick02Icon,
+} from '@hugeicons/core-free-icons';
 import { Text, Card, Icon } from '@/components';
 import { triggerHaptic } from '@/hooks/useHaptic';
 import { useTheme } from '@/themes';
@@ -12,16 +18,15 @@ import type { MainStackParamList } from '@/navigation/MainNavigator';
 import {
   usePreferences,
   usePreferencesActions,
-  type BookFormat,
   type UserPreferences,
 } from '@/stores/preferencesStore';
+import {
+  useFavoriteFormats,
+  useFormatPreferenceActions,
+  FORMAT_OPTIONS,
+  type BookFormat,
+} from '@/database/hooks/useFormatPreferences';
 import { authApi } from '@/api/auth';
-
-const FORMAT_OPTIONS: { value: BookFormat; label: string }[] = [
-  { value: 'physical', label: 'Physical' },
-  { value: 'ebook', label: 'E-book' },
-  { value: 'audiobook', label: 'Audiobook' },
-];
 
 export function PreferencesSection() {
   const { theme, themeName } = useTheme();
@@ -32,7 +37,10 @@ export function PreferencesSection() {
   const syncTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const toastShownRef = useRef(false);
 
-  const syncToBackend = useCallback((newValue: Partial<UserPreferences>) => {
+  const { formats: preferredFormats, defaultFormat } = useFavoriteFormats();
+  const { toggleFormat, setDefaultFormat } = useFormatPreferenceActions();
+
+  const syncToBackend = useCallback((newValue: Partial<UserPreferences & { preferredFormats?: BookFormat[]; defaultFormat?: BookFormat }>) => {
     if (syncTimeoutRef.current) {
       clearTimeout(syncTimeoutRef.current);
     }
@@ -60,6 +68,44 @@ export function PreferencesSection() {
     [setPreference, syncToBackend]
   );
 
+  const handleToggleFormat = useCallback(
+    async (format: BookFormat) => {
+      triggerHaptic('light');
+      const isSelected = preferredFormats.includes(format);
+
+      if (isSelected && preferredFormats.length === 1) {
+        toast.warning('You must have at least one format selected');
+        return;
+      }
+
+      await toggleFormat(format, preferredFormats);
+
+      const newFormats = isSelected
+        ? preferredFormats.filter((f) => f !== format)
+        : [...preferredFormats, format];
+
+      const newDefault = isSelected && defaultFormat === format
+        ? newFormats[0]
+        : defaultFormat;
+
+      syncToBackend({ preferredFormats: newFormats, defaultFormat: newDefault });
+    },
+    [preferredFormats, defaultFormat, toggleFormat, syncToBackend, toast]
+  );
+
+  const handleSetDefaultFormat = useCallback(
+    async (format: BookFormat) => {
+      triggerHaptic('light');
+      if (!preferredFormats.includes(format)) {
+        toast.warning('Select this format in "Reading Formats" first');
+        return;
+      }
+      await setDefaultFormat(format, preferredFormats);
+      syncToBackend({ defaultFormat: format });
+    },
+    [preferredFormats, setDefaultFormat, syncToBackend, toast]
+  );
+
   return (
     <View>
       <Text variant="h3" style={{ marginBottom: theme.spacing.md }}>
@@ -67,7 +113,6 @@ export function PreferencesSection() {
       </Text>
 
       <Card variant="elevated" padding="none">
-        {/* Edition Selector */}
         <RNPressable
           onPress={() => {
             triggerHaptic('light');
@@ -106,7 +151,6 @@ export function PreferencesSection() {
           </View>
         </RNPressable>
 
-        {/* OPDS / Calibre Server */}
         <RNPressable
           onPress={() => {
             triggerHaptic('light');
@@ -145,7 +189,6 @@ export function PreferencesSection() {
           </View>
         </RNPressable>
 
-        {/* Favorites & Excludes */}
         <RNPressable
           onPress={() => {
             triggerHaptic('light');
@@ -184,7 +227,69 @@ export function PreferencesSection() {
           </View>
         </RNPressable>
 
-        {/* Default Format */}
+        <View
+          style={{
+            padding: theme.spacing.md,
+            borderBottomWidth: theme.borders.thin,
+            borderBottomColor: theme.colors.border,
+          }}
+        >
+          <View style={{ marginBottom: theme.spacing.sm }}>
+            <Text variant="body">Reading Formats</Text>
+            <Text variant="caption" muted>
+              Select all formats you read
+            </Text>
+          </View>
+          <View style={styles.formatGrid}>
+            {FORMAT_OPTIONS.map((option) => {
+              const isSelected = preferredFormats.includes(option.key);
+              return (
+                <RNPressable
+                  key={option.key}
+                  onPress={() => handleToggleFormat(option.key)}
+                >
+                  <View
+                    style={[
+                      styles.formatChip,
+                      {
+                        backgroundColor: isSelected
+                          ? theme.colors.primary
+                          : theme.colors.surfaceAlt,
+                        borderRadius: theme.radii.md,
+                        borderWidth: 1,
+                        borderColor: isSelected
+                          ? theme.colors.primary
+                          : theme.colors.border,
+                      },
+                    ]}
+                  >
+                    {isSelected && (
+                      <View style={{ marginRight: 6 }}>
+                        <Icon
+                          icon={Tick02Icon}
+                          size={14}
+                          color={theme.colors.onPrimary}
+                        />
+                      </View>
+                    )}
+                    <Text
+                      variant="caption"
+                      style={{
+                        color: isSelected
+                          ? theme.colors.onPrimary
+                          : theme.colors.foreground,
+                        fontWeight: '500',
+                      }}
+                    >
+                      {option.label}
+                    </Text>
+                  </View>
+                </RNPressable>
+              );
+            })}
+          </View>
+        </View>
+
         <View
           style={[
             styles.row,
@@ -196,17 +301,19 @@ export function PreferencesSection() {
           ]}
         >
           <View style={styles.rowContent}>
-            <Text variant="body">Default Book Format</Text>
+            <Text variant="body">Default Format</Text>
             <Text variant="caption" muted>
-              When adding a book, assume it is...
+              Assumed format for new books
             </Text>
           </View>
           <View style={styles.formatPicker}>
-            {FORMAT_OPTIONS.map((option) => {
-              const isSelected = preferences.defaultFormat === option.value;
+            {FORMAT_OPTIONS.filter((opt) =>
+              preferredFormats.includes(opt.key)
+            ).map((option) => {
+              const isSelected = defaultFormat === option.key;
               return (
                 <RNPressable
-                  key={option.value}
+                  key={option.key}
                   style={[
                     styles.formatOption,
                     {
@@ -218,7 +325,7 @@ export function PreferencesSection() {
                       paddingVertical: theme.spacing.xs,
                     },
                   ]}
-                  onPress={() => handlePreferenceChange('defaultFormat', option.value)}
+                  onPress={() => handleSetDefaultFormat(option.key)}
                 >
                   <Text
                     variant="caption"
@@ -228,7 +335,7 @@ export function PreferencesSection() {
                         : theme.colors.foregroundMuted,
                     }}
                   >
-                    {option.label}
+                    {option.shortLabel}
                   </Text>
                 </RNPressable>
               );
@@ -236,7 +343,6 @@ export function PreferencesSection() {
           </View>
         </View>
 
-        {/* Default Privacy */}
         <View
           style={[
             styles.row,
@@ -265,7 +371,6 @@ export function PreferencesSection() {
           />
         </View>
 
-        {/* Spoiler Shield */}
         <View
           style={[
             styles.row,
@@ -294,7 +399,6 @@ export function PreferencesSection() {
           />
         </View>
 
-        {/* Reading Streak */}
         <View
           style={[
             styles.row,
@@ -323,7 +427,6 @@ export function PreferencesSection() {
           />
         </View>
 
-        {/* Haptic Feedback */}
         <View style={[styles.row, { padding: theme.spacing.md }]}>
           <View style={styles.rowContent}>
             <Text variant="body">Haptic Feedback</Text>
@@ -356,6 +459,17 @@ const styles = StyleSheet.create({
   rowContent: {
     flex: 1,
     marginRight: 16,
+  },
+  formatGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+  },
+  formatChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingVertical: 10,
+    paddingHorizontal: 14,
   },
   formatPicker: {
     flexDirection: 'row',

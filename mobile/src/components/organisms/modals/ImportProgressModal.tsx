@@ -6,12 +6,13 @@ import {
   CloudUploadIcon,
   File02Icon,
   AlertCircleIcon,
+  Image02Icon,
 } from '@hugeicons/core-free-icons';
 import { Text, Button, Icon } from '@/components/atoms';
 import { useTheme } from '@/themes';
-import type { ImportResult } from '@/api/auth';
+import type { ImportResult, EnrichmentStatus } from '@/api/auth';
 
-export type ImportStatus = 'idle' | 'selecting' | 'uploading' | 'complete' | 'error';
+export type ImportStatus = 'idle' | 'selecting' | 'uploading' | 'enriching' | 'complete' | 'error';
 
 interface ImportProgressModalProps {
   visible: boolean;
@@ -20,6 +21,7 @@ interface ImportProgressModalProps {
   result?: ImportResult;
   errorMessage?: string;
   selectedFileName?: string;
+  enrichmentStatus?: EnrichmentStatus;
 }
 
 export function ImportProgressModal({
@@ -29,6 +31,7 @@ export function ImportProgressModal({
   result,
   errorMessage,
   selectedFileName,
+  enrichmentStatus,
 }: ImportProgressModalProps) {
   const { theme, themeName } = useTheme();
   const isScholar = themeName === 'scholar';
@@ -40,6 +43,8 @@ export function ImportProgressModal({
         return File02Icon;
       case 'uploading':
         return CloudUploadIcon;
+      case 'enriching':
+        return Image02Icon;
       case 'complete':
         return result && result.errors > 0 ? AlertCircleIcon : CheckmarkCircle02Icon;
       case 'error':
@@ -55,6 +60,8 @@ export function ImportProgressModal({
         return result && result.errors > 0 ? theme.colors.warning : theme.colors.success;
       case 'error':
         return theme.colors.danger;
+      case 'enriching':
+        return theme.colors.primary;
       default:
         return theme.colors.primary;
     }
@@ -67,6 +74,8 @@ export function ImportProgressModal({
         return 'Select File';
       case 'uploading':
         return 'Importing...';
+      case 'enriching':
+        return 'Fetching Covers';
       case 'complete':
         return 'Import Complete';
       case 'error':
@@ -85,6 +94,11 @@ export function ImportProgressModal({
         return selectedFileName
           ? `Uploading ${selectedFileName}...`
           : 'Processing your library...';
+      case 'enriching':
+        if (enrichmentStatus) {
+          return `Downloading covers and metadata...\n${enrichmentStatus.enriched} of ${enrichmentStatus.total} complete`;
+        }
+        return 'Downloading covers and metadata...';
       case 'complete':
         if (result) {
           const parts = [];
@@ -109,9 +123,10 @@ export function ImportProgressModal({
 
   const StatusIcon = getStatusIcon();
   const statusColor = getStatusColor();
-  const showSpinner = status === 'uploading';
+  const showSpinner = status === 'uploading' || status === 'enriching';
 
   const canClose = status === 'complete' || status === 'error' || status === 'idle';
+  const canDismissEnrichment = status === 'enriching';
 
   return (
     <Modal
@@ -177,12 +192,48 @@ export function ImportProgressModal({
                   styles.message,
                   {
                     color: theme.colors.foregroundMuted,
-                    marginBottom: theme.spacing.xl,
+                    marginBottom: status === 'enriching' ? theme.spacing.md : theme.spacing.xl,
                   },
                 ]}
               >
                 {getMessage()}
               </Text>
+
+              {status === 'enriching' && enrichmentStatus && (
+                <View
+                  style={[
+                    styles.progressContainer,
+                    { marginBottom: theme.spacing.xl },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.progressBar,
+                      {
+                        backgroundColor: theme.colors.surfaceAlt,
+                        borderRadius: theme.radii.full,
+                      },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.progressFill,
+                        {
+                          backgroundColor: theme.colors.primary,
+                          borderRadius: theme.radii.full,
+                          width: `${enrichmentStatus.progress}%`,
+                        },
+                      ]}
+                    />
+                  </View>
+                  <Text
+                    variant="caption"
+                    style={{ color: theme.colors.foregroundMuted, marginTop: theme.spacing.xs }}
+                  >
+                    {enrichmentStatus.progress}% complete
+                  </Text>
+                </View>
+              )}
 
               {status === 'complete' && result && result.error_messages.length > 0 && (
                 <View
@@ -231,6 +282,18 @@ export function ImportProgressModal({
                   </Button>
                 </View>
               )}
+
+              {canDismissEnrichment && (
+                <View style={styles.buttonContainer}>
+                  <Button
+                    variant="ghost"
+                    onPress={onClose}
+                    fullWidth
+                  >
+                    Continue in Background
+                  </Button>
+                </View>
+              )}
             </View>
           </TouchableWithoutFeedback>
         </View>
@@ -275,5 +338,17 @@ const styles = StyleSheet.create({
   },
   errorList: {
     width: '100%',
+  },
+  progressContainer: {
+    width: '100%',
+    alignItems: 'center',
+  },
+  progressBar: {
+    width: '100%',
+    height: 8,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
   },
 });

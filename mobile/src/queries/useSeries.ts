@@ -3,6 +3,24 @@ import { booksApi } from '@/api/books';
 import { queryKeys } from '@/lib/queryKeys';
 import type { Series, Book } from '@/types';
 
+/**
+ * Series Hooks - TanStack Query for GLOBAL CATALOG data.
+ *
+ * Series is GLOBAL data (shared across all users), NOT user-specific data.
+ * Unlike user data (library, sessions, tags, preferences, goals), Series:
+ * - Is owned by the backend (the catalog)
+ * - Requires online connectivity for CRUD operations
+ * - Is synced DOWN to mobile via /sync/pull for display purposes
+ *
+ * TanStack Query is appropriate here because:
+ * 1. Creating/updating Series modifies the global catalog
+ * 2. Changes need to be immediately visible to all users
+ * 3. Offline creation would cause conflicts (multiple users creating same series)
+ *
+ * User-specific data should use WatermelonDB hooks instead:
+ * - useLibrary(), useTags(), useGoals(), usePreferences()
+ */
+
 export const STOPWORDS = new Set([
   'the', 'a', 'an', 'and', 'or', 'of', 'in', 'on', 'at', 'to', 'for',
   'is', 'it', 'by', 'with', 'as', 'be', 'this', 'that', 'from',

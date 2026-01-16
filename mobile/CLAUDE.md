@@ -118,11 +118,36 @@ await database.write(async () => {
 scheduleSyncAfterMutation(); // Triggers background sync
 ```
 
+### Data Ownership Pattern
+
+**User Data (WatermelonDB - Offline-first)**:
+All user-specific data is owned by the mobile app and synced to backend:
+- Library (UserBooks): `useLibrary()`, `useAddToLibrary()`, `useRemoveFromLibrary()`
+- Sessions: `useReadingSessions()`, `useLogSession()`
+- Tags: `useTags()`, `useTagActions()`
+- Preferences: `usePreferences()`, `usePreferenceActions()`
+- Goals: `useGoals()`, `useGoalActions()`
+- Pin/Reorder: `usePinBook()`, `useReorderBooks()`
+- Re-reads: `useStartReread()`, `useReadThroughs()`
+
+**Server Data (TanStack Query - Online)**:
+Data owned by backend, fetched via API:
+- External APIs: `useBookSearchQuery()`, `useAuthorSearchQuery()`
+- Statistics: `useReadingStatsQuery()`, `useHeatmapQuery()`, etc.
+- Global Catalog: `useSeriesQuery()`, `useCreateSeriesMutation()` (Series is shared)
+- Metadata: `usePreferenceOptionsQuery()`, `useGenresQuery()`
+
 ### Database Hooks
 - `useLibrary(status?)` - Observes user's library, optionally filtered by status
 - `useUserBook(id)` - Observes single user_book with its book
 - `useAddToLibrary()` - Returns `addBook` function
-- `useSessions(userBookId)` - Observes reading sessions for a book
+- `useRemoveFromLibrary()` - Soft-deletes a user book
+- `useUpdateUserBook()` - Update status, rating, progress, review
+- `usePinBook()` - Pin/unpin a book (only one pinned at a time)
+- `useReorderBooks()` - Reorder queue positions
+- `useStartReread()` - Start a new read-through
+- `useReadThroughs(userBookId)` - Observe read-throughs for a book
+- `useReadingSessions(userBookId)` - Observes reading sessions for a book
 
 ## Feature Structure
 
@@ -265,6 +290,11 @@ const data = await apiClient<BookResponse>('/books', {
 Throws `AuthenticationError` on 401, `ApiRequestError` on other failures.
 
 ## Animation Guidelines
+
+### Animation Hooks
+Available hooks in `src/animations/hooks/`:
+- `useReducedMotion()` - Check if user prefers reduced motion
+- `useThemeAnimation()` - Theme transition animations
 
 ### Keep Animations Subtle
 Animations should feel natural and polished, not bouncy or exaggerated. Use springs from `@/animations/constants.ts`:
@@ -466,9 +496,8 @@ const { data: dnfAnalytics } = useDNFAnalyticsQuery(); // DNF patterns
 const { data: pageEconomy } = usePageEconomyQuery();   // Pages per format/genre
 ```
 
-**Stats Screens** (`features/stats/`, `features/reading/`):
+**Stats Screens** (`features/stats/`):
 - `ReaderDNAScreen.tsx` - Main stats hub (used in tab navigation)
-- `ReadingStatsScreen.tsx` - Detailed reading statistics view
 - Reading streaks with calendar
 - Pages/books per period
 - Genre distribution
@@ -512,6 +541,40 @@ Connect to OPDS servers for book discovery.
 - Configure OPDS server URL, username, password
 - Test connection before saving
 - Switch between Google Books and OPDS as search source
+
+### Discovery System
+
+Personalized book recommendations from the catalog.
+
+**Screens** (`features/discovery/`):
+- `DiscoveryScreen.tsx` - Main discovery tab with personalized feed sections
+- `CatalogBookDetailScreen.tsx` - Catalog book detail with similar books
+
+**Hooks** (`queries/useDiscovery.ts`):
+```tsx
+// Get personalized feed
+const { data: feed } = useDiscoveryFeedQuery();
+
+// Get similar books for a catalog book
+const { data: similar } = useSimilarBooksQuery(catalogBookId);
+
+// Search the discovery catalog
+const { data: results } = useDiscoverySearchQuery(query);
+
+// Record user signals (batched automatically)
+const recordSignals = useRecordSignalsMutation();
+
+// Refresh recommendations after significant activity
+const refreshProfile = useRefreshProfileMutation();
+```
+
+**Controller Pattern** (`useDiscoveryController`):
+- Queues view/click signals in memory
+- Flushes signals every 30s or on app background
+- Handles navigation to catalog book detail
+
+**Book Completion Integration**:
+When a user marks a book as "read", `useRefreshProfileMutation` is automatically called in `useBookDetailController` to update recommendations.
 
 ### Additional Zustand Stores
 
@@ -573,3 +636,5 @@ Import books from external sources like Goodreads.
 | `SeriesGroupView` | Library grouped by series |
 | `GoalCard` | Goal progress display |
 | `SyncStatusBadge` | Show sync state |
+| `DiscoveryBookCard` | Catalog book card for discovery feed |
+| `DiscoverySection` | Horizontal scroll section in discovery feed |

@@ -24,6 +24,56 @@ class OpenLibraryAuthorService implements AuthorSearchServiceInterface
 
     private const TIMEOUT_SECONDS = 10;
 
+    private const FUZZY_MATCH_THRESHOLD = 0.85;
+
+    /**
+     * Search for an author and return enriched data if found with high similarity.
+     *
+     * This is the primary method for catalog ingestion - it combines search,
+     * similarity validation, and metadata extraction into a single call.
+     *
+     * @return array{
+     *     key: string,
+     *     name: string,
+     *     alternate_names: array,
+     *     metadata: array
+     * }|null
+     */
+    public function findAndEnrichAuthor(string $name): ?array
+    {
+        try {
+            $results = $this->searchAuthors($name, limit: 5);
+
+            if (empty($results['items'])) {
+                return null;
+            }
+
+            foreach ($results['items'] as $item) {
+                $similarity = $this->calculateSimilarity($name, $item['name']);
+                if ($similarity >= self::FUZZY_MATCH_THRESHOLD) {
+                    $details = $this->getAuthor($item['key']);
+                    $data = $details ?? $item;
+
+                    return [
+                        'key' => $data['key'] ?? $item['key'],
+                        'name' => $data['name'] ?? $item['name'],
+                        'alternate_names' => $data['alternate_names'] ?? [],
+                        'metadata' => $this->buildAuthorMetadata($data),
+                    ];
+                }
+            }
+
+            return null;
+        } catch (\Exception $e) {
+            Log::warning('Open Library author enrichment failed', [
+                'name' => $name,
+                'error' => $e->getMessage(),
+            ]);
+
+            return null;
+        }
+    }
+
     public function searchAuthors(string $query, int $limit = 20, int $offset = 0): array
     {
         $query = trim($query);
@@ -34,8 +84,115 @@ class OpenLibraryAuthorService implements AuthorSearchServiceInterface
         $cacheKey = $this->buildCacheKey('search', $query, $limit, $offset);
 
         return Cache::remember($cacheKey, now()->addMinutes(self::CACHE_TTL_MINUTES), function () use ($query, $limit, $offset) {
-            return $this->executeAuthorSearch($query, $limit, $offset);
+            $results = $this->executeAuthorSearch($query, $limit, $offset);
+
+            if (empty($results['items']) && str_contains($query, ' ')) {
+                $results = $this->executeFuzzySearch($query, $limit, $offset);
+            }
+
+            return $results;
         });
+    }
+
+    /**
+     * Execute fuzzy search by trying multiple query variations.
+     *
+     * Strategies:
+     * 1. Search by individual name parts (first name, last name)
+     * 2. Remove common suffixes/prefixes
+     * 3. Try phonetic variations
+     */
+    private function executeFuzzySearch(string $query, int $limit, int $offset): array
+    {
+        $parts = preg_split('/\s+/', $query);
+        $allItems = [];
+        $seenKeys = [];
+
+        foreach ($parts as $part) {
+            if (strlen($part) < 2) {
+                continue;
+            }
+
+            $partResults = $this->executeAuthorSearch($part, $limit, 0);
+
+            foreach ($partResults['items'] as $item) {
+                if (isset($seenKeys[$item['key']])) {
+                    continue;
+                }
+
+                if ($this->fuzzyMatchesQuery($item['name'], $query)) {
+                    $allItems[] = $item;
+                    $seenKeys[$item['key']] = true;
+                }
+            }
+        }
+
+        usort($allItems, fn ($a, $b) => $b['work_count'] <=> $a['work_count']);
+
+        $paginatedItems = array_slice($allItems, $offset, $limit);
+
+        return [
+            'items' => $paginatedItems,
+            'totalItems' => count($allItems),
+            'hasMore' => ($offset + count($paginatedItems)) < count($allItems),
+        ];
+    }
+
+    /**
+     * Check if author name fuzzy-matches the query.
+     */
+    private function fuzzyMatchesQuery(string $authorName, string $query): bool
+    {
+        $normalizedName = strtolower($authorName);
+        $normalizedQuery = strtolower($query);
+
+        if (str_contains($normalizedName, $normalizedQuery)) {
+            return true;
+        }
+
+        $queryParts = preg_split('/\s+/', $normalizedQuery);
+        $matchedParts = 0;
+
+        foreach ($queryParts as $part) {
+            if (strlen($part) < 2) {
+                continue;
+            }
+
+            if (str_contains($normalizedName, $part)) {
+                $matchedParts++;
+                continue;
+            }
+
+            foreach (explode(' ', $normalizedName) as $namePart) {
+                if ($this->soundsLike($part, $namePart)) {
+                    $matchedParts++;
+                    break;
+                }
+            }
+        }
+
+        return $matchedParts >= count($queryParts) * 0.5;
+    }
+
+    /**
+     * Check if two strings sound similar using metaphone.
+     */
+    private function soundsLike(string $a, string $b): bool
+    {
+        if (strlen($a) < 2 || strlen($b) < 2) {
+            return false;
+        }
+
+        $metaA = metaphone($a);
+        $metaB = metaphone($b);
+
+        if ($metaA === $metaB) {
+            return true;
+        }
+
+        similar_text($metaA, $metaB, $percent);
+
+        return $percent >= 75;
     }
 
     public function getAuthor(string $authorKey): ?array
@@ -188,8 +345,15 @@ class OpenLibraryAuthorService implements AuthorSearchServiceInterface
      */
     private function transformAuthorSearchResult(array $doc): array
     {
+        $key = $doc['key'] ?? '';
+        $photoUrl = null;
+
+        if ($key) {
+            $photoUrl = "https://covers.openlibrary.org/a/olid/{$key}-M.jpg";
+        }
+
         return [
-            'key' => $doc['key'] ?? '',
+            'key' => $key,
             'name' => $doc['name'] ?? 'Unknown',
             'alternate_names' => $doc['alternate_names'] ?? [],
             'birth_date' => $doc['birth_date'] ?? null,
@@ -197,6 +361,7 @@ class OpenLibraryAuthorService implements AuthorSearchServiceInterface
             'top_work' => $doc['top_work'] ?? null,
             'work_count' => $doc['work_count'] ?? 0,
             'top_subjects' => array_slice($doc['top_subjects'] ?? [], 0, 5),
+            'photo_url' => $photoUrl,
         ];
     }
 
@@ -311,5 +476,103 @@ class OpenLibraryAuthorService implements AuthorSearchServiceInterface
         RateLimiter::hit($key, 60);
 
         return true;
+    }
+
+    /**
+     * Build comprehensive metadata array from Open Library data.
+     *
+     * Extracts all available author information into a structured format
+     * suitable for storage in the authors.metadata column.
+     */
+    private function buildAuthorMetadata(array $olData): array
+    {
+        $metadata = [];
+
+        if (! empty($olData['bio'])) {
+            $metadata['bio'] = is_array($olData['bio'])
+                ? ($olData['bio']['value'] ?? '')
+                : $olData['bio'];
+        }
+
+        if (! empty($olData['birth_date'])) {
+            $metadata['birth_date'] = $olData['birth_date'];
+        }
+
+        if (! empty($olData['death_date'])) {
+            $metadata['death_date'] = $olData['death_date'];
+        }
+
+        if (! empty($olData['photo_url'])) {
+            $metadata['photo_url'] = $olData['photo_url'];
+        } elseif (! empty($olData['photos']) && is_array($olData['photos'])) {
+            $photoId = $this->extractPhotoId($olData['photos']);
+            if ($photoId) {
+                $metadata['photo_url'] = "https://covers.openlibrary.org/a/id/{$photoId}-L.jpg";
+            }
+        }
+
+        if (! empty($olData['wikipedia_url'])) {
+            $metadata['wikipedia_url'] = $olData['wikipedia_url'];
+        } elseif (! empty($olData['wikipedia'])) {
+            $metadata['wikipedia_url'] = $olData['wikipedia'];
+        }
+
+        if (! empty($olData['top_work'])) {
+            $metadata['top_work'] = $olData['top_work'];
+        }
+
+        if (! empty($olData['work_count'])) {
+            $metadata['work_count'] = $olData['work_count'];
+        }
+
+        if (! empty($olData['links']) && is_array($olData['links'])) {
+            $metadata['links'] = array_map(fn ($link) => [
+                'title' => $link['title'] ?? 'Link',
+                'url' => $link['url'] ?? '',
+            ], array_slice($olData['links'], 0, 5));
+        }
+
+        if (! empty($olData['remote_ids']) && is_array($olData['remote_ids'])) {
+            $metadata['external_ids'] = $olData['remote_ids'];
+        }
+
+        if (! empty($olData['fuller_name'])) {
+            $metadata['fuller_name'] = $olData['fuller_name'];
+        }
+
+        if (! empty($olData['personal_name'])) {
+            $metadata['personal_name'] = $olData['personal_name'];
+        }
+
+        if (! empty($olData['entity_type'])) {
+            $metadata['entity_type'] = $olData['entity_type'];
+        }
+
+        return $metadata;
+    }
+
+    /**
+     * Extract a valid photo ID from Open Library photos array.
+     */
+    private function extractPhotoId(array $photos): ?int
+    {
+        foreach ($photos as $photoId) {
+            $id = is_array($photoId) ? ($photoId['id'] ?? $photoId) : $photoId;
+            if (is_numeric($id) && (int) $id > 0) {
+                return (int) $id;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Calculate similarity between two strings.
+     */
+    private function calculateSimilarity(string $a, string $b): float
+    {
+        similar_text(strtolower($a), strtolower($b), $percent);
+
+        return $percent / 100;
     }
 }

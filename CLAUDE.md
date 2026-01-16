@@ -65,8 +65,9 @@ This app follows an **offline-first architecture** with clear separation of conc
 **Backend-Only Operations**:
 - Book search (Google Books / OPDS external APIs)
 - Author lookups (external API)
-- Book classification (LLM)
+- Book classification (LLM via `BookClassificationService`)
 - Advanced statistics (heatmap, mood ring, DNF analytics, page economy)
+- Discovery recommendations (vector similarity)
 - Goodreads import (file processing)
 
 ### Backend Stack
@@ -180,9 +181,12 @@ See `mobile/CLAUDE.md` for detailed component guidelines including:
 - `mobile/src/themes/themes/` - Theme definitions
 - `mobile/src/database/models/` - WatermelonDB models (Book, UserBook, ReadingSession, ReadThrough, Series, Tag, SyncMetadata)
 - `mobile/src/stores/` - Zustand stores (authStore, themeStore, tagStore, preferencesStore, etc.)
+- `mobile/src/features/discovery/` - Discovery feature (feed, catalog book detail, similar books)
 - `backend/routes/api.php` - API route definitions
 - `backend/app/Providers/AppServiceProvider.php` - Model config, rate limiters
 - `backend/app/Services/Stats/` - Statistics and analytics services
+- `backend/app/Services/BookClassificationService.php` - Shared LLM classification logic
+- `backend/app/Services/Discovery/` - Recommendation engine services
 
 ---
 
@@ -391,6 +395,47 @@ Connect to OPDS (Open Publication Distribution System) servers for book discover
 
 **Mobile Screen**: `OPDSSettingsScreen.tsx` in `features/settings/`
 
+### Discovery System
+
+Personalized book recommendations based on reading history and user signals.
+
+**Backend Architecture**:
+- `DiscoveryController` - Handles feed, search, similar books, signals
+- `RecommendationServiceInterface` - Vector similarity recommendations
+- `UserSignalServiceInterface` - Records user interactions
+- `BookClassificationService` - Shared LLM classification logic (used by controller and job)
+
+**Models**:
+- `CatalogBook` - Discovery catalog (separate from user library)
+- `UserSignal` - User interaction signals (view, click, add_to_library, dismiss)
+- `UserEmbedding` - User preference vectors for recommendations
+
+**API Endpoints**:
+- `GET /discovery/feed` - Personalized discovery feed with sections
+- `GET /discovery/search?q={query}` - Search discovery catalog
+- `GET /discovery/{catalogBook}` - Single catalog book details
+- `GET /discovery/{catalogBook}/similar` - Similar books
+- `POST /discovery/signals` - Record user interaction signals
+- `POST /discovery/refresh-profile` - Refresh user's recommendation profile
+
+**Mobile Hooks** (`src/queries/useDiscovery.ts`):
+- `useDiscoveryFeedQuery()` - Personalized feed with sections
+- `useSimilarBooksQuery(catalogBookId)` - Similar books for a catalog book
+- `useCatalogBookQuery(catalogBookId)` - Single catalog book
+- `useDiscoverySearchQuery(query)` - Search discovery catalog
+- `useRecordSignalsMutation()` - Batch record user signals
+- `useRefreshProfileMutation()` - Refresh recommendations (called on book completion)
+
+**Mobile Screens** (`src/features/discovery/`):
+- `DiscoveryScreen.tsx` - Main discovery tab with feed sections
+- `CatalogBookDetailScreen.tsx` - Catalog book detail with similar books
+
+**Signal Flow**:
+1. User views/clicks books → signals queued in memory
+2. Signals batched and sent every 30s or on app background
+3. User finishes a book → `refreshProfile` mutation called
+4. Discovery feed refreshed with updated recommendations
+
 ---
 
 ## Database Relationships Overview
@@ -407,3 +452,36 @@ User
 └── Books (many:many via user_books)
     └── Series (many:1)
 ```
+
+---
+
+## Database Schema Notes
+
+### Observers
+
+**ReadThroughObserver** (`backend/app/Observers/ReadThroughObserver.php`):
+- Keeps `UserBook.status` in sync with current `ReadThrough.status`
+- Updates `UserBook.rating` when a completed ReadThrough gets rated
+- Sets `UserBook.status` to "reading" when a re-read starts (read_number > 1)
+- Syncs `started_at`/`finished_at` dates between ReadThrough and UserBook
+
+### Indexes
+
+Optimized indexes for common query patterns:
+- `user_books.status` - Filter by reading status
+- `user_books(user_id, status)` - User's books by status
+- `reading_sessions(user_book_id, date)` - Date range queries for sessions
+
+### Constraints
+
+Rating validation (PostgreSQL only):
+- `user_books.rating` - CHECK constraint: 0-5 or NULL
+- `read_throughs.rating` - CHECK constraint: 0-5 or NULL
+
+### Mobile Schema Version
+
+Current version: **8**
+
+Key tables with sync fields (`is_pending_sync`, `is_deleted`):
+- `books`, `user_books`, `read_throughs`, `reading_sessions`
+- `series`, `tags`, `user_book_tags`, `user_preferences`, `reading_goals`

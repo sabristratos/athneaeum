@@ -5,6 +5,9 @@ export { QuickActionButton, type QuickActionButtonProps } from './QuickActionBut
 export { QuickActionPill, type QuickActionPillProps } from './QuickActionPill';
 export { Chip, type ChipProps, type ChipVariant } from './Chip';
 export { TagChip, type TagChipProps } from './TagChip';
+export { PreferenceChip, SelectableChip, type PreferenceChipProps } from './PreferenceChip';
+export { PreferenceStateSelector, type PreferenceStateSelectorProps } from './PreferenceStateSelector';
+export { PreferenceChipGroup, type PreferenceChipGroupProps, type PreferenceItem } from './PreferenceChipGroup';
 export { DateSelector } from './DateSelector';
 export { DurationInput } from './DurationInput';
 export { PageRangeInput } from './PageRangeInput';

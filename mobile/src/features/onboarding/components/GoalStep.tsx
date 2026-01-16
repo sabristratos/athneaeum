@@ -57,7 +57,12 @@ export function GoalStep({
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <RNPressable onPress={onBack} style={styles.backButton}>
+        <RNPressable
+          onPress={onBack}
+          style={styles.backButton}
+          accessibilityLabel="Go back to authors"
+          accessibilityRole="button"
+        >
           <Icon
             icon={ArrowLeft02Icon}
             size={24}
@@ -285,11 +290,11 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   backButton: {
-    width: 40,
-    height: 40,
+    width: 44,
+    height: 44,
     justifyContent: 'center',
     alignItems: 'center',
-    marginLeft: -8,
+    marginLeft: -10,
   },
   content: {
     flex: 1,

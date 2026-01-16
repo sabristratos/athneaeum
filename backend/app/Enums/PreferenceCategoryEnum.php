@@ -9,6 +9,7 @@ enum PreferenceCategoryEnum: string
     case Author = 'author';
     case Genre = 'genre';
     case Series = 'series';
+    case Format = 'format';
 
     public function label(): string
     {
@@ -16,6 +17,7 @@ enum PreferenceCategoryEnum: string
             self::Author => __('Author'),
             self::Genre => __('Genre'),
             self::Series => __('Series'),
+            self::Format => __('Format'),
         };
     }
 

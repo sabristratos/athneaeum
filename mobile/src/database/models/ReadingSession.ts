@@ -68,4 +68,37 @@ export class ReadingSession extends Model {
       record.updatedAt = new Date();
     });
   }
+
+  @writer async updateSession(data: {
+    date?: string;
+    startPage?: number;
+    endPage?: number;
+    durationSeconds?: number | null;
+    notes?: string | null;
+  }) {
+    await this.update((record) => {
+      if (data.date !== undefined) {
+        record.sessionDate = data.date;
+      }
+      if (data.startPage !== undefined) {
+        record.startPage = data.startPage;
+      }
+      if (data.endPage !== undefined) {
+        record.endPage = data.endPage;
+        if (data.startPage !== undefined) {
+          record.pagesRead = data.endPage - data.startPage;
+        } else {
+          record.pagesRead = data.endPage - record.startPage;
+        }
+      }
+      if (data.durationSeconds !== undefined) {
+        record.durationSeconds = data.durationSeconds;
+      }
+      if (data.notes !== undefined) {
+        record.notes = data.notes;
+      }
+      record.isPendingSync = true;
+      record.updatedAt = new Date();
+    });
+  }
 }

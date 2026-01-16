@@ -7,17 +7,38 @@ import type { IconSvgElement } from '@hugeicons/react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useQueryClient } from '@tanstack/react-query';
 import { useMMKVString } from 'react-native-mmkv';
+import { Q } from '@nozbe/watermelondb';
 import { useScrollAnimations } from '@/hooks';
 import { useToast } from '@/stores/toastStore';
-import { useLibrary, useReadingSessions } from '@/hooks/useBooks';
 import { queryKeys } from '@/lib/queryKeys';
 import { booksApi } from '@/api/books';
+import { database } from '@/database/index';
+import { scheduleSyncAfterMutation } from '@/database/sync';
+import type { UserBook as WatermelonUserBook } from '@/database/models/UserBook';
+import type { Book as WatermelonBook } from '@/database/models/Book';
+import type { ReadThrough as WatermelonReadThrough } from '@/database/models/ReadThrough';
+import type { ReadingSession as WatermelonReadingSession } from '@/database/models/ReadingSession';
 import { useQuotes } from '@/hooks/useQuotes';
-import { useTags, useTagActions as useWatermelonTagActions } from '@/database/hooks';
+import {
+  useTags,
+  useTagActions as useWatermelonTagActions,
+  useUpdateUserBookTags,
+  useTogglePreference,
+  useStartReread as useStartRereadHook,
+  useUpdateUserBook,
+  useRemoveFromLibrary,
+  useAddToLibrary,
+  useLogSession,
+  useDeleteSession,
+  useUpdateSession,
+  useReadingSessions as useLocalReadingSessions,
+  useReadThroughs as useLocalReadThroughs,
+  useUpdateReadThroughRating,
+} from '@/database/hooks';
 import { storage } from '@/lib/storage';
-import { apiClient } from '@/api/client';
 import { useSeriesDetailQuery } from '@/queries';
-import { useLibraryAuthorsQuery, useToggleAuthorPreferenceMutation } from '@/queries/useAuthors';
+import { useLibraryAuthorsQuery } from '@/queries/useAuthors';
+import { useRefreshProfileMutation } from '@/queries/useDiscovery';
 import type {
   UserBook,
   BookStatus,
@@ -221,16 +242,76 @@ export function useBookDetailController(): BookDetailControllerReturn {
   const route = useRoute<BookDetailRouteProp>();
   const toast = useToast();
   const queryClient = useQueryClient();
-  const { updateBook, removeBook, addToLibrary } = useLibrary();
-  const {
-    sessions,
-    fetchSessions,
-    logSession,
-    updateSession,
-    deleteSession,
-  } = useReadingSessions(route.params.userBook.id);
+  const { updateStatus, updateRating, updateProgress, updateReview, markDnf, updateBookDetails } = useUpdateUserBook();
+  const { updateReadThroughRating } = useUpdateReadThroughRating();
+  const { removeBook } = useRemoveFromLibrary();
+  const { addBook: addToLibrary } = useAddToLibrary();
+  const { logSession } = useLogSession();
+  const { deleteSession } = useDeleteSession();
+  const { updateSession } = useUpdateSession();
+  const refreshProfile = useRefreshProfileMutation();
   const { height: windowHeight } = useWindowDimensions();
   const insets = useSafeAreaInsets();
+
+  const [localUserBookId, setLocalUserBookId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const findLocalUserBook = async () => {
+      const localUserBooks = await database
+        .get<WatermelonUserBook>('user_books')
+        .query(Q.where('server_id', route.params.userBook.id))
+        .fetch();
+
+      if (localUserBooks.length > 0) {
+        setLocalUserBookId(localUserBooks[0].id);
+      }
+    };
+    findLocalUserBook();
+  }, [route.params.userBook.id]);
+
+  const { sessions: localSessions, loading: sessionsLoading } = useLocalReadingSessions(localUserBookId ?? undefined);
+  const { readThroughs: localReadThroughs, loading: readThroughsLoading } = useLocalReadThroughs(localUserBookId ?? '');
+
+  const sessions: ReadingSession[] = useMemo(() => {
+    return localSessions.map((s) => ({
+      id: s.serverId ?? 0,
+      local_id: s.id,
+      user_book_id: s.serverUserBookId ?? 0,
+      read_through_id: s.serverReadThroughId ?? null,
+      date: s.sessionDate,
+      pages_read: s.pagesRead,
+      start_page: s.startPage,
+      end_page: s.endPage,
+      duration_seconds: s.durationSeconds,
+      formatted_duration: null,
+      notes: s.notes,
+      created_at: '',
+      updated_at: '',
+    }));
+  }, [localSessions]);
+
+  const readThroughs: ReadThrough[] = useMemo(() => {
+    return localReadThroughs.map((rt) => ({
+      id: rt.serverId ?? 0,
+      local_id: rt.id,
+      user_book_id: rt.serverUserBookId ?? 0,
+      read_number: rt.readNumber,
+      status: rt.status as BookStatus,
+      status_label: rt.status,
+      rating: rt.rating,
+      review: rt.review,
+      is_dnf: rt.isDnf,
+      dnf_reason: rt.dnfReason,
+      started_at: rt.startedAt?.toISOString() ?? null,
+      finished_at: rt.finishedAt?.toISOString() ?? null,
+      created_at: '',
+      updated_at: '',
+    }));
+  }, [localReadThroughs]);
+
+  const readCount = useMemo(() => {
+    return localReadThroughs.length;
+  }, [localReadThroughs]);
 
   const [measuredHeroHeight, setMeasuredHeroHeight] = useState<number | null>(null);
 
@@ -265,16 +346,11 @@ export function useBookDetailController(): BookDetailControllerReturn {
   });
   const [editingQuote, setEditingQuote] = useState<Quote | undefined>();
   const [modal, setModal] = useState<ModalState>(initialModalState);
-  const [readThroughs, setReadThroughs] = useState<ReadThrough[]>(
-    route.params.userBook.read_throughs ?? []
-  );
-  const [readCount, setReadCount] = useState<number>(
-    route.params.userBook.read_count ?? 0
-  );
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
   const { tags: watermelonTags } = useTags();
   const { createTag: createWatermelonTag } = useWatermelonTagActions();
+  const { updateTags: updateUserBookTags } = useUpdateUserBookTags();
   const [storedRecentlyUsedIds, setStoredRecentlyUsedIds] = useMMKVString(RECENTLY_USED_TAGS_KEY, storage ?? undefined);
 
   const tags: Tag[] = useMemo(() => {
@@ -316,7 +392,8 @@ export function useBookDetailController(): BookDetailControllerReturn {
   }, [recentlyUsedTagIds, setStoredRecentlyUsedIds]);
 
   const { data: libraryAuthors } = useLibraryAuthorsQuery('all');
-  const toggleAuthorPreference = useToggleAuthorPreferenceMutation();
+  const { toggleAuthor } = useTogglePreference();
+  const { startReread: startRereadLocal } = useStartRereadHook();
 
   useFocusEffect(
     useCallback(() => {
@@ -324,12 +401,6 @@ export function useBookDetailController(): BookDetailControllerReturn {
         try {
           const freshBook = await booksApi.getUserBook(route.params.userBook.id);
           setUserBook(freshBook);
-          if (freshBook.read_throughs) {
-            setReadThroughs(freshBook.read_throughs);
-          }
-          if (freshBook.read_count !== undefined) {
-            setReadCount(freshBook.read_count);
-          }
         } catch {
         }
       };
@@ -427,21 +498,21 @@ export function useBookDetailController(): BookDetailControllerReturn {
     });
   }, []);
 
-  useEffect(() => {
-    fetchSessions();
-  }, [fetchSessions]);
-
   const performReread = useCallback(async () => {
     setUpdating(true);
     try {
-      const result = await booksApi.startReread(userBook.id);
-      setUserBook(result.user_book);
-      if (result.user_book.read_throughs) {
-        setReadThroughs(result.user_book.read_throughs);
+      const localUserBooks = await database
+        .get<WatermelonUserBook>('user_books')
+        .query(Q.where('server_id', userBook.id))
+        .fetch();
+
+      if (localUserBooks.length === 0) {
+        throw new Error('Local user book not found');
       }
-      if (result.user_book.read_count !== undefined) {
-        setReadCount(result.user_book.read_count);
-      }
+
+      await startRereadLocal(localUserBooks[0].id);
+      const freshBook = await booksApi.getUserBook(userBook.id);
+      setUserBook(freshBook);
       queryClient.invalidateQueries({ queryKey: queryKeys.stats.all });
       toast.success('Re-reading started');
     } catch (err) {
@@ -449,10 +520,12 @@ export function useBookDetailController(): BookDetailControllerReturn {
     } finally {
       setUpdating(false);
     }
-  }, [userBook.id, showError, toast, queryClient]);
+  }, [userBook.id, startRereadLocal, showError, toast, queryClient]);
 
   const handleStatusChange = useCallback(
     async (status: string) => {
+      if (!localUserBookId) return;
+
       const isReread =
         status === 'reading' && (userBook.status === 'read' || userBook.finished_at);
 
@@ -472,40 +545,42 @@ export function useBookDetailController(): BookDetailControllerReturn {
 
       setUpdating(true);
       try {
-        const updated = await updateBook(userBook.id, {
-          status: status as BookStatus,
-        });
-        if (updated) {
-          setUserBook(updated);
-          queryClient.invalidateQueries({ queryKey: queryKeys.stats.all });
-          queryClient.invalidateQueries({ queryKey: queryKeys.goals.all });
-          toast.success('Status updated');
+        await updateStatus(localUserBookId, status as BookStatus);
+        setUserBook((prev) => ({ ...prev, status: status as BookStatus }));
+        queryClient.invalidateQueries({ queryKey: queryKeys.stats.all });
+        queryClient.invalidateQueries({ queryKey: queryKeys.goals.all });
+
+        if (status === 'read') {
+          refreshProfile.mutate();
+          queryClient.invalidateQueries({ queryKey: queryKeys.discovery.all });
         }
+
+        toast.success('Status updated');
       } catch (err) {
         showError('Failed to update status');
       } finally {
         setUpdating(false);
       }
     },
-    [userBook.id, userBook.status, userBook.finished_at, updateBook, showError, performReread, toast, queryClient]
+    [localUserBookId, userBook.status, userBook.finished_at, updateStatus, showError, performReread, toast, queryClient, refreshProfile]
   );
 
   const handleRatingChange = useCallback(
     async (rating: number) => {
+      if (!localUserBookId) return;
+
       setUpdating(true);
       try {
-        const updated = await updateBook(userBook.id, { rating });
-        if (updated) {
-          setUserBook(updated);
-          toast.success('Rating saved');
-        }
+        await updateRating(localUserBookId, rating);
+        setUserBook((prev) => ({ ...prev, rating }));
+        toast.success('Rating saved');
       } catch (err) {
         showError('Failed to update rating');
       } finally {
         setUpdating(false);
       }
     },
-    [userBook.id, updateBook, showError, toast]
+    [localUserBookId, updateRating, showError, toast]
   );
 
   const handleLogSession = useCallback(
@@ -515,20 +590,24 @@ export function useBookDetailController(): BookDetailControllerReturn {
       notes?: string;
       date: string;
     }) => {
+      if (!localUserBookId) return;
+
+      const pagesRead = data.endPage - userBook.current_page;
+
       try {
-        const result = await logSession({
-          user_book_id: userBook.id,
+        await logSession({
+          userBookId: localUserBookId,
           date: data.date,
-          start_page: userBook.current_page,
-          end_page: data.endPage,
-          duration_seconds: data.durationSeconds,
+          pagesRead,
+          startPage: userBook.current_page,
+          endPage: data.endPage,
+          durationSeconds: data.durationSeconds,
           notes: data.notes,
         });
 
-        if (result?.userBook) {
-          setUserBook(result.userBook);
-        }
-        fetchSessions();
+        setUserBook((prev) => ({ ...prev, current_page: data.endPage }));
+        queryClient.invalidateQueries({ queryKey: queryKeys.stats.all });
+        queryClient.invalidateQueries({ queryKey: queryKeys.goals.all });
         toast.success('Session logged', {
           action: {
             label: 'Stats',
@@ -541,47 +620,45 @@ export function useBookDetailController(): BookDetailControllerReturn {
         throw err;
       }
     },
-    [userBook, logSession, fetchSessions, toast, navigation]
+    [localUserBookId, userBook.current_page, logSession, toast, navigation, queryClient]
   );
 
   const handleQuickProgress = useCallback(
     async (newPage: number) => {
+      if (!localUserBookId) return;
+
       try {
         const pagesRead = newPage - userBook.current_page;
 
         if (pagesRead > 0) {
-          const result = await logSession({
-            user_book_id: userBook.id,
+          await logSession({
+            userBookId: localUserBookId,
             date: new Date().toISOString().split('T')[0],
-            start_page: userBook.current_page,
-            end_page: newPage,
-            duration_seconds: undefined,
-            notes: undefined,
+            pagesRead,
+            startPage: userBook.current_page,
+            endPage: newPage,
           });
 
-          if (result?.userBook) {
-            setUserBook(result.userBook);
-            fetchSessions();
-            toast.success('Progress saved', {
-              action: {
-                label: 'Stats',
-                onPress: () => navigation.navigate('MainTabs', { screen: 'StatsTab' } as any),
-              },
-            });
-          }
+          setUserBook((prev) => ({ ...prev, current_page: newPage }));
+          queryClient.invalidateQueries({ queryKey: queryKeys.stats.all });
+          queryClient.invalidateQueries({ queryKey: queryKeys.goals.all });
+          toast.success('Progress saved', {
+            action: {
+              label: 'Stats',
+              onPress: () => navigation.navigate('MainTabs', { screen: 'StatsTab' } as any),
+            },
+          });
         } else {
-          const updated = await updateBook(userBook.id, { current_page: newPage });
-          if (updated) {
-            setUserBook(updated);
-            toast.success('Progress saved');
-          }
+          await updateProgress(localUserBookId, newPage);
+          setUserBook((prev) => ({ ...prev, current_page: newPage }));
+          toast.success('Progress saved');
         }
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to save progress';
         toast.danger(message);
       }
     },
-    [userBook.id, userBook.current_page, updateBook, logSession, fetchSessions, toast, navigation]
+    [localUserBookId, userBook.current_page, updateProgress, logSession, toast, navigation, queryClient]
   );
 
   const handleShare = useCallback(async () => {
@@ -597,52 +674,51 @@ export function useBookDetailController(): BookDetailControllerReturn {
 
   const handleDnf = useCallback(
     async (reason: string) => {
+      if (!localUserBookId) return;
+
       setUpdating(true);
       try {
-        const updated = await updateBook(userBook.id, {
+        await markDnf(localUserBookId, reason);
+        setUserBook((prev) => ({
+          ...prev,
           status: 'dnf',
           is_dnf: true,
           dnf_reason: reason,
-        });
-        if (updated) {
-          setUserBook(updated);
-          queryClient.invalidateQueries({ queryKey: queryKeys.stats.all });
-          queryClient.invalidateQueries({ queryKey: queryKeys.goals.all });
-          toast.success('Marked as Did Not Finish');
-        }
+        }));
+        queryClient.invalidateQueries({ queryKey: queryKeys.stats.all });
+        queryClient.invalidateQueries({ queryKey: queryKeys.goals.all });
+
+        refreshProfile.mutate();
+        queryClient.invalidateQueries({ queryKey: queryKeys.discovery.all });
+
+        toast.success('Marked as Did Not Finish');
       } catch (err) {
         showError('Failed to mark as DNF');
       } finally {
         setUpdating(false);
       }
     },
-    [userBook.id, updateBook, showError, toast, queryClient]
+    [localUserBookId, markDnf, showError, toast, queryClient, refreshProfile]
   );
 
   const performRemove = useCallback(async () => {
+    if (!localUserBookId) return;
+
     const bookData = {
-      external_id: userBook.book.external_id ?? undefined,
-      external_provider: userBook.book.external_provider ?? undefined,
+      externalId: userBook.book.external_id ?? '',
+      externalProvider: userBook.book.external_provider ?? undefined,
       title: userBook.book.title,
       author: userBook.book.author,
-      cover_url: userBook.book.cover_url,
-      page_count: userBook.book.page_count,
-      isbn: userBook.book.isbn,
-      description: userBook.book.description,
-      genres: userBook.book.genres?.map((g) => g.name) ?? undefined,
-      published_date: userBook.book.published_date,
-      status: userBook.status,
-    };
-    const savedUserBookData = {
-      rating: userBook.rating,
-      current_page: userBook.current_page,
-      review: userBook.review,
-      started_at: userBook.started_at,
-      finished_at: userBook.finished_at,
+      coverUrl: userBook.book.cover_url ?? undefined,
+      pageCount: userBook.book.page_count ?? undefined,
+      isbn: userBook.book.isbn ?? undefined,
+      description: userBook.book.description ?? undefined,
+      genres: userBook.book.genres?.map((g) => g.name),
+      publishedDate: userBook.book.published_date ?? undefined,
     };
 
-    const success = await removeBook(userBook.id);
-    if (success) {
+    try {
+      await removeBook(localUserBookId);
       queryClient.invalidateQueries({ queryKey: queryKeys.library.externalIds() });
       queryClient.invalidateQueries({ queryKey: queryKeys.stats.all });
       queryClient.invalidateQueries({ queryKey: queryKeys.goals.all });
@@ -650,10 +726,7 @@ export function useBookDetailController(): BookDetailControllerReturn {
 
       toast.undo('Removed from library', async () => {
         try {
-          const restored = await addToLibrary(bookData);
-          if (restored && (savedUserBookData.rating || savedUserBookData.current_page > 0 || savedUserBookData.review)) {
-            await booksApi.updateUserBook(restored.id, savedUserBookData);
-          }
+          await addToLibrary(bookData, userBook.status);
           queryClient.invalidateQueries({ queryKey: queryKeys.library.all });
           queryClient.invalidateQueries({ queryKey: queryKeys.library.externalIds() });
           queryClient.invalidateQueries({ queryKey: queryKeys.stats.all });
@@ -663,10 +736,10 @@ export function useBookDetailController(): BookDetailControllerReturn {
           toast.danger('Failed to restore book');
         }
       });
-    } else {
+    } catch {
       showError('Failed to remove book');
     }
-  }, [userBook, removeBook, addToLibrary, navigation, showError, toast, queryClient]);
+  }, [localUserBookId, userBook, removeBook, addToLibrary, navigation, showError, toast, queryClient]);
 
   const handleRemove = useCallback(() => {
     setModal({
@@ -729,40 +802,59 @@ export function useBookDetailController(): BookDetailControllerReturn {
         notes?: string | null;
       }
     ) => {
+      const session = sessions.find((s) => s.id === sessionId);
+      const localSessionId = (session as any)?.local_id;
+
+      if (!localSessionId) {
+        toast.danger('Session not found');
+        return;
+      }
+
       try {
-        await updateSession(sessionId, data);
+        await updateSession(localSessionId, {
+          date: data.date,
+          startPage: data.start_page,
+          endPage: data.end_page,
+          durationSeconds: data.duration_seconds,
+          notes: data.notes,
+        });
+        queryClient.invalidateQueries({ queryKey: queryKeys.stats.all });
         toast.success('Session updated');
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to update session';
         toast.danger(message);
       }
     },
-    [updateSession, toast]
+    [sessions, updateSession, toast, queryClient]
   );
 
   const handleDeleteSession = useCallback(
     async (sessionId: number) => {
       const sessionToDelete = sessions.find((s) => s.id === sessionId);
-      if (!sessionToDelete) {
+      const localSessionId = (sessionToDelete as any)?.local_id;
+
+      if (!sessionToDelete || !localSessionId || !localUserBookId) {
         toast.danger('Session not found');
         return;
       }
 
       const savedSessionData = {
-        user_book_id: userBook.id,
+        userBookId: localUserBookId,
         date: sessionToDelete.date,
-        start_page: sessionToDelete.start_page,
-        end_page: sessionToDelete.end_page,
-        duration_seconds: sessionToDelete.duration_seconds ?? undefined,
+        pagesRead: sessionToDelete.pages_read,
+        startPage: sessionToDelete.start_page,
+        endPage: sessionToDelete.end_page,
+        durationSeconds: sessionToDelete.duration_seconds ?? undefined,
         notes: sessionToDelete.notes ?? undefined,
       };
 
       try {
-        await deleteSession(sessionId);
+        await deleteSession(localSessionId);
+        queryClient.invalidateQueries({ queryKey: queryKeys.stats.all });
+        queryClient.invalidateQueries({ queryKey: queryKeys.goals.all });
         toast.undo('Session deleted', async () => {
           try {
             await logSession(savedSessionData);
-            fetchSessions();
             toast.success('Session restored');
           } catch {
             toast.danger('Failed to restore session');
@@ -773,7 +865,7 @@ export function useBookDetailController(): BookDetailControllerReturn {
         toast.danger(message);
       }
     },
-    [sessions, userBook.id, deleteSession, logSession, fetchSessions, toast]
+    [sessions, localUserBookId, deleteSession, logSession, toast, queryClient]
   );
 
   const handleFabPress = useCallback(() => {
@@ -818,31 +910,24 @@ export function useBookDetailController(): BookDetailControllerReturn {
   const handleCloseTagPicker = useCallback(() => setShowTagPicker(false), []);
 
   const handleSaveTags = useCallback(
-    async (tagIds: number[], retryCount = 0) => {
-      const maxRetries = 3;
+    async (tagIds: number[]) => {
+      if (!localUserBookId) return;
+
       try {
-        const updatedBook = await apiClient<UserBook>(
-          `/library/${userBook.id}/tags`,
-          {
-            method: 'POST',
-            body: { tag_ids: tagIds },
-          }
-        );
-        setUserBook(updatedBook);
+        await updateUserBookTags(localUserBookId, tagIds);
         tagIds.forEach((id) => markTagUsed(id));
+
+        const updatedTags = tags.filter((t) => tagIds.includes(t.id));
+        setUserBook((prev) => ({ ...prev, tags: updatedTags }));
+
         toast.success('Tags updated');
-        setShowTagPicker(false);
       } catch (err) {
-        if (retryCount < maxRetries) {
-          const delay = Math.pow(2, retryCount) * 500;
-          await new Promise((resolve) => setTimeout(resolve, delay));
-          return handleSaveTags(tagIds, retryCount + 1);
-        }
-        showError('Failed to update tags');
-        setShowTagPicker(false);
+        const message = err instanceof Error ? err.message : 'Failed to save tags';
+        toast.danger(message);
       }
+      setShowTagPicker(false);
     },
-    [userBook.id, showError, markTagUsed, toast]
+    [localUserBookId, updateUserBookTags, markTagUsed, tags, toast]
   );
 
   const handleCreateTag = useCallback(
@@ -875,20 +960,20 @@ export function useBookDetailController(): BookDetailControllerReturn {
 
   const handleSaveBookDetails = useCallback(
     async (format: BookFormat | null, price: number | null) => {
+      if (!localUserBookId) return;
+
       setUpdating(true);
       try {
-        const updated = await updateBook(userBook.id, { format, price });
-        if (updated) {
-          setUserBook(updated);
-          toast.success('Details saved');
-        }
+        await updateBookDetails(localUserBookId, format, price);
+        setUserBook((prev) => ({ ...prev, format, price }));
+        toast.success('Details saved');
       } catch (err) {
         showError('Failed to save details');
       } finally {
         setUpdating(false);
       }
     },
-    [userBook.id, updateBook, showError, toast]
+    [localUserBookId, updateBookDetails, showError, toast]
   );
 
   const handleOpenReviewSheet = useCallback(() => setShowReviewSheet(true), []);
@@ -909,20 +994,20 @@ export function useBookDetailController(): BookDetailControllerReturn {
 
   const handleSaveReview = useCallback(
     async (review: string | null) => {
+      if (!localUserBookId) return;
+
       setUpdating(true);
       try {
-        const updated = await updateBook(userBook.id, { review });
-        if (updated) {
-          setUserBook(updated);
-          toast.success('Review saved');
-        }
+        await updateReview(localUserBookId, review);
+        setUserBook((prev) => ({ ...prev, review }));
+        toast.success('Review saved');
       } catch (err) {
         showError('Failed to save review');
       } finally {
         setUpdating(false);
       }
     },
-    [userBook.id, updateBook, showError, toast]
+    [localUserBookId, updateReview, showError, toast]
   );
 
   const handleStartReread = useCallback(() => {
@@ -942,30 +1027,100 @@ export function useBookDetailController(): BookDetailControllerReturn {
     if (!nextInSeries) return;
 
     try {
-      const response = await booksApi.getLibrary();
-      const existingBook = response.find(
-        (ub) => ub.book.id === nextInSeries.book.id
-      );
+      const existingUserBooks = await database
+        .get<WatermelonUserBook>('user_books')
+        .query(
+          Q.where('server_book_id', nextInSeries.book.id),
+          Q.where('is_deleted', false)
+        )
+        .fetch();
 
-      if (existingBook) {
+      if (existingUserBooks.length > 0) {
+        const localUserBook = existingUserBooks[0];
+        const localBook = await database
+          .get<WatermelonBook>('books')
+          .find(localUserBook.bookId);
+
+        const existingBook: UserBook = {
+          id: localUserBook.serverId ?? 0,
+          local_id: localUserBook.id,
+          book_id: localBook.serverId ?? 0,
+          book: nextInSeries.book,
+          status: localUserBook.status,
+          status_label: localUserBook.status,
+          format: localUserBook.format as BookFormat | null,
+          format_label: localUserBook.format,
+          rating: localUserBook.rating,
+          price: localUserBook.price,
+          current_page: localUserBook.currentPage,
+          progress_percentage: localBook.pageCount ? Math.round((localUserBook.currentPage / localBook.pageCount) * 100) : null,
+          is_dnf: localUserBook.isDnf,
+          dnf_reason: localUserBook.dnfReason,
+          is_pinned: localUserBook.isPinned,
+          queue_position: localUserBook.queuePosition,
+          review: localUserBook.review,
+          started_at: localUserBook.startedAt?.toISOString() ?? null,
+          finished_at: localUserBook.finishedAt?.toISOString() ?? null,
+          created_at: localUserBook.createdAt?.toISOString() ?? '',
+          updated_at: localUserBook.updatedAt?.toISOString() ?? '',
+        };
+
         navigation.push('BookDetail', { userBook: existingBook });
       } else {
-        const newUserBook = await addToLibrary({
-          external_id: nextInSeries.book.external_id ?? undefined,
-          external_provider: nextInSeries.book.external_provider ?? undefined,
+        await addToLibrary({
+          externalId: nextInSeries.book.external_id ?? '',
+          externalProvider: nextInSeries.book.external_provider ?? undefined,
           title: nextInSeries.book.title,
           author: nextInSeries.book.author,
-          cover_url: nextInSeries.book.cover_url,
-          page_count: nextInSeries.book.page_count,
-          isbn: nextInSeries.book.isbn,
-          description: nextInSeries.book.description,
-          genres: nextInSeries.book.genres?.map((g) => g.name) ?? undefined,
-          published_date: nextInSeries.book.published_date,
-          status: 'want_to_read',
-        });
-        if (newUserBook) {
-          queryClient.invalidateQueries({ queryKey: queryKeys.library.externalIds() });
-          toast.success('Added to library');
+          coverUrl: nextInSeries.book.cover_url ?? undefined,
+          pageCount: nextInSeries.book.page_count ?? undefined,
+          isbn: nextInSeries.book.isbn ?? undefined,
+          description: nextInSeries.book.description ?? undefined,
+          genres: nextInSeries.book.genres?.map((g) => g.name),
+          publishedDate: nextInSeries.book.published_date ?? undefined,
+        }, 'want_to_read');
+
+        queryClient.invalidateQueries({ queryKey: queryKeys.library.externalIds() });
+        toast.success('Added to library');
+
+        const newUserBooks = await database
+          .get<WatermelonUserBook>('user_books')
+          .query(
+            Q.where('server_book_id', nextInSeries.book.id),
+            Q.where('is_deleted', false)
+          )
+          .fetch();
+
+        if (newUserBooks.length > 0) {
+          const newLocalUserBook = newUserBooks[0];
+          const newLocalBook = await database
+            .get<WatermelonBook>('books')
+            .find(newLocalUserBook.bookId);
+
+          const newUserBook: UserBook = {
+            id: newLocalUserBook.serverId ?? 0,
+            local_id: newLocalUserBook.id,
+            book_id: newLocalBook.serverId ?? 0,
+            book: nextInSeries.book,
+            status: newLocalUserBook.status,
+            status_label: newLocalUserBook.status,
+            format: newLocalUserBook.format as BookFormat | null,
+            format_label: newLocalUserBook.format,
+            rating: newLocalUserBook.rating,
+            price: newLocalUserBook.price,
+            current_page: newLocalUserBook.currentPage,
+            progress_percentage: newLocalBook.pageCount ? Math.round((newLocalUserBook.currentPage / newLocalBook.pageCount) * 100) : null,
+            is_dnf: newLocalUserBook.isDnf,
+            dnf_reason: newLocalUserBook.dnfReason,
+            is_pinned: newLocalUserBook.isPinned,
+            queue_position: newLocalUserBook.queuePosition,
+            review: newLocalUserBook.review,
+            started_at: newLocalUserBook.startedAt?.toISOString() ?? null,
+            finished_at: newLocalUserBook.finishedAt?.toISOString() ?? null,
+            created_at: newLocalUserBook.createdAt?.toISOString() ?? '',
+            updated_at: newLocalUserBook.updatedAt?.toISOString() ?? '',
+          };
+
           navigation.push('BookDetail', { userBook: newUserBook });
         }
       }
@@ -976,20 +1131,22 @@ export function useBookDetailController(): BookDetailControllerReturn {
 
   const handleReadThroughRatingChange = useCallback(
     async (readThroughId: number, rating: number) => {
+      const readThrough = readThroughs.find((rt) => rt.id === readThroughId);
+      const localReadThroughId = readThrough?.local_id;
+
+      if (!localReadThroughId) {
+        showError('Read-through not found');
+        return;
+      }
+
       try {
-        await apiClient(`/read-throughs/${readThroughId}`, {
-          method: 'PATCH',
-          body: { rating },
-        });
-        setReadThroughs((prev) =>
-          prev.map((rt) => (rt.id === readThroughId ? { ...rt, rating } : rt))
-        );
+        await updateReadThroughRating(localReadThroughId, rating);
         toast.success('Rating saved');
       } catch (err) {
         showError('Failed to save rating');
       }
     },
-    [showError, toast]
+    [readThroughs, updateReadThroughRating, showError, toast]
   );
 
   const handleOpenAuthorSheet = useCallback(() => {
@@ -1010,7 +1167,7 @@ export function useBookDetailController(): BookDetailControllerReturn {
     setShowAuthorSheet((prev) => ({ ...prev, visible: false }));
   }, []);
 
-  const handleAuthorFavorite = useCallback(() => {
+  const handleAuthorFavorite = useCallback(async () => {
     const currentState = showAuthorSheet.isFavorite
       ? 'favorite'
       : showAuthorSheet.isExcluded
@@ -1024,14 +1181,10 @@ export function useBookDetailController(): BookDetailControllerReturn {
       isExcluded: false,
     }));
 
-    toggleAuthorPreference.mutate({
-      authorName: showAuthorSheet.authorName,
-      currentState,
-      newState,
-    });
-  }, [showAuthorSheet, toggleAuthorPreference]);
+    await toggleAuthor(showAuthorSheet.authorName, currentState, newState);
+  }, [showAuthorSheet, toggleAuthor]);
 
-  const handleAuthorExclude = useCallback(() => {
+  const handleAuthorExclude = useCallback(async () => {
     const currentState = showAuthorSheet.isFavorite
       ? 'favorite'
       : showAuthorSheet.isExcluded
@@ -1045,12 +1198,8 @@ export function useBookDetailController(): BookDetailControllerReturn {
       isFavorite: false,
     }));
 
-    toggleAuthorPreference.mutate({
-      authorName: showAuthorSheet.authorName,
-      currentState,
-      newState,
-    });
-  }, [showAuthorSheet, toggleAuthorPreference]);
+    await toggleAuthor(showAuthorSheet.authorName, currentState, newState);
+  }, [showAuthorSheet, toggleAuthor]);
 
   const handleGenrePress = useCallback(
     (genre: Genre) => {

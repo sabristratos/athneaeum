@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration
@@ -30,7 +31,13 @@ return new class extends Migration
             $table->timestamps();
 
             $table->unique(['user_id', 'book_id']);
+            $table->index('status');
+            $table->index(['user_id', 'status']);
         });
+
+        if (DB::getDriverName() === 'pgsql') {
+            DB::statement('ALTER TABLE user_books ADD CONSTRAINT user_books_rating_check CHECK (rating IS NULL OR (rating >= 0 AND rating <= 5))');
+        }
     }
 
     public function down(): void

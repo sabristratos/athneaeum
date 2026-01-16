@@ -64,4 +64,12 @@ export const queryKeys = {
     detail: (key: string) => ['authors', key] as const,
     works: (key: string) => ['authors', key, 'works'] as const,
   },
+
+  discovery: {
+    all: ['discovery'] as const,
+    feed: () => ['discovery', 'feed'] as const,
+    similar: (bookId: number) => ['discovery', 'similar', bookId] as const,
+    search: (query: string) => ['discovery', 'search', query] as const,
+    book: (bookId: number) => ['discovery', 'book', bookId] as const,
+  },
 } as const;

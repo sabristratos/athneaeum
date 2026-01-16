@@ -203,7 +203,7 @@ export const DayLogModal = memo(function DayLogModal({
                     <Text variant="caption" style={{ color: theme.colors.primary }}>
                       {session.pages_read} pages
                     </Text>
-                    {session.duration_seconds && session.duration_seconds > 0 && (
+                    {session.duration_seconds != null && session.duration_seconds > 0 && (
                       <>
                         <Text variant="caption" muted> · </Text>
                         <Icon icon={Time01Icon} size={12} color={theme.colors.foregroundMuted} />

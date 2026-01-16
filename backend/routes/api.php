@@ -5,6 +5,7 @@ declare(strict_types=1);
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\AuthorController;
 use App\Http\Controllers\Api\BookController;
+use App\Http\Controllers\Api\DiscoveryController;
 use App\Http\Controllers\Api\ImportController;
 use App\Http\Controllers\Api\LibraryController;
 use App\Http\Controllers\Api\PasswordResetController;
@@ -38,6 +39,7 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user/export', [UserController::class, 'exportData']);
     Route::post('/user/import', [ImportController::class, 'import']);
     Route::get('/user/import/sources', [ImportController::class, 'sources']);
+    Route::get('/user/import/enrichment-status', [ImportController::class, 'enrichmentStatus']);
     Route::delete('/user', [UserController::class, 'destroy']);
 
     Route::get('/user/opds', [UserController::class, 'getOpdsSettings']);
@@ -53,11 +55,7 @@ Route::middleware('auth:sanctum')->group(function () {
 
     Route::get('/library', [LibraryController::class, 'index']);
     Route::get('/library/external-ids', [LibraryController::class, 'externalIds']);
-    Route::patch('/library/reorder', [LibraryController::class, 'reorder']);
     Route::get('/library/{userBook}', [LibraryController::class, 'show']);
-    Route::patch('/library/{userBook}/pin', [LibraryController::class, 'pin']);
-    Route::delete('/library/{userBook}/pin', [LibraryController::class, 'unpin']);
-    Route::post('/library/{userBook}/reread', [LibraryController::class, 'startReread']);
     Route::get('/library/{userBook}/history', [LibraryController::class, 'readingHistory']);
 
     Route::get('/tags', [TagController::class, 'index']);
@@ -96,9 +94,22 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/goals/periods', [ReadingGoalController::class, 'periods']);
     Route::get('/goals/{goal}', [ReadingGoalController::class, 'show']);
 
+    Route::prefix('discovery')->group(function () {
+        Route::post('/signals', [DiscoveryController::class, 'recordSignals']);
+        Route::post('/refresh-profile', [DiscoveryController::class, 'refreshProfile']);
+        Route::get('/metrics', [DiscoveryController::class, 'metrics']);
+    });
+
     Route::prefix('sync')->group(function () {
         Route::get('/pull', [SyncController::class, 'pull']);
         Route::post('/push', [SyncController::class, 'push']);
         Route::post('/upload-cover', [SyncController::class, 'uploadCover']);
     });
+});
+
+Route::prefix('discovery')->group(function () {
+    Route::get('/feed', [DiscoveryController::class, 'feed']);
+    Route::get('/search', [DiscoveryController::class, 'search']);
+    Route::get('/{catalogBook}', [DiscoveryController::class, 'show']);
+    Route::get('/{catalogBook}/similar', [DiscoveryController::class, 'similar']);
 });

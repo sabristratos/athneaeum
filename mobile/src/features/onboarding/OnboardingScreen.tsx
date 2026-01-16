@@ -7,6 +7,7 @@ import { useOnboardingController } from './hooks/useOnboardingController';
 import { WelcomeStep } from './components/WelcomeStep';
 import { ThemeStep } from './components/ThemeStep';
 import { PreferencesStep } from './components/PreferencesStep';
+import { AuthorStep } from './components/AuthorStep';
 import { GoalStep } from './components/GoalStep';
 import { CompletionStep } from './components/CompletionStep';
 import { OnboardingProgress } from './components/OnboardingProgress';
@@ -40,14 +41,24 @@ export function OnboardingScreen() {
           <PreferencesStep
             selectedFormats={controller.selectedFormats}
             selectedGenres={controller.selectedGenres}
-            popularGenres={controller.popularGenres}
+            formatError={controller.formatError}
             onToggleFormat={controller.toggleFormat}
             onToggleGenre={controller.toggleGenre}
-            onNext={controller.nextStep}
+            onNext={controller.handlePreferencesNext}
             onBack={controller.prevStep}
           />
         );
       case 4:
+        return (
+          <AuthorStep
+            selectedAuthors={controller.selectedAuthors}
+            onAddAuthor={controller.addAuthor}
+            onRemoveAuthor={controller.removeAuthor}
+            onNext={controller.nextStep}
+            onBack={controller.prevStep}
+          />
+        );
+      case 5:
         return (
           <GoalStep
             yearlyGoal={controller.yearlyGoal}
@@ -56,13 +67,14 @@ export function OnboardingScreen() {
             onBack={controller.prevStep}
           />
         );
-      case 5:
+      case 6:
         return (
           <CompletionStep
             themeLabel={controller.themeLabel}
             themeCopy={controller.themeCopy}
             isCompleting={controller.isCompleting}
             onComplete={controller.completeOnboarding}
+            onBack={controller.prevStep}
           />
         );
       default:
@@ -81,10 +93,10 @@ export function OnboardingScreen() {
         },
       ]}
     >
-      {controller.currentStep < 5 && (
+      {controller.currentStep < 6 && (
         <OnboardingProgress
           currentStep={controller.currentStep}
-          totalSteps={4}
+          totalSteps={5}
         />
       )}
 

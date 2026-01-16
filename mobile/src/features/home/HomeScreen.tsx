@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { View, ScrollView, StyleSheet, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
@@ -14,11 +14,17 @@ import {
 } from '@/components/organisms';
 import { useTheme } from '@/themes';
 import { useAuth } from '@/hooks/useAuth';
-import { useLibrary, useReadingStats, useReadingSessions } from '@/hooks/useBooks';
+import {
+  useLibrary,
+  usePinBook,
+  useReorderBooks,
+  useLogSession,
+} from '@/database/hooks';
+import { useReadingStatsQuery } from '@/queries';
 import { useToast } from '@/stores/toastStore';
-import { apiClient } from '@/api/client';
 import { usePrimaryBook, useSmartContext } from './hooks';
 import { StatsDashboard, GoalProgressWidget, CreateShareSection } from './components';
+import type { UserBook, ReadingStats, BookFormat } from '@/types';
 
 export function HomeScreen() {
   const { theme, themeName } = useTheme();
@@ -28,14 +34,70 @@ export function HomeScreen() {
   const { user } = useAuth();
   const toast = useToast();
 
-  const { books, loading: libraryLoading, fetchLibrary } = useLibrary();
-  const { stats, loading: statsLoading, fetchStats } = useReadingStats();
-  const { logSession } = useReadingSessions();
+  const { books: libraryBooks, loading: libraryLoading } = useLibrary();
+  const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useReadingStatsQuery();
+  const { logSession } = useLogSession();
+  const { pinBook } = usePinBook();
+  const { reorderBooks } = useReorderBooks();
 
-  useEffect(() => {
-    fetchLibrary();
-    fetchStats();
-  }, []);
+  const books: UserBook[] = useMemo(() => {
+    return libraryBooks.map(({ userBook, book }) => {
+      const pageCount = book.pageCount ?? 0;
+      const currentPage = userBook.currentPage ?? 0;
+      const progressPercentage = pageCount > 0 ? Math.round((currentPage / pageCount) * 100) : null;
+
+      return {
+        id: userBook.serverId ?? 0,
+        local_id: userBook.id,
+        book_id: book.serverId ?? 0,
+        status: userBook.status,
+        status_label: userBook.status,
+        rating: userBook.rating,
+        current_page: currentPage,
+        format: (userBook.format as BookFormat) ?? null,
+        format_label: userBook.format ?? null,
+        price: userBook.price,
+        progress_percentage: progressPercentage,
+        is_pinned: userBook.isPinned,
+        queue_position: userBook.queuePosition,
+        review: userBook.review,
+        is_dnf: userBook.isDnf,
+        dnf_reason: userBook.dnfReason,
+        started_at: userBook.startedAt?.toISOString() ?? null,
+        finished_at: userBook.finishedAt?.toISOString() ?? null,
+        created_at: userBook.createdAt?.toISOString() ?? '',
+        updated_at: userBook.updatedAt?.toISOString() ?? '',
+        book: {
+          id: book.serverId ?? 0,
+          external_id: book.externalId,
+          external_provider: book.externalProvider,
+          series_id: book.serverSeriesId ?? null,
+          volume_number: book.volumeNumber ?? null,
+          volume_title: book.volumeTitle ?? null,
+          title: book.title,
+          author: book.author,
+          cover_url: book.coverUrl,
+          page_count: pageCount,
+          height_cm: book.heightCm ?? null,
+          width_cm: book.widthCm ?? null,
+          thickness_cm: book.thicknessCm ?? null,
+          isbn: book.isbn,
+          description: book.description,
+          genres: book.genresJson ? JSON.parse(book.genresJson) : null,
+          published_date: book.publishedDate,
+          audience: null,
+          audience_label: null,
+          intensity: null,
+          intensity_label: null,
+          moods: null,
+          is_classified: false,
+          classification_confidence: null,
+          created_at: book.createdAt?.toISOString() ?? '',
+          updated_at: book.updatedAt?.toISOString() ?? '',
+        },
+      };
+    });
+  }, [libraryBooks]);
 
   const readingBooks = useMemo(
     () => books.filter((b) => b.status === 'reading'),
@@ -58,61 +120,64 @@ export function HomeScreen() {
   );
 
   const handleRefresh = useCallback(() => {
-    fetchLibrary();
-    fetchStats();
-  }, [fetchLibrary, fetchStats]);
+    refetchStats();
+  }, [refetchStats]);
 
   const handleLogSession = useCallback(
     async (endPage: number, durationSeconds?: number) => {
-      if (!primaryBook) return;
+      if (!primaryBook || !primaryBook.local_id) return;
+
+      const pagesRead = endPage - primaryBook.current_page;
 
       await logSession({
-        user_book_id: primaryBook.id,
+        userBookId: primaryBook.local_id,
         date: new Date().toISOString().split('T')[0],
-        start_page: primaryBook.current_page,
-        end_page: endPage,
-        duration_seconds: durationSeconds,
+        pagesRead,
+        startPage: primaryBook.current_page,
+        endPage,
+        durationSeconds,
       });
 
-      toast.success(`Logged ${endPage - primaryBook.current_page} pages`, {
+      toast.success(`Logged ${pagesRead} pages`, {
         action: {
           label: 'Stats',
-          onPress: () => navigation.navigate('StatsTab'),
+          onPress: () => navigation.navigate('ProfileTab'),
         },
       });
-      fetchLibrary();
-      fetchStats();
+      refetchStats();
     },
-    [primaryBook, logSession, toast, navigation, fetchLibrary, fetchStats]
+    [primaryBook, logSession, toast, navigation, refetchStats]
   );
 
   const handlePinBook = useCallback(async () => {
-    if (!primaryBook) return;
+    if (!primaryBook || !primaryBook.local_id) return;
 
     try {
-      await apiClient(`/library/${primaryBook.id}/pin`, {
-        method: 'PATCH',
-      });
+      await pinBook(primaryBook.local_id);
       toast.success('Book pinned as featured');
-      fetchLibrary();
     } catch (error) {
       toast.danger('Failed to pin book');
     }
-  }, [primaryBook, toast, fetchLibrary]);
+  }, [primaryBook, pinBook, toast]);
 
   const handleReorderQueue = useCallback(
     async (bookIds: number[]) => {
       try {
-        await apiClient('/library/reorder', {
-          method: 'PATCH',
-          body: { book_ids: bookIds },
-        });
-        fetchLibrary();
+        const localIds = bookIds
+          .map((serverId) => {
+            const book = books.find((b) => b.id === serverId);
+            return book?.local_id;
+          })
+          .filter((id): id is string => !!id);
+
+        if (localIds.length > 0) {
+          await reorderBooks(localIds);
+        }
       } catch (error) {
         toast.danger('Failed to reorder queue');
       }
     },
-    [toast, fetchLibrary]
+    [books, reorderBooks, toast]
   );
 
   const isLoading = libraryLoading || statsLoading;
@@ -165,7 +230,7 @@ export function HomeScreen() {
             <View style={styles.heroSection}>
               <HeroFlipCard
                 book={primaryBook}
-                stats={stats}
+                stats={stats ?? null}
                 onLogSession={handleLogSession}
                 onLongPress={handlePinBook}
                 isLogging={false}
@@ -217,7 +282,7 @@ export function HomeScreen() {
 
           <LiteraryFeeds />
 
-          <StatsDashboard stats={stats} loading={statsLoading} />
+          <StatsDashboard stats={stats ?? null} loading={statsLoading} />
         </ScrollView>
       </SafeAreaView>
     </AtmosphericBackground>

@@ -132,6 +132,37 @@ export function useDeleteSession() {
   return { deleteSession, loading };
 }
 
+interface UpdateSessionData {
+  date?: string;
+  startPage?: number;
+  endPage?: number;
+  durationSeconds?: number | null;
+  notes?: string | null;
+}
+
+export function useUpdateSession() {
+  const [loading, setLoading] = useState(false);
+
+  const updateSession = useCallback(async (sessionId: string, data: UpdateSessionData) => {
+    setLoading(true);
+
+    try {
+      await database.write(async () => {
+        const session = await database
+          .get<ReadingSession>('reading_sessions')
+          .find(sessionId);
+        await session.updateSession(data);
+      });
+
+      scheduleSyncAfterMutation();
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return { updateSession, loading };
+}
+
 export function useSessionStats(userBookId?: string) {
   const [stats, setStats] = useState({
     totalSessions: 0,

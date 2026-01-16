@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, Alert, Share } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import * as DocumentPicker from 'expo-document-picker';
@@ -9,11 +9,16 @@ import { Text, Card, Button, ConfirmModal, ImportProgressModal, ImportOptionsMod
 import { useTheme } from '@/themes';
 import { useAuthActions } from '@/stores/authStore';
 import { usePreferencesActions } from '@/stores/preferencesStore';
-import { authApi, type ImportResult, type ImportOptions } from '@/api/auth';
+import { authApi, type ImportResult, type ImportOptions, type EnrichmentStatus } from '@/api/auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { queryKeys } from '@/lib/queryKeys';
 import { resetDatabase } from '@/database/index';
-import { syncWithServer } from '@/database/sync';
+import { teardownAutoSync, setupAutoSync, isSyncInProgress } from '@/database/sync';
+import { pullChanges } from '@/database/sync';
+import { useSpineColorStore } from '@/stores/spineColorStore';
+import { useQuoteStore } from '@/stores/quoteStore';
+
+const ENRICHMENT_POLL_INTERVAL = 3000;
 
 let Sharing: typeof import('expo-sharing') | null = null;
 try {
@@ -46,6 +51,42 @@ export function DataVaultSection() {
   });
   const [showResetModal, setShowResetModal] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
+  const [enrichmentStatus, setEnrichmentStatus] = useState<EnrichmentStatus | undefined>();
+
+  const pollIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const stopPolling = useCallback(() => {
+    if (pollIntervalRef.current) {
+      clearInterval(pollIntervalRef.current);
+      pollIntervalRef.current = null;
+    }
+  }, []);
+
+  const pollEnrichmentStatus = useCallback(async () => {
+    try {
+      const status = await authApi.getEnrichmentStatus();
+      setEnrichmentStatus(status);
+
+      if (status.is_complete) {
+        stopPolling();
+        setImportStatus('complete');
+        queryClient.invalidateQueries({ queryKey: queryKeys.library.all });
+      }
+    } catch {
+      stopPolling();
+      setImportStatus('complete');
+    }
+  }, [stopPolling, queryClient]);
+
+  const startEnrichmentPolling = useCallback(() => {
+    stopPolling();
+    pollEnrichmentStatus();
+    pollIntervalRef.current = setInterval(pollEnrichmentStatus, ENRICHMENT_POLL_INTERVAL);
+  }, [pollEnrichmentStatus, stopPolling]);
+
+  useEffect(() => {
+    return () => stopPolling();
+  }, [stopPolling]);
 
   const handleExport = async () => {
     setExportLoading(true);
@@ -120,18 +161,27 @@ export function DataVaultSection() {
 
     setShowOptionsModal(false);
     setImportStatus('uploading');
+    setEnrichmentStatus(undefined);
     setShowImportModal(true);
 
     try {
       const importResultData = await authApi.importLibrary(selectedFileUri, 'goodreads', options);
       setImportResult(importResultData);
-      setImportStatus('complete');
 
       if (importResultData.imported > 0) {
         queryClient.invalidateQueries({ queryKey: queryKeys.library.all });
         queryClient.invalidateQueries({ queryKey: queryKeys.library.externalIds() });
         queryClient.invalidateQueries({ queryKey: queryKeys.stats.all });
         queryClient.invalidateQueries({ queryKey: queryKeys.goals.all });
+
+        if (options.enrichment_enabled) {
+          setImportStatus('enriching');
+          startEnrichmentPolling();
+        } else {
+          setImportStatus('complete');
+        }
+      } else {
+        setImportStatus('complete');
       }
     } catch (error) {
       setImportStatus('error');
@@ -140,21 +190,40 @@ export function DataVaultSection() {
   };
 
   const handleCloseImportModal = () => {
+    stopPolling();
     setShowImportModal(false);
     setImportStatus('idle');
+    setEnrichmentStatus(undefined);
   };
 
   const handleResetLocalData = async () => {
     setResetLoading(true);
     try {
+      console.log('[Reset] Starting reset process...');
+      teardownAutoSync();
+      console.log('[Reset] Auto-sync torn down');
+
+      console.log('[Reset] Resetting database (skipping any pending sync)...');
       await resetDatabase();
-      await syncWithServer();
+      console.log('[Reset] Database reset complete');
+
+      console.log('[Reset] Clearing stores...');
+      useSpineColorStore.getState().clearAllColors();
+      useQuoteStore.getState().clearAllQuotes();
+      console.log('[Reset] Stores cleared');
+
+      console.log('[Reset] Pulling fresh data from server...');
+      const newTimestamp = await pullChanges(0);
+      console.log('[Reset] Pull complete, timestamp:', newTimestamp);
+
       queryClient.invalidateQueries();
       setShowResetModal(false);
       Alert.alert('Success', 'Local data has been reset and synced from server.');
     } catch (error) {
+      console.error('[Reset] Error:', error);
       Alert.alert('Error', 'Failed to reset data. Please try again.');
     } finally {
+      setupAutoSync();
       setResetLoading(false);
     }
   };
@@ -343,6 +412,7 @@ export function DataVaultSection() {
         result={importResult}
         errorMessage={importError}
         selectedFileName={selectedFileName}
+        enrichmentStatus={enrichmentStatus}
       />
 
       <ImportOptionsModal

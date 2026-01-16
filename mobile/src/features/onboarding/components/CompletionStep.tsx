@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { View, StyleSheet, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, ActivityIndicator, Pressable as RNPressable } from 'react-native';
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -11,7 +11,11 @@ import Animated, {
 } from 'react-native-reanimated';
 import { useTheme } from '@/themes';
 import { Text, Button, Icon } from '@/components';
-import { CheckmarkCircle02Icon, SparklesIcon } from '@hugeicons/core-free-icons';
+import {
+  CheckmarkCircle02Icon,
+  SparklesIcon,
+  ArrowLeft02Icon,
+} from '@hugeicons/core-free-icons';
 import { SPRINGS } from '@/animations/constants';
 import * as Haptics from 'expo-haptics';
 
@@ -20,6 +24,7 @@ interface CompletionStepProps {
   themeCopy: { welcome: string; completion: string };
   isCompleting: boolean;
   onComplete: () => void;
+  onBack: () => void;
 }
 
 export function CompletionStep({
@@ -27,6 +32,7 @@ export function CompletionStep({
   themeCopy,
   isCompleting,
   onComplete,
+  onBack,
 }: CompletionStepProps) {
   const { theme, themeName } = useTheme();
   const isScholar = themeName === 'scholar';
@@ -83,6 +89,21 @@ export function CompletionStep({
 
   return (
     <View style={styles.container}>
+      <View style={styles.header}>
+        <RNPressable
+          onPress={onBack}
+          style={styles.backButton}
+          accessibilityLabel="Go back to review your choices"
+          accessibilityRole="button"
+        >
+          <Icon
+            icon={ArrowLeft02Icon}
+            size={24}
+            color={theme.colors.foreground}
+          />
+        </RNPressable>
+      </View>
+
       <View style={styles.content}>
         <Sparkles />
 
@@ -238,6 +259,17 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingHorizontal: 24,
+  },
+  header: {
+    height: 48,
+    justifyContent: 'center',
+  },
+  backButton: {
+    width: 44,
+    height: 44,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginLeft: -10,
   },
   content: {
     flex: 1,

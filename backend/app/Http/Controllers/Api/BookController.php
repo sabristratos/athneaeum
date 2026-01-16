@@ -12,8 +12,8 @@ use App\Exceptions\BookSearchException;
 use App\Http\Controllers\Controller;
 use App\Http\Resources\BookResource;
 use App\Models\Book;
+use App\Services\BookClassificationService;
 use App\Services\BookSearch\BookSearchManager;
-use App\Services\Ingestion\LLM\LLMConsultant;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -22,7 +22,7 @@ class BookController extends Controller
     public function __construct(
         private BookSearchServiceInterface $bookSearchService,
         private BookSearchManager $searchManager,
-        private LLMConsultant $llmConsultant
+        private BookClassificationService $classificationService
     ) {}
 
     /**
@@ -123,7 +123,7 @@ class BookController extends Controller
      */
     public function classify(Book $book): JsonResponse
     {
-        if (! $this->llmConsultant->isEnabled()) {
+        if (! $this->classificationService->isEnabled()) {
             return response()->json([
                 'error' => __('Classification service is not available'),
             ], 503);
@@ -136,24 +136,7 @@ class BookController extends Controller
         }
 
         try {
-            $result = $this->llmConsultant->classifyBook(
-                title: $book->title,
-                description: $book->description,
-                author: $book->author,
-                genres: $book->genreRelations->pluck('name')->toArray(),
-                externalId: $book->external_id,
-                externalProvider: $book->external_provider,
-            );
-
-            $contentClassification = $result['content'];
-
-            $book->update([
-                'audience' => $contentClassification->audience,
-                'intensity' => $contentClassification->intensity,
-                'moods' => array_map(fn (MoodEnum $m) => $m->value, $contentClassification->moods),
-                'classification_confidence' => $contentClassification->confidence,
-                'is_classified' => true,
-            ]);
+            $this->classificationService->classify($book);
 
             return response()->json(new BookResource($book->fresh()));
         } catch (\Exception $e) {

@@ -159,7 +159,8 @@ export interface Book {
 
 export interface UserBook {
   id: number;
-  user_id: number;
+  local_id?: string;
+  user_id?: number;
   book_id: number;
   book: Book;
   status: BookStatus;
@@ -187,6 +188,7 @@ export interface UserBook {
 
 export interface ReadingSession {
   id: number;
+  local_id?: string;
   user_book_id: number;
   read_through_id: number | null;
   date: string;
@@ -202,6 +204,7 @@ export interface ReadingSession {
 
 export interface ReadThrough {
   id: number;
+  local_id?: string;
   user_book_id: number;
   read_number: number;
   status: BookStatus;

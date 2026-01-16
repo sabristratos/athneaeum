@@ -6,26 +6,26 @@ import { Analytics01Icon, ArrowRight01Icon } from '@hugeicons/core-free-icons';
 import { triggerHaptic } from '@/hooks/useHaptic';
 import { Text, Icon, Card } from '@/components';
 import { useTheme } from '@/themes';
-import { useLibrary } from '@/hooks/useBooks';
+import { useLibrary } from '@/database/hooks';
 import type { MainStackParamList } from '@/navigation/MainNavigator';
 
 export function TierListPreviewCard() {
   const { theme, themeName } = useTheme();
   const isScholar = themeName === 'scholar';
   const navigation = useNavigation<NativeStackNavigationProp<MainStackParamList>>();
-  const { books } = useLibrary();
+  const { books: libraryBooks } = useLibrary();
 
   const ratedBooks = useMemo(
-    () => books.filter((b) => b.status === 'read' && b.rating && b.rating > 0),
-    [books]
+    () => libraryBooks.filter((lb) => lb.userBook.status === 'read' && lb.userBook.rating && lb.userBook.rating > 0),
+    [libraryBooks]
   );
 
   const topCovers = useMemo(
     () =>
       ratedBooks
-        .sort((a, b) => (b.rating ?? 0) - (a.rating ?? 0))
+        .sort((a, b) => (b.userBook.rating ?? 0) - (a.userBook.rating ?? 0))
         .slice(0, 3)
-        .map((b) => b.book.cover_url)
+        .map((lb) => lb.book.coverUrl)
         .filter((url): url is string => !!url),
     [ratedBooks]
   );

@@ -17,6 +17,7 @@ return new class extends Migration
             $table->string('title');
             $table->string('author');
             $table->string('cover_url')->nullable();
+            $table->string('cover_path')->nullable();
             $table->integer('page_count')->nullable();
             $table->decimal('height_cm', 5, 2)->nullable();
             $table->decimal('width_cm', 5, 2)->nullable();

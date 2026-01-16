@@ -25,18 +25,36 @@ jest.mock('@/themes', () => ({
       radii: {
         sm: 4,
         md: 8,
+        full: 9999,
       },
     },
     themeName: 'scholar',
   }),
 }));
 
+jest.mock('@/themes/shared', () => ({
+  sharedSpacing: {
+    xs: 4,
+    sm: 8,
+    md: 16,
+    lg: 24,
+    xl: 32,
+  },
+}));
+
+jest.mock('@/animations/components', () => ({
+  SkeletonShimmer: ({ width, height }: any) => {
+    const { View } = require('react-native');
+    return <View testID="skeleton-shimmer" style={{ width, height }} />;
+  },
+}));
+
 jest.mock('@hugeicons/core-free-icons', () => ({
   UserGroupIcon: 'UserGroupIcon',
   ChildIcon: 'ChildIcon',
-  GraduateIcon: 'GraduateIcon',
+  GraduationScrollIcon: 'GraduationScrollIcon',
   User02Icon: 'User02Icon',
-  AnalysisTextLinkIcon: 'AnalysisTextLinkIcon',
+  SparklesIcon: 'SparklesIcon',
 }));
 
 jest.mock('@/components/atoms', () => ({
@@ -138,6 +156,7 @@ describe('ClassificationBadges', () => {
           audience="adult"
           audienceLabel="Adult"
           isClassified={true}
+          confidence={0.9}
         />
       );
 
@@ -149,6 +168,7 @@ describe('ClassificationBadges', () => {
         <ClassificationBadges
           audience="young_adult"
           isClassified={true}
+          confidence={0.9}
         />
       );
 
@@ -161,10 +181,11 @@ describe('ClassificationBadges', () => {
           intensity="moderate"
           intensityLabel="Moderate"
           isClassified={true}
+          confidence={0.9}
         />
       );
 
-      expect(screen.getByText('Moderate')).toBeTruthy();
+      expect(screen.getByText(/Moderate/)).toBeTruthy();
     });
 
     it('displays intensity value when label not provided', () => {
@@ -172,10 +193,11 @@ describe('ClassificationBadges', () => {
         <ClassificationBadges
           intensity="dark"
           isClassified={true}
+          confidence={0.9}
         />
       );
 
-      expect(screen.getByText('dark')).toBeTruthy();
+      expect(screen.getByText(/dark/)).toBeTruthy();
     });
 
     it('displays mood chips', () => {
@@ -185,6 +207,7 @@ describe('ClassificationBadges', () => {
         <ClassificationBadges
           moods={moods}
           isClassified={true}
+          confidence={0.9}
         />
       );
 
@@ -202,6 +225,7 @@ describe('ClassificationBadges', () => {
         <ClassificationBadges
           moods={moods}
           isClassified={true}
+          confidence={0.9}
         />
       );
 
@@ -218,11 +242,12 @@ describe('ClassificationBadges', () => {
           intensityLabel="Moderate"
           moods={['adventurous', 'tense']}
           isClassified={true}
+          confidence={0.9}
         />
       );
 
       expect(screen.getByText('Adult')).toBeTruthy();
-      expect(screen.getByText('Moderate')).toBeTruthy();
+      expect(screen.getByText(/Moderate/)).toBeTruthy();
       expect(screen.getByText('Adventurous')).toBeTruthy();
       expect(screen.getByText('Tense')).toBeTruthy();
     });
@@ -234,6 +259,7 @@ describe('ClassificationBadges', () => {
           audienceLabel="Adult"
           moods={null}
           isClassified={true}
+          confidence={0.9}
         />
       );
 
@@ -248,11 +274,25 @@ describe('ClassificationBadges', () => {
           audienceLabel="Adult"
           moods={[]}
           isClassified={true}
+          confidence={0.9}
         />
       );
 
       expect(screen.getByText('Adult')).toBeTruthy();
       expect(screen.queryAllByTestId('mood-chip')).toHaveLength(0);
+    });
+
+    it('returns null when classified but confidence is below threshold', () => {
+      const { toJSON } = render(
+        <ClassificationBadges
+          audience="adult"
+          audienceLabel="Adult"
+          isClassified={true}
+          confidence={0.5}
+        />
+      );
+
+      expect(toJSON()).toBeNull();
     });
   });
 
@@ -263,6 +303,7 @@ describe('ClassificationBadges', () => {
           audience="adult"
           audienceLabel="Adult"
           isClassified={true}
+          confidence={0.9}
           compact={true}
         />
       );
@@ -291,6 +332,7 @@ describe('ClassificationBadges', () => {
           <ClassificationBadges
             moods={[mood as Mood]}
             isClassified={true}
+            confidence={0.9}
           />
         );
 
@@ -308,6 +350,7 @@ describe('ClassificationBadges', () => {
           <ClassificationBadges
             audience={audience}
             isClassified={true}
+            confidence={0.9}
           />
         );
 

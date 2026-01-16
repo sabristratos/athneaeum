@@ -22,6 +22,8 @@ use Illuminate\Support\Str;
  * @property string|null $external_provider
  * @property bool $is_merged
  * @property int|null $canonical_author_id
+ * @property string $source
+ * @property string|null $open_library_key
  */
 class Author extends Model
 {
@@ -78,6 +80,27 @@ class Author extends Model
     public function mergedAuthors(): HasMany
     {
         return $this->hasMany(Author::class, 'canonical_author_id');
+    }
+
+    /**
+     * Catalog books linked to this author.
+     */
+    public function catalogBooks(): BelongsToMany
+    {
+        return $this->belongsToMany(CatalogBook::class, 'catalog_book_authors')
+            ->withPivot('position')
+            ->withTimestamps();
+    }
+
+    /**
+     * Master books linked to this author.
+     */
+    public function masterBooks(): BelongsToMany
+    {
+        return $this->belongsToMany(MasterBook::class, 'master_book_authors')
+            ->withPivot('position')
+            ->orderByPivot('position')
+            ->withTimestamps();
     }
 
     /**
