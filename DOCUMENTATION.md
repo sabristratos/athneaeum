@@ -15,18 +15,21 @@
 7. [Data & Sync](#data--sync)
 8. [Design Patterns](#design-patterns)
 9. [API Reference](#api-reference)
+10. [Catalog & Data Ingestion System](#catalog--data-ingestion-system)
+11. [Development Commands](#development-commands)
+12. [Code Style Requirements](#code-style-requirements)
 
 ---
 
 ## Overview
 
-The Digital Athenaeum is a comprehensive book tracking application designed for readers who want to catalog their library, track reading progress, analyze reading habits, and set goals. The app features four distinct visual themes that transform the entire user experience.
+The Digital Athenaeum is a comprehensive book tracking application designed for readers who want to catalog their library, track reading progress, analyze reading habits, and set goals. The app features five distinct visual themes that transform the entire user experience.
 
 ### Key Features
 
 | Feature | Description |
 |---------|-------------|
-| **Multi-Theme UI** | Four complete visual themes: Scholar (Dark Academia), Dreamer (Cottagecore), Wanderer (Desert Explorer), Midnight (Celestial) |
+| **Multi-Theme UI** | Five complete visual themes: Scholar (Dark Academia), Dreamer (Cottagecore), Wanderer (Desert Explorer), Midnight (Celestial), Dynamic (Time-Adaptive) |
 | **Offline-First** | Full functionality without internet via WatermelonDB with background sync |
 | **Book Discovery** | Search via Google Books API with barcode scanning and manual entry |
 | **Reading Sessions** | Log pages read, duration, and notes for each reading session |
@@ -107,7 +110,7 @@ athenaeum/
     │   ├── stores/          # Zustand state stores
     │   ├── themes/          # Theme definitions and context
     │   ├── types/           # TypeScript type definitions
-    │   └── utils/           # Utility functions
+    │   └── utils/           # Utility functions (colorMath, formatting, etc.)
     └── App.tsx              # Root component
 ```
 
@@ -156,6 +159,9 @@ The API uses Laravel Sanctum for token-based authentication:
 | **Genre** | Literary genres | name, slug, parent_id |
 | **Publisher** | Publishing houses | name, slug, country |
 | **BookContentClassification** | LLM analysis | mood, pace, character_types, plot_devices, themes (JSON) |
+| **CatalogBook** | Discovery catalog | title, author, isbn13, cover_path, popularity_score, embedding (vector), vibe_classification (JSON) |
+| **UserSignal** | User interactions | user_id, catalog_book_id, signal_type, weight, created_at |
+| **UserEmbedding** | Preference vectors | user_id, embedding (vector), last_computed_at |
 
 #### Model Relationships
 
@@ -166,7 +172,13 @@ User
   ├── hasMany Tags
   ├── hasMany ReadingGoals
   ├── hasOne UserStatistics
-  └── hasMany UserStatisticsMonthly
+  ├── hasMany UserStatisticsMonthly
+  ├── hasMany UserSignals → belongsTo CatalogBook
+  └── hasOne UserEmbedding
+
+CatalogBook
+  ├── hasMany UserSignals
+  └── hasOne BookContentClassification
 ```
 
 ### Enums
@@ -178,7 +190,22 @@ User
 | **GoalTypeEnum** | books, pages, minutes, streak | Goal measurement unit |
 | **GoalPeriodEnum** | daily, weekly, monthly, yearly | Goal time period |
 | **TagColorEnum** | primary, gold, green, purple, copper, blue, orange, teal, rose, slate | Tag color options |
-| **ThemeEnum** | scholar, dreamer, wanderer, midnight | App theme selection |
+| **ThemeEnum** | scholar, dreamer, wanderer, midnight, dynamic | App theme selection |
+| **NYTListCategoryEnum** | combined_fiction, combined_nonfiction, hardcover_fiction, hardcover_nonfiction, paperback_fiction, paperback_nonfiction, young_adult, childrens, graphic_novels, series | NYT bestseller list categories |
+| **PlotArchetypeEnum** | enemies_to_lovers, friends_to_lovers, chosen_one, heros_journey, rags_to_riches, fish_out_of_water, time_loop, unreliable_narrator, dual_timeline, found_family, redemption_arc, mystery_whodunit, coming_of_age, survival, forbidden_love | Narrative patterns for classification |
+| **ProseStyleEnum** | flowery, minimalist, dialogue_heavy, lyrical, journalistic, stream_of_consciousness, epistolary, experimental, cinematic, literary | Writing style classification |
+| **SettingAtmosphereEnum** | dystopian, utopian, post_apocalyptic, contemporary_urban, small_town, rural, victorian, regency, medieval, futuristic, cyberpunk, space, underwater, magical_realism, dark_fantasy, cozy | World-building environments |
+
+### Data Transfer Objects (DTOs)
+
+| DTO | Purpose | Key Properties |
+|-----|---------|----------------|
+| **CatalogBookDTO** | Discovery catalog book data | title, author, isbn13, genres, description, cover_url, popularity_score |
+| **NYTBookDTO** | NYT bestseller data | title, author, isbn13, rank, weeks_on_list, list_category, publisher |
+| **VibeClassificationDTO** | Reading experience metrics | mood_darkness, pacing_speed, complexity, emotional_intensity, plot_archetype, prose_style, setting_atmosphere, confidence |
+| **MetadataQueryDTO** | Book search parameters | title, author, isbn, publisher |
+| **ScoredResultDTO** | Search result with ranking | book_data, score, source, match_reasons |
+| **EditionCandidateDTO** | Book edition for selection | isbn, title, publisher, year, format, cover_url, source |
 
 ### Services
 
@@ -214,6 +241,24 @@ Goal tracking with automatic progress calculation:
 - `addMinutesToGoals()` - Called after session with duration
 - `updateStreakGoals()` - Updates streak tracking
 - `recalculateAllGoals()` - Bulk recalculation from actual data
+
+#### NYTBestsellerService
+
+Manages New York Times bestseller data import and synchronization:
+
+- **CSV ingestion** - Parses NYT export files with error tracking
+- **API synchronization** - Weekly sync from NYT Books API
+- **Popularity scoring** - Calculates scores based on rank and weeks on list
+- **Statistics aggregation** - Total counts, fiction/nonfiction split, average weeks
+
+#### BookClassificationService
+
+LLM-powered book classification for discovery:
+
+- **Content classification** - Audience level, intensity rating, moods, themes
+- **Vibe classification** - Mood darkness (1-10), pacing speed, complexity, emotional intensity
+- **Categorical attributes** - Plot archetype, prose style, setting atmosphere
+- **Confidence scoring** - Both content and vibe classifications include confidence scores
 
 ### Global Configuration
 
@@ -273,13 +318,13 @@ Book discovery with multiple input methods:
 - **Recent Searches**: Persisted search history
 
 #### Home Feature
-Smart dashboard with context-aware content:
+Smart dashboard with time-aware, motivational content:
 
-- **Hero Flip Card**: Current reading book with progress
-- **Pulse Strip**: Reading streak indicator
-- **Goal Progress Widget**: Active goal visualization
+- **Reading Spotlight**: Hero card showing current read with cover, progress bar, and quick actions (Continue, Log Pages, Details)
+- **Status Strip**: Compact metrics display showing streak days, weekly pages, and books in progress
+- **Weekly Momentum**: 7-day activity grid with pulse dots, streak indicators, and collapsible goals section
+- **Dynamic Sky**: Animated celestial background with sun/moon path, twinkling stars, and time-of-day transitions
 - **On-Deck Queue**: TBR queue management
-- **Atmospheric Background**: Blurred cover-based background
 
 #### Stats Feature (Reader DNA)
 Two-tab analytics experience:
@@ -390,7 +435,7 @@ export function LibraryScreen() {
 
 ## Theme System
 
-### Four Available Themes
+### Five Available Themes
 
 | Theme | Style | Primary Color | Corners | Rating Icon | Fonts |
 |-------|-------|---------------|---------|-------------|-------|
@@ -398,6 +443,25 @@ export function LibraryScreen() {
 | **Dreamer** | Cottagecore | Sage (#7d9a82) | Rounded (8-24px) | Heart | Nunito |
 | **Wanderer** | Desert Explorer | Copper (#a86830) | Medium (2-12px) | Compass | Lora |
 | **Midnight** | Celestial | Indigo (#6366f1) | Medium (2-12px) | Moon | Lora |
+| **Dynamic** | Time-Adaptive | Varies by time | Medium | Star | Lora |
+
+### Dynamic Theme
+
+The Dynamic theme is a real-time adaptive theme that transitions between four time-of-day color schemes:
+
+| Phase | Time | Primary Colors | Atmosphere |
+|-------|------|----------------|------------|
+| **Night** | 10pm - 5am | Deep blue, teal glow | 80 twinkling stars |
+| **Dawn** | 5am - 9am | Warm orange, soft pink | Subtle clouds |
+| **Day** | 9am - 5pm | Bright cream, amber | Clear sky |
+| **Dusk** | 5pm - 10pm | Purple, warm gold | Transitional clouds |
+
+**Key Features:**
+- **Smooth 3-hour transitions** between phases with color interpolation
+- **Text contrast snapping** at 50% midpoint prevents illegible gray-on-gray
+- **Dynamic shadows** change hue per phase (teal glow at night, orange at dawn)
+- **Tag colors interpolate** smoothly across transitions
+- **Debug mode** available for 60-second full cycle testing
 
 ### Theme Structure
 
@@ -472,6 +536,7 @@ Each theme has customized animation behavior:
 | **Dreamer** | Soft (damping: 28) | Bouncy | Minimal tilt, no skew |
 | **Wanderer** | Responsive (damping: 20) | Bouncy | Full tilt + skew |
 | **Midnight** | Dramatic (damping: 18) | Responsive | Tilt, no skew |
+| **Dynamic** | Responsive (damping: 20) | Responsive | Full tilt + skew |
 
 ---
 
@@ -535,6 +600,16 @@ layout/          → Layout primitives
 | **FilterDial** | Horizontal tab filter |
 | **FloatingActionButton** | Prominent action button |
 | **SpineView** | 3D book spine shelf view |
+| **AtmosphericBackground** | Blurred cover-based background effect |
+| **DynamicSky** | Animated celestial background with time-based sun/moon path |
+
+### Home Feature Components
+
+| Component | Purpose |
+|-----------|---------|
+| **ReadingSpotlight** | Hero card for current read with cover, progress, and quick actions |
+| **StatusStrip** | Compact stats display (streak, weekly pages, books in progress) |
+| **WeeklyMomentum** | 7-day activity grid with goals section and celebration triggers |
 
 ### Layout Primitives (layout/)
 
@@ -885,6 +960,64 @@ Goal creation, updates, and deletion are performed via the sync system (`/api/sy
 const tags = await apiClient<Tag[]>('/tags');           // Returns Tag[] directly
 const book = await apiClient<UserBook>('/library/1');   // Returns UserBook directly
 ```
+
+---
+
+## Catalog & Data Ingestion System
+
+The app includes a comprehensive data ingestion pipeline for building the discovery catalog from external sources.
+
+### Data Sources
+
+| Source | Command | Purpose |
+|--------|---------|---------|
+| **Goodreads** | `php artisan seed-data:build-goodreads` | Process Goodreads CSV exports |
+| **NYT Bestsellers** | `php artisan seed-data:build-nyt` | Process NYT bestseller data |
+| **NYT API** | `SyncNYTBestsellersJob` | Weekly sync from NYT Books API |
+
+### Artisan Commands
+
+| Command | Description |
+|---------|-------------|
+| `seed-data:build-goodreads` | Enriches Goodreads CSV with metadata from Open Library/Google Books, downloads covers, runs LLM classification |
+| `seed-data:build-nyt` | Similar pipeline for NYT data with genre inference from list categories |
+| `catalog:classify-vibes` | Backfill vibe classifications for existing catalog books with rate limiting |
+| `catalog:ingest-nyt` | Import NYT bestseller data from CSV files |
+
+### Enrichment Pipeline
+
+1. **Parse source CSV** (Goodreads export or NYT data)
+2. **Metadata enrichment** - Open Library (primary) → Google Books (fallback)
+3. **Cover download** - Waterfall strategy across multiple sources
+4. **LLM Classification** - Gemini-powered content and vibe analysis
+5. **Output** - Normalized CSV for catalog seeding
+
+### Classification Schema
+
+**Content Classification:**
+- Audience level (children, young_adult, adult, mature)
+- Intensity rating (1-5)
+- Moods (cozy, dark, hopeful, melancholic, etc.)
+- Themes (love, death, identity, power, etc.)
+
+**Vibe Classification (1-10 scales):**
+- Mood darkness
+- Pacing speed
+- Complexity
+- Emotional intensity
+
+**Categorical Attributes:**
+- Plot archetype (enemies_to_lovers, chosen_one, hero's_journey, etc.)
+- Prose style (flowery, minimalist, dialogue_heavy, lyrical, etc.)
+- Setting atmosphere (dystopian, victorian, cyberpunk, cozy, etc.)
+
+### Background Jobs
+
+| Job | Trigger | Purpose |
+|-----|---------|---------|
+| `ClassifyCatalogBooksJob` | Manual or chained | Batch LLM classification with self-dispatch for remaining books |
+| `SyncNYTBestsellersJob` | Weekly cron | Fetches latest NYT data, chains cover/classification/embedding jobs |
+| `GenerateCatalogEmbeddingsJob` | After classification | Generates vector embeddings for similarity search |
 
 ---
 

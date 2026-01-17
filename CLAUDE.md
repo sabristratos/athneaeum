@@ -198,10 +198,13 @@ Track multiple readings of the same book with separate ratings/reviews for each.
 
 **Backend Model**: `ReadThrough` with columns: `user_book_id`, `read_number`, `started_at`, `finished_at`, `rating`, `review`, `status`, `is_dnf`, `dnf_reason`
 
-**API Endpoints**:
-- `PATCH /library/{userBook}/reread` - Start a new read-through
-- `PATCH /read-throughs/{readThrough}` - Update a specific read-through (rating, review)
+**API Endpoints** (read-only, CRUD via sync):
 - `GET /library/{userBook}/history` - Get reading history with all read-throughs
+
+**Mobile CRUD** (via WatermelonDB + sync):
+- Read-throughs are created/updated locally in WatermelonDB
+- Changes sync to backend via `/sync/push`
+- Use `useStartReread()` and `useReadThroughs()` hooks from `@/database/hooks/`
 
 **Key Relationships**:
 - `UserBook` hasMany `ReadThrough`
@@ -225,7 +228,7 @@ Group books into series/collections with volume tracking and ordering.
 - `PATCH /series/{series}` - Update series metadata
 - `DELETE /series/{series}` - Delete series
 - `POST /series/{series}/books` - Assign book to series with volume number
-- `DELETE /series/{series}/books` - Remove book from series
+- `DELETE /series/{series}/books` - Remove book from series (requires `book_id` in body)
 
 **Mobile Hooks** (`src/queries/useSeries.ts`):
 - `useSeriesQuery(search?)` - List series
@@ -235,7 +238,7 @@ Group books into series/collections with volume tracking and ordering.
 - `useDeleteSeriesMutation()` - Delete series
 - `useAssignBookToSeriesMutation()` - Add book to series
 - `useRemoveBookFromSeriesMutation()` - Remove book from series
-- `useFindMatchingSeries(name)` - Smart matching with confidence levels ('exact' | 'high' | 'medium')
+- `useFindMatchingSeries(name)` - Smart matching with confidence levels ('exact' | 'high' | 'medium' | 'low')
 
 ### Tags System
 
@@ -330,6 +333,7 @@ Bulk import books from external sources.
 **API Endpoints**:
 - `GET /user/import/sources` - List supported import sources
 - `POST /user/import` - Upload and import file
+- `GET /user/import/enrichment-status` - Check enrichment job status
 
 ### Statistics System
 
@@ -361,10 +365,12 @@ Enhanced user profile management.
 
 **Backend Endpoints**:
 - `GET /user` - Current user profile
+- `POST /user/onboarding-complete` - Mark onboarding as complete
 - `PATCH /user` - Update name, bio
 - `PATCH /user/password` - Change password
 - `PATCH /user/theme` - Set preferred theme
 - `POST /user/avatar` - Upload avatar
+- `DELETE /user/avatar` - Remove avatar
 - `PATCH /user/preferences` - Update reading preferences
 - `GET /user/export` - Export all user data
 - `DELETE /user` - Delete account
@@ -415,8 +421,9 @@ Personalized book recommendations based on reading history and user signals.
 - `GET /discovery/search?q={query}` - Search discovery catalog
 - `GET /discovery/{catalogBook}` - Single catalog book details
 - `GET /discovery/{catalogBook}/similar` - Similar books
-- `POST /discovery/signals` - Record user interaction signals
-- `POST /discovery/refresh-profile` - Refresh user's recommendation profile
+- `POST /discovery/signals` - Record user interaction signals (auth required)
+- `POST /discovery/refresh-profile` - Refresh user's recommendation profile (auth required)
+- `GET /discovery/metrics` - Get discovery metrics for current user (auth required)
 
 **Mobile Hooks** (`src/queries/useDiscovery.ts`):
 - `useDiscoveryFeedQuery()` - Personalized feed with sections

@@ -249,6 +249,7 @@ class DiscoveryController extends Controller
 
         $topBooksWithDetails = collect($topBooks)->map(function ($item) {
             $book = CatalogBook::find($item['catalog_book_id']);
+
             return array_merge($item, [
                 'title' => $book?->title,
                 'author' => $book?->author,

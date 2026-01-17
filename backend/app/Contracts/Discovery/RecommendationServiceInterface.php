@@ -46,7 +46,7 @@ interface RecommendationServiceInterface
      *
      * Averages the embeddings of the user's recently read books.
      *
-     * @return array<float>|null  The user vector or null if insufficient data
+     * @return array<float>|null The user vector or null if insufficient data
      */
     public function computeUserVector(User $user): ?array;
 

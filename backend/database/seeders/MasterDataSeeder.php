@@ -11,7 +11,6 @@ use App\Models\Book;
 use App\Models\Series;
 use App\Services\SeedData\SeedDataService;
 use Illuminate\Database\Seeder;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 

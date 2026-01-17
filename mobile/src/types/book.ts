@@ -28,6 +28,8 @@ export interface SearchFilters {
   yearTo?: number;
 }
 
+export type SearchResultSource = 'google_books' | 'opds' | 'local';
+
 export interface SearchResult {
   external_id: string;
   title: string;
@@ -46,6 +48,7 @@ export interface SearchResult {
   edition_count?: number;
   series_name?: string | null;
   volume_number?: number | null;
+  _source?: SearchResultSource;
 }
 
 export interface SearchResponse {

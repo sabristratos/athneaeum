@@ -160,6 +160,7 @@ class OpenLibraryAuthorService implements AuthorSearchServiceInterface
 
             if (str_contains($normalizedName, $part)) {
                 $matchedParts++;
+
                 continue;
             }
 

@@ -34,6 +34,7 @@ interface UseSearchControllerReturn {
   meta: { total: number; has_more: boolean; provider: string; start_index: number } | undefined;
   loading: boolean;
   loadingMore: boolean;
+  refreshing: boolean;
   error: string | null;
   filters: SearchFilters;
   setFilters: (filters: SearchFilters) => void;
@@ -65,6 +66,7 @@ export function useSearchController(options: UseSearchControllerOptions = {}): U
     data,
     isLoading,
     isFetchingNextPage,
+    isRefetching,
     error: queryError,
     fetchNextPage,
     hasNextPage,
@@ -77,6 +79,7 @@ export function useSearchController(options: UseSearchControllerOptions = {}): U
   const meta = data?.meta;
   const loading = isLoading;
   const loadingMore = isFetchingNextPage;
+  const refreshing = isRefetching && !isFetchingNextPage;
   const error = queryError ? (queryError instanceof Error ? queryError.message : 'Search failed') : null;
 
   useEffect(() => {
@@ -107,10 +110,11 @@ export function useSearchController(options: UseSearchControllerOptions = {}): U
     async (book: SearchResult, status: BookStatus) => {
       setAddingId(book.external_id);
       try {
+        const provider = book._source === 'opds' ? 'opds' : (book._source === 'local' ? 'master_books' : 'google_books');
         const userBookId = await addBook(
           {
             externalId: book.external_id,
-            externalProvider: 'google_books',
+            externalProvider: provider,
             title: book.title,
             author: book.author,
             coverUrl: book.cover_url ?? undefined,
@@ -126,11 +130,11 @@ export function useSearchController(options: UseSearchControllerOptions = {}): U
         queryClient.invalidateQueries({ queryKey: queryKeys.library.externalIds() });
         triggerHaptic('success');
 
-        if (book.series_name && book.volume_number) {
+        if (book.series_name && book.volume_number && userBookId) {
           setPendingSeriesSuggestion({
             seriesName: book.series_name,
             volumeNumber: book.volume_number,
-            bookId: 0,
+            bookId: userBookId,
             bookTitle: book.title,
             bookAuthor: book.author,
           });
@@ -180,6 +184,7 @@ export function useSearchController(options: UseSearchControllerOptions = {}): U
     meta,
     loading,
     loadingMore,
+    refreshing,
     error,
     filters,
     setFilters,

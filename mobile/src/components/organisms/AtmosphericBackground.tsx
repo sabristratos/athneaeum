@@ -5,7 +5,6 @@ import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
-  useAnimatedProps,
 } from 'react-native-reanimated';
 import { BlurView } from 'expo-blur';
 import { useTheme } from '@/themes';
@@ -31,26 +30,31 @@ export function AtmosphericBackground({
   glowOpacity = 0.4,
   isNightMode = false,
 }: AtmosphericBackgroundProps) {
-  const { theme } = useTheme();
-  const { color: extractedColor, isLoading } = useCoverColor(bookId, coverUrl);
+  const { theme, themeName } = useTheme();
+  const { color: extractedColor } = useCoverColor(bookId, coverUrl);
 
+  const isDynamicTheme = themeName === 'dynamic';
   const effectiveOpacity = isNightMode ? glowOpacity * 0.6 : glowOpacity;
 
   const gradientColors = useMemo(() => {
     if (!extractedColor) {
-      return [theme.colors.canvas, theme.colors.canvas];
+      return isDynamicTheme
+        ? ['transparent', 'transparent']
+        : [theme.colors.canvas, theme.colors.canvas];
     }
 
     const rgb = hexToRgb(extractedColor);
     if (!rgb) {
-      return [theme.colors.canvas, theme.colors.canvas];
+      return isDynamicTheme
+        ? ['transparent', 'transparent']
+        : [theme.colors.canvas, theme.colors.canvas];
     }
 
     const [r, g, b] = rgb;
     const colorWithOpacity = `rgba(${r}, ${g}, ${b}, ${effectiveOpacity})`;
 
-    return [colorWithOpacity, theme.colors.canvas];
-  }, [extractedColor, theme.colors.canvas, effectiveOpacity]);
+    return [colorWithOpacity, isDynamicTheme ? 'transparent' : theme.colors.canvas];
+  }, [extractedColor, theme.colors.canvas, effectiveOpacity, isDynamicTheme]);
 
   const opacity = useSharedValue(extractedColor ? 1 : 0);
 
@@ -62,8 +66,10 @@ export function AtmosphericBackground({
     opacity: opacity.value,
   }));
 
+  const containerBgColor = isDynamicTheme ? 'transparent' : theme.colors.canvas;
+
   return (
-    <View style={[styles.container, { backgroundColor: theme.colors.canvas }, style]}>
+    <View style={[styles.container, { backgroundColor: containerBgColor }, style]}>
       {extractedColor && (
         <Animated.View style={[styles.gradientContainer, animatedStyle]}>
           <LinearGradient

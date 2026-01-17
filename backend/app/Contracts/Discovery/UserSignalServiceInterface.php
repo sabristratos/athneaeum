@@ -25,14 +25,14 @@ interface UserSignalServiceInterface
     /**
      * Get the weight multipliers for each signal type.
      *
-     * @return array<string, float>  Map of signal type to weight
+     * @return array<string, float> Map of signal type to weight
      */
     public function getSignalWeights(): array;
 
     /**
      * Clean up old signals beyond the retention period.
      *
-     * @return int  Number of signals deleted
+     * @return int Number of signals deleted
      */
     public function pruneOldSignals(): int;
 
@@ -46,14 +46,14 @@ interface UserSignalServiceInterface
     /**
      * Get IDs of books the user has dismissed.
      *
-     * @return array<int>  Array of catalog_book_ids
+     * @return array<int> Array of catalog_book_ids
      */
     public function getDismissedBookIds(User $user): array;
 
     /**
      * Get weighted signal scores for books with recency decay.
      *
-     * @return array<int, float>  Map of catalog_book_id => weighted_score
+     * @return array<int, float> Map of catalog_book_id => weighted_score
      */
     public function getWeightedSignalScores(User $user, int $limit = 100): array;
 }

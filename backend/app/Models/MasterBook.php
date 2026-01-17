@@ -4,6 +4,10 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\DTOs\Ingestion\VibeClassificationDTO;
+use App\Enums\PlotArchetypeEnum;
+use App\Enums\ProseStyleEnum;
+use App\Enums\SettingAtmosphereEnum;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsToMany;
@@ -46,6 +50,20 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
  * @property float|null $classification_confidence
  * @property bool $is_classified
  * @property \Carbon\Carbon|null $classified_at
+ * @property float|null $mood_darkness
+ * @property float|null $pacing_speed
+ * @property float|null $complexity_score
+ * @property float|null $emotional_intensity
+ * @property PlotArchetypeEnum|null $plot_archetype
+ * @property ProseStyleEnum|null $prose_style
+ * @property SettingAtmosphereEnum|null $setting_atmosphere
+ * @property float|null $vibe_confidence
+ * @property bool $is_vibe_classified
+ * @property bool $is_nyt_bestseller
+ * @property string|null $nyt_list_category
+ * @property int|null $nyt_weeks_on_list
+ * @property int|null $nyt_peak_rank
+ * @property \Carbon\Carbon|null $nyt_first_seen_date
  * @property float $popularity_score
  * @property int $review_count
  * @property float|null $average_rating
@@ -82,6 +100,19 @@ class MasterBook extends Model
             'classification_confidence' => 'float',
             'is_embedded' => 'boolean',
             'is_classified' => 'boolean',
+            'mood_darkness' => 'float',
+            'pacing_speed' => 'float',
+            'complexity_score' => 'float',
+            'emotional_intensity' => 'float',
+            'plot_archetype' => PlotArchetypeEnum::class,
+            'prose_style' => ProseStyleEnum::class,
+            'setting_atmosphere' => SettingAtmosphereEnum::class,
+            'vibe_confidence' => 'float',
+            'is_vibe_classified' => 'boolean',
+            'is_nyt_bestseller' => 'boolean',
+            'nyt_weeks_on_list' => 'integer',
+            'nyt_peak_rank' => 'integer',
+            'nyt_first_seen_date' => 'date',
         ];
     }
 
@@ -137,21 +168,6 @@ class MasterBook extends Model
     public function primaryGenre(): ?Genre
     {
         return $this->genres()->wherePivot('is_primary', true)->first();
-    }
-
-    /**
-     * Build the text used for generating embeddings.
-     */
-    public function buildEmbeddingText(): string
-    {
-        $parts = array_filter([
-            $this->title,
-            $this->author,
-            $this->description,
-            is_array($this->genres) ? implode(', ', $this->genres) : null,
-        ]);
-
-        return implode(' | ', $parts);
     }
 
     /**
@@ -307,5 +323,80 @@ class MasterBook extends Model
         return $this->completeness_score < 0.8
             || $this->last_enriched_at === null
             || $this->last_enriched_at->diffInDays(now()) > 30;
+    }
+
+    /**
+     * Check if this book needs vibe classification.
+     */
+    public function needsVibeClassification(): bool
+    {
+        return ! empty($this->description) && ! $this->is_vibe_classified;
+    }
+
+    /**
+     * Scope to get books that need vibe classification.
+     */
+    public function scopePendingVibeClassification($query)
+    {
+        return $query->where('is_vibe_classified', false)
+            ->whereNotNull('description')
+            ->where('description', '!=', '');
+    }
+
+    /**
+     * Scope to get books that have vibe classification.
+     */
+    public function scopeVibeClassified($query)
+    {
+        return $query->where('is_vibe_classified', true);
+    }
+
+    /**
+     * Scope to get NYT bestsellers.
+     */
+    public function scopeNytBestseller($query)
+    {
+        return $query->where('is_nyt_bestseller', true);
+    }
+
+    /**
+     * Scope to filter by NYT list category.
+     */
+    public function scopeNytCategory($query, string $category)
+    {
+        return $query->where('nyt_list_category', $category);
+    }
+
+    /**
+     * Get the vibe classification DTO.
+     */
+    public function getVibeClassification(): VibeClassificationDTO
+    {
+        return new VibeClassificationDTO(
+            moodDarkness: $this->mood_darkness,
+            pacingSpeed: $this->pacing_speed,
+            complexityScore: $this->complexity_score,
+            emotionalIntensity: $this->emotional_intensity,
+            plotArchetype: $this->plot_archetype,
+            proseStyle: $this->prose_style,
+            settingAtmosphere: $this->setting_atmosphere,
+            confidence: $this->vibe_confidence ?? 0.0,
+        );
+    }
+
+    /**
+     * Apply vibe classification to this book.
+     */
+    public function applyVibeClassification(VibeClassificationDTO $vibes): void
+    {
+        $this->mood_darkness = $vibes->moodDarkness;
+        $this->pacing_speed = $vibes->pacingSpeed;
+        $this->complexity_score = $vibes->complexityScore;
+        $this->emotional_intensity = $vibes->emotionalIntensity;
+        $this->plot_archetype = $vibes->plotArchetype;
+        $this->prose_style = $vibes->proseStyle;
+        $this->setting_atmosphere = $vibes->settingAtmosphere;
+        $this->vibe_confidence = $vibes->confidence;
+        $this->is_vibe_classified = $vibes->confidence > 0;
     }
 }

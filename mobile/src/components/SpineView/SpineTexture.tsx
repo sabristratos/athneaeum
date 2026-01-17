@@ -24,6 +24,10 @@ const TEXTURE_CONFIGS: Record<ThemeName, TextureConfig> = {
     opacity: 0.04,
     lineCount: 3,
   },
+  dynamic: {
+    opacity: 0.04,
+    lineCount: 3,
+  },
 };
 
 interface SpineTextureProps {

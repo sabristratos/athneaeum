@@ -5,55 +5,11 @@ import Svg, { Path } from 'react-native-svg';
 import { Cancel01Icon, CheckmarkCircle02Icon } from '@hugeicons/core-free-icons';
 import { Text, Icon, Button } from '@/components/atoms';
 import { useTheme } from '@/themes';
-import { themes } from '@/themes/themes';
-import type { Theme, ThemeName } from '@/types/theme';
+import { THEME_CONFIG } from '@/stores/themeStore';
+import type { ThemeName, Theme } from '@/types/theme';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 const CARD_WIDTH = SCREEN_WIDTH * 0.85;
-
-interface EditionInfo {
-  name: ThemeName;
-  label: string;
-  description: string;
-  fonts: string;
-  corners: string;
-  ratingLabel: string;
-}
-
-const EDITION_DETAILS: Record<ThemeName, EditionInfo> = {
-  scholar: {
-    name: 'scholar',
-    label: 'Scholar',
-    description: 'Dark Academia',
-    fonts: 'Classic Serif',
-    corners: 'Sharp',
-    ratingLabel: 'Stars',
-  },
-  dreamer: {
-    name: 'dreamer',
-    label: 'Dreamer',
-    description: 'Cozy Cottagecore',
-    fonts: 'Friendly Sans',
-    corners: 'Soft',
-    ratingLabel: 'Hearts',
-  },
-  wanderer: {
-    name: 'wanderer',
-    label: 'Wanderer',
-    description: 'Desert Explorer',
-    fonts: 'Warm Serif',
-    corners: 'Medium',
-    ratingLabel: 'Compass',
-  },
-  midnight: {
-    name: 'midnight',
-    label: 'Midnight',
-    description: 'Celestial Library',
-    fonts: 'Elegant Serif',
-    corners: 'Medium',
-    ratingLabel: 'Moons',
-  },
-};
 
 function RatingIconPreview({
   type,
@@ -95,17 +51,14 @@ export function EditionPreviewModal({
 }: EditionPreviewModalProps) {
   const { theme: currentTheme } = useTheme();
 
-  const previewTheme = useMemo(() => {
+  const themeConfig = useMemo(() => {
     if (!editionName) return null;
-    return themes[editionName];
+    return THEME_CONFIG[editionName];
   }, [editionName]);
 
-  const editionInfo = useMemo(() => {
-    if (!editionName) return null;
-    return EDITION_DETAILS[editionName];
-  }, [editionName]);
+  if (!visible || !themeConfig) return null;
 
-  if (!visible || !previewTheme || !editionInfo) return null;
+  const previewTheme = themeConfig.theme;
 
   return (
     <Modal
@@ -239,7 +192,7 @@ export function EditionPreviewModal({
                   marginBottom: 4,
                 }}
               >
-                {editionInfo.label} Edition
+                {themeConfig.label} Edition
               </Text>
               <Text
                 variant="caption"
@@ -250,7 +203,7 @@ export function EditionPreviewModal({
                   marginBottom: 12,
                 }}
               >
-                {editionInfo.description}
+                {themeConfig.description}
               </Text>
 
               <View style={styles.detailsRow}>
@@ -268,7 +221,7 @@ export function EditionPreviewModal({
                       fontSize: 11,
                     }}
                   >
-                    {editionInfo.ratingLabel}
+                    {themeConfig.ratingLabel}
                   </Text>
                 </View>
                 <View style={styles.detailItem}>
@@ -280,7 +233,7 @@ export function EditionPreviewModal({
                       fontSize: 11,
                     }}
                   >
-                    {editionInfo.corners} corners
+                    {themeConfig.corners} corners
                   </Text>
                 </View>
                 <View style={styles.detailItem}>
@@ -292,7 +245,7 @@ export function EditionPreviewModal({
                       fontSize: 11,
                     }}
                   >
-                    {editionInfo.fonts}
+                    {themeConfig.fonts}
                   </Text>
                 </View>
               </View>
@@ -304,7 +257,7 @@ export function EditionPreviewModal({
               <Button
                 variant={isActive ? 'secondary' : 'primary'}
                 size="lg"
-                onPress={() => onApply(editionInfo.name)}
+                onPress={() => onApply(themeConfig.name)}
                 disabled={isActive}
               >
                 {isActive ? 'Currently Active' : 'Apply Edition'}

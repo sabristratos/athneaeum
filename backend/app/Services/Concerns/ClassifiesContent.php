@@ -8,8 +8,6 @@ use App\DTOs\Ingestion\ContentClassificationDTO;
 use App\Enums\MoodEnum;
 use App\Services\Ingestion\LLM\LLMConsultant;
 use Illuminate\Database\Eloquent\Model;
-use InvalidArgumentException;
-use RuntimeException;
 
 /**
  * Trait for content classification functionality.

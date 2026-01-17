@@ -134,7 +134,7 @@ class SetupCatalogCommand extends Command
     {
         $this->stepNumber++;
         $this->output->write(
-            sprintf("  [%d/%d] %s ", $this->stepNumber, $this->totalSteps, $message)
+            sprintf('  [%d/%d] %s ', $this->stepNumber, $this->totalSteps, $message)
         );
     }
 

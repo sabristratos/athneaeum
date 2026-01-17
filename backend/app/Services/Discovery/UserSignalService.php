@@ -83,7 +83,7 @@ class UserSignalService implements UserSignalServiceInterface
         $unique = [];
 
         foreach ($signals as $signal) {
-            $key = ($signal['book_id'] ?? 0) . ':' . ($signal['type'] ?? '');
+            $key = ($signal['book_id'] ?? 0).':'.($signal['type'] ?? '');
             $timestamp = $signal['timestamp'] ?? 0;
 
             if (! isset($unique[$key]) || $timestamp > ($unique[$key]['timestamp'] ?? 0)) {
@@ -152,7 +152,7 @@ class UserSignalService implements UserSignalServiceInterface
      *
      * Only returns books dismissed within the retention period.
      *
-     * @return array<int>  Array of catalog_book_ids
+     * @return array<int> Array of catalog_book_ids
      */
     public function getDismissedBookIds(User $user): array
     {
@@ -235,12 +235,12 @@ class UserSignalService implements UserSignalServiceInterface
 
         $totals = DB::table('user_signals')
             ->where('created_at', '>=', $since)
-            ->selectRaw("
+            ->selectRaw('
                 signal_type,
                 COUNT(*) as count,
                 COUNT(DISTINCT user_id) as unique_users,
                 COUNT(DISTINCT catalog_book_id) as unique_books
-            ")
+            ')
             ->groupBy('signal_type')
             ->get()
             ->keyBy('signal_type');
@@ -256,7 +256,7 @@ class UserSignalService implements UserSignalServiceInterface
 
         $dailyStats = DB::table('user_signals')
             ->where('created_at', '>=', $since)
-            ->selectRaw("DATE(created_at) as date, signal_type, COUNT(*) as count")
+            ->selectRaw('DATE(created_at) as date, signal_type, COUNT(*) as count')
             ->groupBy('date', 'signal_type')
             ->orderBy('date')
             ->get();

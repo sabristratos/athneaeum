@@ -148,8 +148,8 @@ class SyncController extends Controller
      */
     public function push(Request $request): JsonResponse
     {
-        $idMappings = ['books' => [], 'user_books' => [], 'read_throughs' => [], 'reading_sessions' => [], 'tags' => [], 'user_preferences' => [], 'reading_goals' => []];
-        $counts = ['books' => 0, 'user_books' => 0, 'read_throughs' => 0, 'reading_sessions' => 0, 'tags' => 0, 'user_preferences' => 0, 'reading_goals' => 0];
+        $idMappings = ['books' => [], 'user_books' => [], 'read_throughs' => [], 'reading_sessions' => [], 'series' => [], 'tags' => [], 'user_preferences' => [], 'reading_goals' => []];
+        $counts = ['books' => 0, 'user_books' => 0, 'read_throughs' => 0, 'reading_sessions' => 0, 'series' => 0, 'tags' => 0, 'user_preferences' => 0, 'reading_goals' => 0];
         $skipped = ['user_books' => [], 'read_throughs' => [], 'reading_sessions' => []];
         $booksToClassify = [];
         $authorsToCache = [];
@@ -562,6 +562,59 @@ class SyncController extends Controller
                     ->delete();
                 if ($deleted) {
                     DeletionLog::logDeletion($userId, 'user_preferences', (int) $serverId);
+                }
+            }
+
+            // Process created series
+            foreach ($data['series']['created'] ?? [] as $seriesData) {
+                $series = Series::create([
+                    'title' => $seriesData['title'],
+                    'author' => $seriesData['author'],
+                    'external_id' => $seriesData['external_id'] ?? null,
+                    'external_provider' => $seriesData['external_provider'] ?? null,
+                    'total_volumes' => $seriesData['total_volumes'] ?? null,
+                    'is_complete' => $seriesData['is_complete'] ?? false,
+                    'description' => $seriesData['description'] ?? null,
+                ]);
+                $idMappings['series'][] = [
+                    'local_id' => $seriesData['local_id'],
+                    'server_id' => $series->id,
+                ];
+                $counts['series']++;
+            }
+
+            // Process updated series
+            foreach ($data['series']['updated'] ?? [] as $seriesData) {
+                if (! isset($seriesData['server_id'])) {
+                    continue;
+                }
+                $series = Series::find($seriesData['server_id']);
+                if ($series) {
+                    $updateData = [];
+                    if (isset($seriesData['title'])) {
+                        $updateData['title'] = $seriesData['title'];
+                    }
+                    if (isset($seriesData['author'])) {
+                        $updateData['author'] = $seriesData['author'];
+                    }
+                    if (array_key_exists('total_volumes', $seriesData)) {
+                        $updateData['total_volumes'] = $seriesData['total_volumes'];
+                    }
+                    if (isset($seriesData['is_complete'])) {
+                        $updateData['is_complete'] = $seriesData['is_complete'];
+                    }
+                    if (array_key_exists('description', $seriesData)) {
+                        $updateData['description'] = $seriesData['description'];
+                    }
+                    $series->update($updateData);
+                }
+            }
+
+            // Process deleted series
+            foreach ($data['series']['deleted'] ?? [] as $serverId) {
+                $deleted = Series::where('id', $serverId)->delete();
+                if ($deleted) {
+                    DeletionLog::logDeletion($userId, 'series', (int) $serverId);
                 }
             }
 

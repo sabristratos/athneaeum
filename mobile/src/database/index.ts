@@ -19,9 +19,36 @@ export const database = new Database({
 });
 
 export async function resetDatabase(): Promise<void> {
+  console.log('[Database] Starting database reset...');
+
   await database.write(async () => {
-    await database.unsafeResetDatabase();
+    const collections = [
+      'reading_sessions',
+      'read_throughs',
+      'user_book_tags',
+      'user_books',
+      'books',
+      'series',
+      'tags',
+      'user_preferences',
+      'reading_goals',
+      'sync_metadata',
+    ];
+
+    for (const collectionName of collections) {
+      try {
+        const collection = database.get(collectionName);
+        const allRecords = await collection.query().fetch();
+        console.log(`[Database] Deleting ${allRecords.length} records from ${collectionName}`);
+        for (const record of allRecords) {
+          await record.destroyPermanently();
+        }
+      } catch (err) {
+        console.error(`[Database] Error clearing ${collectionName}:`, err);
+      }
+    }
   });
+
   console.log('[Database] Database has been reset');
 }
 

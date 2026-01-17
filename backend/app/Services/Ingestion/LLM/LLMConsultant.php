@@ -7,12 +7,16 @@ namespace App\Services\Ingestion\LLM;
 use App\DTOs\Ingestion\ContentClassificationDTO;
 use App\DTOs\Ingestion\DescriptionAssessmentDTO;
 use App\DTOs\Ingestion\SeriesExtractionDTO;
+use App\DTOs\Ingestion\VibeClassificationDTO;
 use App\Enums\AudienceEnum;
 use App\Enums\ContentIntensityEnum;
 use App\Enums\DescriptionQualityEnum;
 use App\Enums\GenreEnum;
 use App\Enums\MoodEnum;
+use App\Enums\PlotArchetypeEnum;
+use App\Enums\ProseStyleEnum;
 use App\Enums\SeriesPositionEnum;
+use App\Enums\SettingAtmosphereEnum;
 use App\Models\Author;
 use App\Models\AuthorAlias;
 use App\Models\BookContentClassification;
@@ -399,7 +403,7 @@ class LLMConsultant
      * @param  array<string>  $genres  Known genres
      * @param  string|null  $externalId  External ID for caching
      * @param  string|null  $externalProvider  External provider for caching
-     * @return array{description: DescriptionAssessmentDTO, content: ContentClassificationDTO, series: SeriesExtractionDTO}
+     * @return array{description: DescriptionAssessmentDTO, content: ContentClassificationDTO, series: SeriesExtractionDTO, vibes: VibeClassificationDTO}
      */
     public function classifyBook(
         string $title,
@@ -410,13 +414,14 @@ class LLMConsultant
         ?string $externalProvider = null
     ): array {
         $cached = BookContentClassification::findByContent($title, $description, $author);
-        if ($cached?->hasCompleteClassification()) {
-            Log::debug('[LLMConsultant] Using fully cached classification', ['title' => $title]);
+        if ($cached?->hasCompleteClassificationWithVibes()) {
+            Log::debug('[LLMConsultant] Using fully cached classification with vibes', ['title' => $title]);
 
             return [
                 'description' => $cached->getDescriptionAssessment(),
                 'content' => $cached->getContentClassification(),
                 'series' => $cached->getSeriesExtraction(),
+                'vibes' => $cached->getVibeClassification(),
             ];
         }
 
@@ -430,7 +435,7 @@ class LLMConsultant
             $response = $this->callGemini($prompt);
             $results = $this->parseCombinedClassificationResponse($response);
 
-            BookContentClassification::cacheAll(
+            BookContentClassification::cacheAllWithVibes(
                 $title,
                 $description,
                 $author,
@@ -438,14 +443,17 @@ class LLMConsultant
                 $externalProvider,
                 $results['description'],
                 $results['content'],
-                $results['series']
+                $results['series'],
+                $results['vibes']
             );
 
-            Log::info('[LLMConsultant] Book fully classified', [
+            Log::info('[LLMConsultant] Book fully classified with vibes', [
                 'title' => $title,
                 'descriptionQuality' => $results['description']->quality->value,
                 'audience' => $results['content']->audience?->value,
                 'seriesMentioned' => $results['series']->seriesMentioned,
+                'moodDarkness' => $results['vibes']->moodDarkness,
+                'plotArchetype' => $results['vibes']->plotArchetype?->value,
             ]);
 
             return $results;
@@ -456,6 +464,63 @@ class LLMConsultant
             ]);
 
             return $this->defaultClassifications();
+        }
+    }
+
+    /**
+     * Classify only the vibe characteristics for backfilling existing books.
+     *
+     * @param  string  $title  The book title
+     * @param  string|null  $description  The book description
+     * @param  string|null  $author  The author name
+     * @param  array<string>  $genres  Known genres
+     * @param  string|null  $externalId  External ID for caching
+     * @param  string|null  $externalProvider  External provider for caching
+     */
+    public function classifyVibesOnly(
+        string $title,
+        ?string $description,
+        ?string $author,
+        array $genres = [],
+        ?string $externalId = null,
+        ?string $externalProvider = null
+    ): VibeClassificationDTO {
+        $cached = BookContentClassification::findByContent($title, $description, $author);
+        if ($cached && $cached->vibe_confidence > 0) {
+            Log::debug('[LLMConsultant] Using cached vibe classification', ['title' => $title]);
+
+            return $cached->getVibeClassification();
+        }
+
+        if (! $this->isEnabled()) {
+            Log::info('[LLMConsultant] LLM disabled, returning empty vibe classification');
+
+            return $this->defaultVibeClassification();
+        }
+
+        $prompt = $this->buildVibePrompt($title, $description, $author, $genres);
+
+        try {
+            $response = $this->callGemini($prompt);
+            $result = $this->parseVibeResponse($response);
+
+            BookContentClassification::cacheVibes($title, $description, $author, $externalId, $externalProvider, $result);
+
+            Log::info('[LLMConsultant] Vibes classified', [
+                'title' => $title,
+                'moodDarkness' => $result->moodDarkness,
+                'pacingSpeed' => $result->pacingSpeed,
+                'plotArchetype' => $result->plotArchetype?->value,
+            ]);
+
+            return $result;
+        } catch (\Exception $e) {
+            Log::error('[LLMConsultant] Vibe classification failed', [
+                'title' => $title,
+                'error' => $e->getMessage(),
+            ]);
+
+            return $this->defaultVibeClassification();
         }
     }
 
@@ -878,16 +943,19 @@ PROMPT;
         $intensityOptions = implode(', ', array_map(fn ($c) => $c->value, ContentIntensityEnum::cases()));
         $moodOptions = implode(', ', array_map(fn ($c) => $c->value, MoodEnum::cases()));
         $positionOptions = implode(', ', array_map(fn ($c) => $c->value, SeriesPositionEnum::cases()));
+        $plotArchetypeOptions = implode(', ', array_map(fn ($c) => $c->value, PlotArchetypeEnum::cases()));
+        $proseStyleOptions = implode(', ', array_map(fn ($c) => $c->value, ProseStyleEnum::cases()));
+        $settingOptions = implode(', ', array_map(fn ($c) => $c->value, SettingAtmosphereEnum::cases()));
 
         return <<<PROMPT
-You are a librarian analyzing a book. Provide three classifications in a single JSON response.
+You are a librarian analyzing a book. Provide four classifications in a single JSON response.
 
 Book Title: "{$title}"
 Author: {$authorPart}
 Known Genres: {$genrePart}
 Description: "{$descPart}"
 
-Respond with a JSON object containing three sections:
+Respond with a JSON object containing four sections:
 
 1. "description": Assess description quality
    - quality: "good" | "fair" | "poor"
@@ -910,11 +978,25 @@ Respond with a JSON object containing three sections:
    - volume_hint: number or null
    - confidence: 0.0-1.0
 
+4. "vibes": Analyze reading experience characteristics
+   Rate on scale 1.0-10.0 (IMPORTANT: rate against genre norms, not absolute scale):
+   - mood_darkness: 1.0=Cozy/whimsical, 10.0=Grimdark/disturbing
+   - pacing_speed: 1.0=Slow burn/meditative, 10.0=Thriller/breakneck
+   - complexity_score: 1.0=Beach read, 10.0=Academic/dense prose
+   - emotional_intensity: 1.0=Detached/cerebral, 10.0=Tearjerker/gut-wrenching
+
+   Categorical classifications:
+   - plot_archetype: {$plotArchetypeOptions}
+   - prose_style: {$proseStyleOptions}
+   - setting_atmosphere: {$settingOptions}
+   - confidence: 0.0-1.0
+
 Respond with ONLY valid JSON:
 {
   "description": {...},
   "content": {...},
-  "series": {...}
+  "series": {...},
+  "vibes": {...}
 }
 PROMPT;
     }
@@ -922,7 +1004,7 @@ PROMPT;
     /**
      * Parse combined classification response.
      *
-     * @return array{description: DescriptionAssessmentDTO, content: ContentClassificationDTO, series: SeriesExtractionDTO}
+     * @return array{description: DescriptionAssessmentDTO, content: ContentClassificationDTO, series: SeriesExtractionDTO, vibes: VibeClassificationDTO}
      */
     private function parseCombinedClassificationResponse(string $response): array
     {
@@ -944,6 +1026,9 @@ PROMPT;
             'series' => isset($data['series'])
                 ? SeriesExtractionDTO::fromArray($data['series'])
                 : $defaults['series'],
+            'vibes' => isset($data['vibes'])
+                ? VibeClassificationDTO::fromArray($data['vibes'])
+                : $defaults['vibes'],
         ];
     }
 
@@ -994,7 +1079,7 @@ PROMPT;
     /**
      * Create all default classifications for fallback.
      *
-     * @return array{description: DescriptionAssessmentDTO, content: ContentClassificationDTO, series: SeriesExtractionDTO}
+     * @return array{description: DescriptionAssessmentDTO, content: ContentClassificationDTO, series: SeriesExtractionDTO, vibes: VibeClassificationDTO}
      */
     private function defaultClassifications(): array
     {
@@ -1002,6 +1087,82 @@ PROMPT;
             'description' => $this->defaultDescriptionAssessment(),
             'content' => $this->defaultContentClassification(),
             'series' => $this->defaultSeriesExtraction(),
+            'vibes' => $this->defaultVibeClassification(),
         ];
+    }
+
+    /**
+     * Create default vibe classification for fallback.
+     */
+    private function defaultVibeClassification(): VibeClassificationDTO
+    {
+        return new VibeClassificationDTO(confidence: 0.0);
+    }
+
+    /**
+     * Build prompt for vibe-only classification (for backfilling).
+     *
+     * @param  array<string>  $genres
+     */
+    private function buildVibePrompt(
+        string $title,
+        ?string $description,
+        ?string $author,
+        array $genres
+    ): string {
+        $descPart = $description ? mb_substr($description, 0, 1500) : 'Not available';
+        $authorPart = $author ?: 'Unknown';
+        $genrePart = ! empty($genres) ? implode(', ', $genres) : 'Unknown';
+
+        $plotArchetypeOptions = implode(', ', array_map(fn ($c) => $c->value, PlotArchetypeEnum::cases()));
+        $proseStyleOptions = implode(', ', array_map(fn ($c) => $c->value, ProseStyleEnum::cases()));
+        $settingOptions = implode(', ', array_map(fn ($c) => $c->value, SettingAtmosphereEnum::cases()));
+
+        return <<<PROMPT
+You are a librarian analyzing a book's reading experience characteristics.
+
+Book Title: "{$title}"
+Author: {$authorPart}
+Known Genres: {$genrePart}
+Description: "{$descPart}"
+
+Analyze the reading experience and respond with a JSON object:
+
+Rate on scale 1.0-10.0 (IMPORTANT: rate against genre norms, not absolute scale):
+- mood_darkness: 1.0=Cozy/whimsical, 10.0=Grimdark/disturbing
+- pacing_speed: 1.0=Slow burn/meditative, 10.0=Thriller/breakneck
+- complexity_score: 1.0=Beach read, 10.0=Academic/dense prose
+- emotional_intensity: 1.0=Detached/cerebral, 10.0=Tearjerker/gut-wrenching
+
+Categorical classifications:
+- plot_archetype: {$plotArchetypeOptions}
+- prose_style: {$proseStyleOptions}
+- setting_atmosphere: {$settingOptions}
+- confidence: 0.0-1.0
+
+Respond with ONLY valid JSON:
+{
+  "mood_darkness": 5.0,
+  "pacing_speed": 5.0,
+  "complexity_score": 5.0,
+  "emotional_intensity": 5.0,
+  "plot_archetype": "...",
+  "prose_style": "...",
+  "setting_atmosphere": "...",
+  "confidence": 0.0
+}
+PROMPT;
+    }
+
+    /**
+     * Parse vibe-only classification response.
+     */
+    private function parseVibeResponse(string $response): VibeClassificationDTO
+    {
+        $data = $this->parseJsonResponse($response);
+
+        return $data !== null
+            ? VibeClassificationDTO::fromArray($data)
+            : $this->defaultVibeClassification();
     }
 }

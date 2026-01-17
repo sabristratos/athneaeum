@@ -21,6 +21,7 @@ const MOOD_COLORS: Record<ThemeName, string[]> = {
   dreamer: ['#7d9a82', '#9ec49b', '#b4a7c7', '#c7a7b4', '#a7c7c4', '#c4c7a7', '#c7b4a7', '#a7b4c7', '#c7c4a7', '#a7c4c7'],
   wanderer: ['#d4a017', '#b8860b', '#cd853f', '#daa520', '#8b7355', '#a0522d', '#bc8f8f', '#d2691e', '#deb887', '#f4a460'],
   midnight: ['#6366f1', '#818cf8', '#a5b4fc', '#4f46e5', '#7c3aed', '#8b5cf6', '#3b82f6', '#60a5fa', '#4ade80', '#f472b6'],
+  dynamic: ['#6366f1', '#818cf8', '#a5b4fc', '#4f46e5', '#7c3aed', '#8b5cf6', '#3b82f6', '#60a5fa', '#4ade80', '#f472b6'],
 };
 
 const INTENSITY_COLORS: Record<ThemeName, Record<string, string>> = {
@@ -28,6 +29,7 @@ const INTENSITY_COLORS: Record<ThemeName, Record<string, string>> = {
   dreamer: { light: '#9ec49b', moderate: '#b4a7c7', dark: '#9a8ab4', intense: '#c7a7b4' },
   wanderer: { light: '#deb887', moderate: '#d4a017', dark: '#a0522d', intense: '#8b4513' },
   midnight: { light: '#60a5fa', moderate: '#6366f1', dark: '#7c3aed', intense: '#dc2626' },
+  dynamic: { light: '#60a5fa', moderate: '#6366f1', dark: '#7c3aed', intense: '#dc2626' },
 };
 
 interface IntensityBarProps {

@@ -55,7 +55,7 @@ class BookFilterService
     /**
      * Filter a book through the kill list.
      *
-     * @param array<string, mixed> $book Book data with title, subtitle, publisher, language, format keys
+     * @param  array<string, mixed>  $book  Book data with title, subtitle, publisher, language, format keys
      */
     public function filter(array $book): BookFilterResultDTO
     {

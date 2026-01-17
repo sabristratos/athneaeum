@@ -53,6 +53,9 @@ class BookSearchManager
     /**
      * Filter results based on user's excluded preferences.
      *
+     * Uses word boundary matching for authors (e.g., excluding "King" won't exclude "Stephen King")
+     * and exact/substring matching for genres (e.g., excluding "Romance" excludes "Historical Romance").
+     *
      * @param  array<array<string, mixed>>  $items
      * @param  array{authors: array<string>, genres: array<string>}  $excludes
      * @return array<array<string, mixed>>
@@ -67,7 +70,7 @@ class BookSearchManager
             if (! empty($excludes['authors'])) {
                 $author = strtolower(trim($item['author'] ?? ''));
                 foreach ($excludes['authors'] as $excludedAuthor) {
-                    if (str_contains($author, $excludedAuthor)) {
+                    if ($this->matchesAuthor($author, $excludedAuthor)) {
                         return false;
                     }
                 }
@@ -77,7 +80,7 @@ class BookSearchManager
                 $genres = array_map('strtolower', $item['genres'] ?? []);
                 foreach ($excludes['genres'] as $excludedGenre) {
                     foreach ($genres as $genre) {
-                        if (str_contains($genre, $excludedGenre)) {
+                        if ($this->matchesGenre($genre, $excludedGenre)) {
                             return false;
                         }
                     }
@@ -86,6 +89,40 @@ class BookSearchManager
 
             return true;
         }));
+    }
+
+    /**
+     * Check if an author matches the excluded author pattern.
+     *
+     * Uses word boundary matching to avoid false positives.
+     * "Stephen King" will match "stephen king" but not just "king".
+     */
+    private function matchesAuthor(string $author, string $excluded): bool
+    {
+        if ($author === $excluded) {
+            return true;
+        }
+
+        $pattern = '/\b'.preg_quote($excluded, '/').'\b/i';
+
+        return (bool) preg_match($pattern, $author);
+    }
+
+    /**
+     * Check if a genre matches the excluded genre pattern.
+     *
+     * Uses exact match or checks if the excluded genre is a complete word/phrase.
+     * "Romance" matches "Romance" and "Historical Romance" but not "Romantic".
+     */
+    private function matchesGenre(string $genre, string $excluded): bool
+    {
+        if ($genre === $excluded) {
+            return true;
+        }
+
+        $pattern = '/\b'.preg_quote($excluded, '/').'\b/i';
+
+        return (bool) preg_match($pattern, $genre);
     }
 
     /**
@@ -290,11 +327,13 @@ class BookSearchManager
         ?int $yearTo
     ): array {
         $halfLimit = (int) ceil($limit / 2);
+        $opdsStartIndex = (int) floor($startIndex / 2);
+        $googleStartIndex = $startIndex - $opdsStartIndex;
 
-        $googleResults = $this->googleBooks->search($query, $halfLimit, $startIndex, $langRestrict, $genres, $minRating, $yearFrom, $yearTo);
+        $googleResults = $this->googleBooks->search($query, $halfLimit, $googleStartIndex, $langRestrict, $genres, $minRating, $yearFrom, $yearTo);
 
         $opdsService = $this->createOpdsService($user);
-        $opdsResults = $opdsService->search($query, $halfLimit, 0, $langRestrict, $genres, $minRating, $yearFrom, $yearTo);
+        $opdsResults = $opdsService->search($query, $halfLimit, $opdsStartIndex, $langRestrict, $genres, $minRating, $yearFrom, $yearTo);
 
         $combined = $this->mergeResults($googleResults['items'], $opdsResults['items'], $limit);
 
@@ -310,27 +349,51 @@ class BookSearchManager
     private function mergeResults(array $googleItems, array $opdsItems, int $limit): array
     {
         $merged = [];
-        $seenTitles = [];
+        $seenKeys = [];
 
         foreach ($opdsItems as $item) {
-            $key = strtolower(trim($item['title'] ?? ''));
-            if (! empty($key) && ! isset($seenTitles[$key])) {
+            $key = $this->generateDedupeKey($item);
+            if (! empty($key) && ! isset($seenKeys[$key])) {
                 $item['_source'] = 'opds';
                 $merged[] = $item;
-                $seenTitles[$key] = true;
+                $seenKeys[$key] = true;
             }
         }
 
         foreach ($googleItems as $item) {
-            $key = strtolower(trim($item['title'] ?? ''));
-            if (! empty($key) && ! isset($seenTitles[$key])) {
+            $key = $this->generateDedupeKey($item);
+            if (! empty($key) && ! isset($seenKeys[$key])) {
                 $item['_source'] = 'google_books';
                 $merged[] = $item;
-                $seenTitles[$key] = true;
+                $seenKeys[$key] = true;
             }
         }
 
         return array_slice($merged, 0, $limit);
+    }
+
+    /**
+     * Generate a deduplication key from title and author.
+     *
+     * Normalizes both values to lowercase and removes subtitles for better matching.
+     */
+    private function generateDedupeKey(array $item): string
+    {
+        $title = strtolower(trim($item['title'] ?? ''));
+        $title = preg_replace('/[:–—-].*$/', '', $title);
+        $title = preg_replace('/[^a-z0-9\s]/', '', $title);
+        $title = trim($title);
+
+        $author = strtolower(trim($item['author'] ?? ''));
+        $author = explode(',', $author)[0];
+        $author = preg_replace('/[^a-z\s]/', '', $author);
+        $author = trim($author);
+
+        if (empty($title)) {
+            return '';
+        }
+
+        return $title.'|'.$author;
     }
 
     private function createOpdsService(User $user): OPDSService

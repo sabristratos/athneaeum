@@ -1,4 +1,4 @@
-export type ThemeName = 'scholar' | 'dreamer' | 'wanderer' | 'midnight';
+export type ThemeName = 'scholar' | 'dreamer' | 'wanderer' | 'midnight' | 'dynamic';
 
 export interface ThemeColors {
   // Base surfaces

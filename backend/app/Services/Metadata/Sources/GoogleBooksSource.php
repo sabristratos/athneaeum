@@ -33,7 +33,7 @@ class GoogleBooksSource extends AbstractMetadataSource
 
     public function isAvailable(): bool
     {
-        return !empty(config('services.google_books.key'));
+        return ! empty(config('services.google_books.key'));
     }
 
     protected function lookupByIsbn(string $isbn): ?MetadataResultDTO
@@ -52,7 +52,7 @@ class GoogleBooksSource extends AbstractMetadataSource
 
     public function prepareAsyncQuery(MetadataQueryDTO $query): ?callable
     {
-        if (!$this->isAvailable()) {
+        if (! $this->isAvailable()) {
             return null;
         }
 
@@ -84,7 +84,7 @@ class GoogleBooksSource extends AbstractMetadataSource
 
     public function parseAsyncResponse(mixed $response): ?MetadataResultDTO
     {
-        if (!$response instanceof Response || !$response->successful()) {
+        if (! $response instanceof Response || ! $response->successful()) {
             return null;
         }
 
@@ -194,7 +194,7 @@ class GoogleBooksSource extends AbstractMetadataSource
 
     private function parsePublishedDate(?string $date): ?string
     {
-        if (!$date) {
+        if (! $date) {
             return null;
         }
 
@@ -231,7 +231,7 @@ class GoogleBooksSource extends AbstractMetadataSource
             }
         }
 
-        if (!$result['name'] && isset($volumeInfo['title'])) {
+        if (! $result['name'] && isset($volumeInfo['title'])) {
             $title = $volumeInfo['title'];
 
             if (preg_match('/^(.+?)\s*[,:]?\s*(?:Book|Volume|Part|#)\s*(\d+)/i', $title, $matches)) {

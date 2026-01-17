@@ -64,7 +64,7 @@ class EditionNormalizer
     /**
      * Normalize a book by finding the best edition.
      *
-     * @param array<string, mixed> $book Book data with title, author, isbn fields
+     * @param  array<string, mixed>  $book  Book data with title, author, isbn fields
      * @return EditionCandidateDTO|null The best edition, or null if none found
      */
     public function normalize(array $book): ?EditionCandidateDTO
@@ -97,7 +97,7 @@ class EditionNormalizer
      *
      * Tries ISBN lookup first, then falls back to title/author search.
      *
-     * @param array<string, mixed> $book
+     * @param  array<string, mixed>  $book
      */
     private function resolveWorkKey(array $book): ?string
     {
@@ -254,7 +254,7 @@ class EditionNormalizer
     /**
      * Select the best edition from a list.
      *
-     * @param array<int, array<string, mixed>> $editions
+     * @param  array<int, array<string, mixed>>  $editions
      */
     private function selectBestEdition(array $editions): ?EditionCandidateDTO
     {
@@ -290,7 +290,7 @@ class EditionNormalizer
     /**
      * Score a single edition.
      *
-     * @param array<string, mixed> $edition
+     * @param  array<string, mixed>  $edition
      */
     private function scoreEdition(array $edition): ?EditionCandidateDTO
     {

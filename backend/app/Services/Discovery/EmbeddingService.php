@@ -5,7 +5,10 @@ declare(strict_types=1);
 namespace App\Services\Discovery;
 
 use App\Contracts\Discovery\EmbeddingServiceInterface;
+use App\DTOs\Ingestion\VibeClassificationDTO;
 use App\Models\CatalogBook;
+use App\Models\MasterBook;
+use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
@@ -126,9 +129,10 @@ class EmbeddingService implements EmbeddingServiceInterface
     /**
      * Build the text to embed for a catalog book.
      *
-     * Concatenates title, author, description, and genres for a rich embedding.
+     * Concatenates title, author, description, genres, and vibe characteristics
+     * for a rich semantic embedding.
      */
-    public function buildEmbeddingText(CatalogBook $book): string
+    public function buildEmbeddingText(CatalogBook|MasterBook $book): string
     {
         $parts = array_filter([
             $book->title,
@@ -137,7 +141,58 @@ class EmbeddingService implements EmbeddingServiceInterface
             is_array($book->genres) ? implode(', ', $book->genres) : null,
         ]);
 
-        return implode(' | ', $parts);
+        $baseParts = implode(' | ', $parts);
+
+        if ($book->is_vibe_classified) {
+            $vibeParts = $this->buildVibeTextParts($book->getVibeClassification());
+            if (! empty($vibeParts)) {
+                $baseParts .= ' | '.implode(' | ', $vibeParts);
+            }
+        }
+
+        return $baseParts;
+    }
+
+    /**
+     * Build vibe text parts for embedding enrichment.
+     *
+     * @return array<string>
+     */
+    private function buildVibeTextParts(VibeClassificationDTO $vibes): array
+    {
+        $parts = [];
+
+        $pacing = $vibes->getPacingLabel();
+        if ($pacing) {
+            $parts[] = "Pacing: {$pacing}";
+        }
+
+        $mood = $vibes->getMoodLabel();
+        if ($mood) {
+            $parts[] = "Mood: {$mood}";
+        }
+
+        $complexity = $vibes->getComplexityLabel();
+        if ($complexity) {
+            $parts[] = "Complexity: {$complexity}";
+        }
+
+        if ($vibes->proseStyle) {
+            $style = str_replace('_', ' ', $vibes->proseStyle->value);
+            $parts[] = "Style: {$style}";
+        }
+
+        if ($vibes->settingAtmosphere) {
+            $setting = str_replace('_', ' ', $vibes->settingAtmosphere->value);
+            $parts[] = "Setting: {$setting}";
+        }
+
+        if ($vibes->plotArchetype && $vibes->plotArchetype->value !== 'other') {
+            $archetype = str_replace('_', ' ', $vibes->plotArchetype->value);
+            $parts[] = "Archetype: {$archetype}";
+        }
+
+        return $parts;
     }
 
     /**

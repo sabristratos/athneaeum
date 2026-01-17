@@ -41,6 +41,21 @@ return new class extends Migration
             $table->unsignedSmallInteger('series_volume_hint')->nullable();
             $table->decimal('series_confidence', 3, 2)->default(0);
 
+            // Vibe classification vectors (1.0-10.0 scale)
+            $table->decimal('mood_darkness', 3, 1)->nullable();
+            $table->decimal('pacing_speed', 3, 1)->nullable();
+            $table->decimal('complexity_score', 3, 1)->nullable();
+            $table->decimal('emotional_intensity', 3, 1)->nullable();
+
+            // Vibe categorical classifications
+            $table->string('plot_archetype', 30)->nullable();
+            $table->string('prose_style', 30)->nullable();
+            $table->string('setting_atmosphere', 30)->nullable();
+
+            // Vibe tracking
+            $table->decimal('vibe_confidence', 3, 2)->default(0);
+            $table->boolean('is_vibe_classified')->default(false);
+
             $table->timestamps();
 
             $table->index(['external_id', 'external_provider']);

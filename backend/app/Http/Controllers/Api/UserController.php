@@ -136,12 +136,11 @@ class UserController extends Controller
                     'finished_at' => $userBook->finished_at?->toIso8601String(),
                     'tags' => $userBook->tags->pluck('name')->toArray(),
                     'sessions' => $userBook->readingSessions->map(fn ($s) => [
-                        'started_at' => $s->started_at->toIso8601String(),
-                        'ended_at' => $s->ended_at?->toIso8601String(),
+                        'date' => $s->date,
                         'start_page' => $s->start_page,
                         'end_page' => $s->end_page,
                         'pages_read' => $s->pages_read,
-                        'duration_minutes' => $s->duration_minutes,
+                        'duration_seconds' => $s->duration_seconds,
                         'notes' => $s->notes,
                     ])->toArray(),
                 ];

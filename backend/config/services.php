@@ -59,4 +59,20 @@ return [
         'key' => env('GOOGLE_BOOKS_API_KEY'),
     ],
 
+    /*
+    |--------------------------------------------------------------------------
+    | NYT Books API
+    |--------------------------------------------------------------------------
+    |
+    | Configuration for the New York Times Books API.
+    | Used for syncing bestseller data into the discovery catalog.
+    |
+    */
+
+    'nyt' => [
+        'api_key' => env('NYT_API_KEY'),
+        'base_url' => env('NYT_BASE_URL', 'https://api.nytimes.com/svc/books/v3'),
+        'rate_limit_delay' => (int) env('NYT_RATE_LIMIT_DELAY', 6),
+    ],
+
 ];

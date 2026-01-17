@@ -75,8 +75,8 @@ final readonly class EditionCandidateDTO
     /**
      * Create from Open Library edition data.
      *
-     * @param array<string, mixed> $edition
-     * @param array<string, int> $scoreBreakdown
+     * @param  array<string, mixed>  $edition
+     * @param  array<string, int>  $scoreBreakdown
      */
     public static function fromOpenLibraryEdition(
         array $edition,

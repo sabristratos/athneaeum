@@ -23,7 +23,7 @@ final readonly class MetadataQueryDTO
 
     public function hasIsbn(): bool
     {
-        return !empty($this->isbn) || !empty($this->isbn13);
+        return ! empty($this->isbn) || ! empty($this->isbn13);
     }
 
     public function getPrimaryIsbn(): ?string
@@ -33,7 +33,7 @@ final readonly class MetadataQueryDTO
 
     public function hasTitleAuthor(): bool
     {
-        return !empty($this->title);
+        return ! empty($this->title);
     }
 
     /**

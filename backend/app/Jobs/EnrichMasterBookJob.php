@@ -321,7 +321,7 @@ class EnrichMasterBookJob implements ShouldQueue
     private function generateEmbedding(MasterBook $book, EmbeddingServiceInterface $embeddingService): bool
     {
         try {
-            $text = $book->buildEmbeddingText();
+            $text = $embeddingService->buildEmbeddingText($book);
 
             if (strlen($text) < 10) {
                 Log::debug('[EnrichMasterBook] Insufficient text for embedding', ['book_id' => $book->id]);

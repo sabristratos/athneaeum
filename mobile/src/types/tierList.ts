@@ -35,36 +35,42 @@ export const TIER_COLORS: Record<TierName, Record<ThemeName, string>> = {
     dreamer: '#5a7560',
     wanderer: '#704520',
     midnight: '#3730a3',
+    dynamic: '#3730a3',
   },
   great: {
     scholar: '#6b4423',
     dreamer: '#6b8870',
     wanderer: '#8b5528',
     midnight: '#4338ca',
+    dynamic: '#4338ca',
   },
   good: {
     scholar: '#5a5a3a',
     dreamer: '#7b9980',
     wanderer: '#a06830',
     midnight: '#4f46e5',
+    dynamic: '#4f46e5',
   },
   okay: {
     scholar: '#6a6a5a',
     dreamer: '#8baa90',
     wanderer: '#b07840',
     midnight: '#6366f1',
+    dynamic: '#6366f1',
   },
   meh: {
     scholar: '#7a7a6a',
     dreamer: '#9bbba0',
     wanderer: '#c08850',
     midnight: '#818cf8',
+    dynamic: '#818cf8',
   },
   skip: {
     scholar: '#8a8a7a',
     dreamer: '#abccb0',
     wanderer: '#d09860',
     midnight: '#a5b4fc',
+    dynamic: '#a5b4fc',
   },
 };
 

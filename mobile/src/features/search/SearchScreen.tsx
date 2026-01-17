@@ -76,6 +76,7 @@ export function SearchScreen() {
     meta,
     loading,
     loadingMore,
+    refreshing,
     error,
     filters,
     handleAddToLibrary,
@@ -230,7 +231,20 @@ export function SearchScreen() {
       );
     }
 
-    if (query.trim()) {
+    const trimmedQuery = query.trim();
+    if (trimmedQuery.length === 1) {
+      return (
+        <View
+          style={{ alignItems: 'center', paddingVertical: theme.spacing.xl }}
+        >
+          <Text variant="body" muted>
+            Enter at least 2 characters to search
+          </Text>
+        </View>
+      );
+    }
+
+    if (trimmedQuery.length >= 2) {
       return (
         <View
           style={{ alignItems: 'center', paddingVertical: theme.spacing.xl }}
@@ -398,7 +412,7 @@ export function SearchScreen() {
           ListEmptyComponent={ListEmptyComponent}
           refreshControl={
             <RefreshControl
-              refreshing={false}
+              refreshing={refreshing}
               onRefresh={refresh}
               tintColor={theme.colors.primary}
             />

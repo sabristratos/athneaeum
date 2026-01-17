@@ -1,16 +1,14 @@
-import React, { useMemo, useCallback } from 'react';
+import React, { useMemo, useCallback, useState } from 'react';
 import { View, ScrollView, StyleSheet, RefreshControl } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import type { BottomTabNavigationProp } from '@react-navigation/bottom-tabs';
 import { Text, useTabScreenPadding, VignetteOverlay } from '@/components';
+import { ReadingSessionModal } from '@/components/organisms/modals';
 import type { MainTabParamList } from '@/navigation/MainNavigator';
-import { PulseStrip } from '@/components/molecules';
 import {
   AtmosphericBackground,
-  HeroFlipCard,
   OnDeckQueue,
-  LiteraryFeeds,
 } from '@/components/organisms';
 import { useTheme } from '@/themes';
 import { useAuth } from '@/hooks/useAuth';
@@ -23,8 +21,13 @@ import {
 import { useReadingStatsQuery } from '@/queries';
 import { useToast } from '@/stores/toastStore';
 import { usePrimaryBook, useSmartContext } from './hooks';
-import { StatsDashboard, GoalProgressWidget, CreateShareSection } from './components';
-import type { UserBook, ReadingStats, BookFormat } from '@/types';
+import {
+  StatusStrip,
+  ReadingSpotlight,
+  EmptySpotlight,
+  WeeklyMomentum,
+} from './components';
+import type { UserBook, BookFormat } from '@/types';
 
 export function HomeScreen() {
   const { theme, themeName } = useTheme();
@@ -33,6 +36,8 @@ export function HomeScreen() {
   const navigation = useNavigation<BottomTabNavigationProp<MainTabParamList>>();
   const { user } = useAuth();
   const toast = useToast();
+
+  const [quickLogVisible, setQuickLogVisible] = useState(false);
 
   const { books: libraryBooks, loading: libraryLoading } = useLibrary();
   const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useReadingStatsQuery();
@@ -115,7 +120,7 @@ export function HomeScreen() {
   const recentSessions = stats?.recent_sessions ?? [];
 
   const { primaryBook, isPinned } = usePrimaryBook(readingBooks, recentSessions);
-  const { greeting, suggestion, isNightMode, shouldSuggestDarkMode } = useSmartContext(
+  const { greeting, isNightMode } = useSmartContext(
     user?.name?.split(' ')[0]
   );
 
@@ -123,19 +128,35 @@ export function HomeScreen() {
     refetchStats();
   }, [refetchStats]);
 
-  const handleLogSession = useCallback(
-    async (endPage: number, durationSeconds?: number) => {
+  const handleContinueReading = useCallback(() => {
+    if (!primaryBook || !primaryBook.local_id) return;
+    (navigation as any).navigate('BookDetail', { userBookId: primaryBook.local_id });
+  }, [primaryBook, navigation]);
+
+  const handleLogPages = useCallback(() => {
+    if (!primaryBook) return;
+    setQuickLogVisible(true);
+  }, [primaryBook]);
+
+  const handleViewDetails = useCallback(() => {
+    if (!primaryBook || !primaryBook.local_id) return;
+    (navigation as any).navigate('BookDetail', { userBookId: primaryBook.local_id });
+  }, [primaryBook, navigation]);
+
+  const handleQuickLogSave = useCallback(
+    async (data: { endPage: number; durationSeconds?: number; notes?: string; date: string }) => {
       if (!primaryBook || !primaryBook.local_id) return;
 
-      const pagesRead = endPage - primaryBook.current_page;
+      const pagesRead = data.endPage - primaryBook.current_page;
 
       await logSession({
         userBookId: primaryBook.local_id,
-        date: new Date().toISOString().split('T')[0],
+        date: data.date,
         pagesRead,
         startPage: primaryBook.current_page,
-        endPage,
-        durationSeconds,
+        endPage: data.endPage,
+        durationSeconds: data.durationSeconds,
+        notes: data.notes,
       });
 
       toast.success(`Logged ${pagesRead} pages`, {
@@ -180,6 +201,23 @@ export function HomeScreen() {
     [books, reorderBooks, toast]
   );
 
+  const handleBrowseLibrary = useCallback(() => {
+    navigation.navigate('LibraryTab');
+  }, [navigation]);
+
+  const handleExploreDiscovery = useCallback(() => {
+    navigation.navigate('DiscoveryTab');
+  }, [navigation]);
+
+  const handleBookPress = useCallback(
+    (book: UserBook) => {
+      if (book.local_id) {
+        (navigation as any).navigate('BookDetail', { userBookId: book.local_id });
+      }
+    },
+    [navigation]
+  );
+
   const isLoading = libraryLoading || statsLoading;
 
   return (
@@ -195,7 +233,7 @@ export function HomeScreen() {
           style={{ flex: 1 }}
           contentContainerStyle={{
             padding: theme.spacing.lg,
-            gap: theme.spacing.xl,
+            gap: theme.spacing.lg,
             paddingBottom: tabPadding.bottom + theme.spacing.lg,
           }}
           showsVerticalScrollIndicator={false}
@@ -209,81 +247,54 @@ export function HomeScreen() {
           }
         >
           <View style={styles.header}>
-            <Text variant="h2" style={{ color: theme.colors.foreground }}>
+            <Text variant="h1" style={{ color: theme.colors.foreground, fontSize: 28 }}>
               {greeting}
             </Text>
-            {suggestion && (
-              <Text
-                variant="body"
-                style={{
-                  color: theme.colors.foregroundMuted,
-                  marginTop: theme.spacing.xs,
-                  fontStyle: isScholar ? 'italic' : 'normal',
-                }}
-              >
-                {suggestion}
-              </Text>
-            )}
           </View>
 
-          {primaryBook ? (
-            <View style={styles.heroSection}>
-              <HeroFlipCard
-                book={primaryBook}
-                stats={stats ?? null}
-                onLogSession={handleLogSession}
-                onLongPress={handlePinBook}
-                isLogging={false}
-              />
-              {isPinned && (
-                <Text
-                  variant="caption"
-                  style={{
-                    color: theme.colors.primary,
-                    textAlign: 'center',
-                    marginTop: theme.spacing.sm,
-                  }}
-                >
-                  Pinned
-                </Text>
-              )}
-            </View>
-          ) : (
-            <View style={styles.emptyHero}>
-              <Text
-                variant="body"
-                style={{
-                  color: theme.colors.foregroundMuted,
-                  textAlign: 'center',
-                  fontStyle: isScholar ? 'italic' : 'normal',
-                }}
-              >
-                Start reading a book to see it here
-              </Text>
-            </View>
-          )}
-
-          <View style={styles.pulseSection}>
-            <PulseStrip
-              recentSessions={recentSessions}
-              streakDays={stats?.current_streak_days ?? 0}
-            />
-          </View>
-
-          <GoalProgressWidget />
-
-          <CreateShareSection />
-
-          <OnDeckQueue
-            books={wantToReadBooks}
-            onReorder={handleReorderQueue}
-            onBookPress={() => {}}
+          <StatusStrip
+            stats={stats ?? null}
+            onStreakPress={() => navigation.navigate('ProfileTab')}
           />
 
-          <LiteraryFeeds />
+          {primaryBook ? (
+            <ReadingSpotlight
+              book={primaryBook}
+              isPinned={isPinned}
+              onContinueReading={handleContinueReading}
+              onLogPages={handleLogPages}
+              onViewDetails={handleViewDetails}
+              onLongPress={handlePinBook}
+            />
+          ) : (
+            <EmptySpotlight
+              onBrowseLibrary={handleBrowseLibrary}
+              onExploreDiscovery={handleExploreDiscovery}
+            />
+          )}
 
-          <StatsDashboard stats={stats ?? null} loading={statsLoading} />
+          <WeeklyMomentum recentSessions={recentSessions} />
+
+          {wantToReadBooks.length > 0 && (
+            <OnDeckQueue
+              books={wantToReadBooks}
+              onReorder={handleReorderQueue}
+              onBookPress={handleBookPress}
+            />
+          )}
         </ScrollView>
+
+        {primaryBook && (
+          <ReadingSessionModal
+            visible={quickLogVisible}
+            onClose={() => setQuickLogVisible(false)}
+            onSave={handleQuickLogSave}
+            currentPage={primaryBook.current_page}
+            totalPages={primaryBook.book.page_count ?? 0}
+            bookTitle={primaryBook.book.title}
+            bookCover={primaryBook.book.cover_url}
+          />
+        )}
       </SafeAreaView>
     </AtmosphericBackground>
   );
@@ -291,16 +302,6 @@ export function HomeScreen() {
 
 const styles = StyleSheet.create({
   header: {
-    paddingTop: 8,
-  },
-  heroSection: {
-    alignItems: 'center',
-  },
-  emptyHero: {
-    paddingVertical: 60,
-    alignItems: 'center',
-  },
-  pulseSection: {
-    paddingVertical: 8,
+    paddingTop: 4,
   },
 });

@@ -88,7 +88,10 @@
       "Bash(Select-Object Name, Length)",
       "Bash(Format-Table -AutoSize)",
       "Bash(php test_lotr_cover.php:*)",
-      "Bash(Remove-Item \"C:\\\\Websites\\\\atheneum\\\\backend\\\\app\\\\Services\\\\SeedData\\\\BookEnrichmentService.php\")"
+      "Bash(Remove-Item \"C:\\\\Websites\\\\atheneum\\\\backend\\\\app\\\\Services\\\\SeedData\\\\BookEnrichmentService.php\")",
+      "Bash(php vendor/bin/pint:*)",
+      "Bash(.vendorbinpint app/Console/Commands/BuildGoodreadsSeedDataCommand.php)",
+      "Bash(Select-Object -First 100)"
     ]
   }
 }

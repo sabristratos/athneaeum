@@ -238,9 +238,9 @@ class CoverStorageService implements CoverStorageServiceInterface
         $signatures = [
             "\xFF\xD8\xFF" => 'jpeg',
             "\x89PNG\r\n\x1A\n" => 'png',
-            "GIF87a" => 'gif',
-            "GIF89a" => 'gif',
-            "RIFF" => 'webp',
+            'GIF87a' => 'gif',
+            'GIF89a' => 'gif',
+            'RIFF' => 'webp',
         ];
 
         foreach ($signatures as $signature => $type) {

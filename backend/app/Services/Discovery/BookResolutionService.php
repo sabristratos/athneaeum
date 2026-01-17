@@ -10,7 +10,6 @@ use App\Contracts\GenreMapperInterface;
 use App\Jobs\EnrichMasterBookJob;
 use App\Models\MasterBook;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
@@ -216,14 +215,14 @@ class BookResolutionService implements BookResolutionServiceInterface
                     ->orWhere('title', 'ILIKE', $searchPattern)
                     ->orWhere('author', 'ILIKE', $searchPattern);
             })
-            ->orderByRaw("
+            ->orderByRaw('
                 CASE
                     WHEN LOWER(title) = LOWER(?) THEN 1
                     WHEN LOWER(title) LIKE LOWER(?) THEN 2
                     WHEN LOWER(author) LIKE LOWER(?) THEN 3
                     ELSE 4
                 END
-            ", [$query, $query.'%', $query.'%'])
+            ', [$query, $query.'%', $query.'%'])
             ->orderByDesc('user_count')
             ->orderByDesc('popularity_score')
             ->limit($limit)

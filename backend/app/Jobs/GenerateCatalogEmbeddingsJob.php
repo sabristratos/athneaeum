@@ -70,7 +70,7 @@ class GenerateCatalogEmbeddingsJob implements ShouldQueue
 
         foreach ($books as $book) {
             try {
-                $text = $book->buildEmbeddingText();
+                $text = $embeddingService->buildEmbeddingText($book);
 
                 if (strlen($text) < 10) {
                     Log::debug('[GenerateCatalogEmbeddingsJob] Skipping book with insufficient text', [

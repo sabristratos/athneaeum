@@ -4,6 +4,9 @@ declare(strict_types=1);
 
 namespace App\Contracts\Discovery;
 
+use App\Models\CatalogBook;
+use App\Models\MasterBook;
+
 /**
  * Contract for generating text embeddings for semantic similarity.
  *
@@ -16,7 +19,7 @@ interface EmbeddingServiceInterface
      * Generate an embedding vector for the given text.
      *
      * @param  string  $text  The text to embed (will be truncated to API limits)
-     * @return array<float>  The embedding vector (768 dimensions for Gemini)
+     * @return array<float> The embedding vector (768 dimensions for Gemini)
      *
      * @throws \RuntimeException If embedding generation fails
      */
@@ -26,7 +29,7 @@ interface EmbeddingServiceInterface
      * Generate embeddings for multiple texts in a batch.
      *
      * @param  array<string>  $texts  Array of texts to embed
-     * @return array<array<float>>  Array of embedding vectors
+     * @return array<array<float>> Array of embedding vectors
      *
      * @throws \RuntimeException If embedding generation fails
      */
@@ -46,7 +49,7 @@ interface EmbeddingServiceInterface
      * Average multiple embedding vectors into a single normalized vector.
      *
      * @param  array<array<float>>  $vectors  Array of embedding vectors
-     * @return array<float>  The averaged and L2-normalized vector
+     * @return array<float> The averaged and L2-normalized vector
      */
     public function averageVectors(array $vectors): array;
 
@@ -54,7 +57,15 @@ interface EmbeddingServiceInterface
      * L2-normalize a vector for cosine similarity.
      *
      * @param  array<float>  $vector  The vector to normalize
-     * @return array<float>  The normalized vector
+     * @return array<float> The normalized vector
      */
     public function normalizeVector(array $vector): array;
+
+    /**
+     * Build the text to embed for a book.
+     *
+     * Concatenates title, author, description, genres, and vibe characteristics
+     * for a rich semantic embedding.
+     */
+    public function buildEmbeddingText(CatalogBook|MasterBook $book): string;
 }

@@ -39,10 +39,11 @@ import { queryClient, setupQueryClientListeners } from './src/lib/queryClient';
 SplashScreen.preventAutoHideAsync();
 
 function AppContent() {
-  const { isDark, theme } = useTheme();
+  const { isDark, theme, themeName } = useTheme();
+  const isDynamicTheme = themeName === 'dynamic';
 
   return (
-    <View style={{ flex: 1, backgroundColor: theme.colors.canvas }}>
+    <View style={{ flex: 1, backgroundColor: isDynamicTheme ? 'transparent' : theme.colors.canvas }}>
       <StatusBar style={isDark ? 'light' : 'dark'} />
       <RootNavigator />
       <ToastContainer />

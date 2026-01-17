@@ -68,9 +68,9 @@ class CatalogBookDTO
      */
     private static function generateExternalId(?string $title, ?string $author): string
     {
-        $normalized = mb_strtolower(trim(($title ?? '') . '|' . ($author ?? '')));
+        $normalized = mb_strtolower(trim(($title ?? '').'|'.($author ?? '')));
 
-        return 'bbe_' . substr(md5($normalized), 0, 16);
+        return 'bbe_'.substr(md5($normalized), 0, 16);
     }
 
     /**

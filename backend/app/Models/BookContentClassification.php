@@ -7,11 +7,15 @@ namespace App\Models;
 use App\DTOs\Ingestion\ContentClassificationDTO;
 use App\DTOs\Ingestion\DescriptionAssessmentDTO;
 use App\DTOs\Ingestion\SeriesExtractionDTO;
+use App\DTOs\Ingestion\VibeClassificationDTO;
 use App\Enums\AudienceEnum;
 use App\Enums\ContentIntensityEnum;
 use App\Enums\DescriptionQualityEnum;
 use App\Enums\MoodEnum;
+use App\Enums\PlotArchetypeEnum;
+use App\Enums\ProseStyleEnum;
 use App\Enums\SeriesPositionEnum;
+use App\Enums\SettingAtmosphereEnum;
 use Illuminate\Database\Eloquent\Model;
 
 /**
@@ -39,6 +43,15 @@ class BookContentClassification extends Model
             'series_position_hint' => SeriesPositionEnum::class,
             'series_volume_hint' => 'integer',
             'series_confidence' => 'float',
+            'mood_darkness' => 'float',
+            'pacing_speed' => 'float',
+            'complexity_score' => 'float',
+            'emotional_intensity' => 'float',
+            'plot_archetype' => PlotArchetypeEnum::class,
+            'prose_style' => ProseStyleEnum::class,
+            'setting_atmosphere' => SettingAtmosphereEnum::class,
+            'vibe_confidence' => 'float',
+            'is_vibe_classified' => 'boolean',
         ];
     }
 
@@ -82,6 +95,23 @@ class BookContentClassification extends Model
         return $this->description_confidence > 0
             && $this->content_confidence > 0
             && $this->series_confidence > 0;
+    }
+
+    /**
+     * Check if all four classification types (including vibes) have been cached.
+     */
+    public function hasCompleteClassificationWithVibes(): bool
+    {
+        return $this->hasCompleteClassification()
+            && $this->vibe_confidence > 0;
+    }
+
+    /**
+     * Check if vibe classification has been completed.
+     */
+    public function hasVibeClassification(): bool
+    {
+        return $this->vibe_confidence > 0 || $this->is_vibe_classified;
     }
 
     /**
@@ -160,6 +190,35 @@ class BookContentClassification extends Model
     }
 
     /**
+     * Cache vibe classification results.
+     */
+    public static function cacheVibes(
+        string $title,
+        ?string $description,
+        ?string $author,
+        ?string $externalId,
+        ?string $externalProvider,
+        VibeClassificationDTO $vibes
+    ): self {
+        return self::updateOrCreate(
+            ['content_hash' => self::generateHash($title, $description, $author)],
+            [
+                'external_id' => $externalId,
+                'external_provider' => $externalProvider,
+                'mood_darkness' => $vibes->moodDarkness,
+                'pacing_speed' => $vibes->pacingSpeed,
+                'complexity_score' => $vibes->complexityScore,
+                'emotional_intensity' => $vibes->emotionalIntensity,
+                'plot_archetype' => $vibes->plotArchetype,
+                'prose_style' => $vibes->proseStyle,
+                'setting_atmosphere' => $vibes->settingAtmosphere,
+                'vibe_confidence' => $vibes->confidence,
+                'is_vibe_classified' => $vibes->confidence > 0,
+            ]
+        );
+    }
+
+    /**
      * Cache all classification results at once.
      */
     public static function cacheAll(
@@ -192,6 +251,53 @@ class BookContentClassification extends Model
                 'series_position_hint' => $seriesExtraction->positionHint,
                 'series_volume_hint' => $seriesExtraction->volumeHint,
                 'series_confidence' => $seriesExtraction->confidence,
+            ]
+        );
+    }
+
+    /**
+     * Cache all classification results including vibes at once.
+     */
+    public static function cacheAllWithVibes(
+        string $title,
+        ?string $description,
+        ?string $author,
+        ?string $externalId,
+        ?string $externalProvider,
+        DescriptionAssessmentDTO $descriptionAssessment,
+        ContentClassificationDTO $contentClassification,
+        SeriesExtractionDTO $seriesExtraction,
+        VibeClassificationDTO $vibeClassification
+    ): self {
+        return self::updateOrCreate(
+            ['content_hash' => self::generateHash($title, $description, $author)],
+            [
+                'external_id' => $externalId,
+                'external_provider' => $externalProvider,
+                'description_quality' => $descriptionAssessment->quality,
+                'description_is_usable' => $descriptionAssessment->isUsable,
+                'description_is_promotional' => $descriptionAssessment->isPromotional,
+                'description_is_truncated' => $descriptionAssessment->isTruncated,
+                'description_has_spoilers' => $descriptionAssessment->hasSpoilers,
+                'description_confidence' => $descriptionAssessment->confidence,
+                'audience' => $contentClassification->audience,
+                'intensity' => $contentClassification->intensity,
+                'moods' => array_map(fn (MoodEnum $m) => $m->value, $contentClassification->moods),
+                'content_confidence' => $contentClassification->confidence,
+                'series_mentioned' => $seriesExtraction->seriesMentioned,
+                'series_name' => $seriesExtraction->seriesName,
+                'series_position_hint' => $seriesExtraction->positionHint,
+                'series_volume_hint' => $seriesExtraction->volumeHint,
+                'series_confidence' => $seriesExtraction->confidence,
+                'mood_darkness' => $vibeClassification->moodDarkness,
+                'pacing_speed' => $vibeClassification->pacingSpeed,
+                'complexity_score' => $vibeClassification->complexityScore,
+                'emotional_intensity' => $vibeClassification->emotionalIntensity,
+                'plot_archetype' => $vibeClassification->plotArchetype,
+                'prose_style' => $vibeClassification->proseStyle,
+                'setting_atmosphere' => $vibeClassification->settingAtmosphere,
+                'vibe_confidence' => $vibeClassification->confidence,
+                'is_vibe_classified' => $vibeClassification->confidence > 0,
             ]
         );
     }
@@ -243,6 +349,23 @@ class BookContentClassification extends Model
             positionHint: $this->series_position_hint,
             volumeHint: $this->series_volume_hint,
             confidence: $this->series_confidence,
+        );
+    }
+
+    /**
+     * Get vibe classification DTO.
+     */
+    public function getVibeClassification(): VibeClassificationDTO
+    {
+        return new VibeClassificationDTO(
+            moodDarkness: $this->mood_darkness,
+            pacingSpeed: $this->pacing_speed,
+            complexityScore: $this->complexity_score,
+            emotionalIntensity: $this->emotional_intensity,
+            plotArchetype: $this->plot_archetype,
+            proseStyle: $this->prose_style,
+            settingAtmosphere: $this->setting_atmosphere,
+            confidence: $this->vibe_confidence ?? 0.0,
         );
     }
 }

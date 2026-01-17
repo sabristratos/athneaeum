@@ -45,6 +45,9 @@ const Tab = createBottomTabNavigator<MainTabParamList>();
 const Stack = createNativeStackNavigator<MainStackParamList>();
 
 function MainTabs() {
+  const { themeName } = useTheme();
+  const isDynamicTheme = themeName === 'dynamic';
+
   return (
     <Tab.Navigator
       tabBar={(props) => <FloatingNavBar {...props} />}
@@ -52,6 +55,7 @@ function MainTabs() {
         headerShown: false,
         lazy: true,
         freezeOnBlur: true,
+        sceneStyle: isDynamicTheme ? { backgroundColor: 'transparent' } : undefined,
       }}
     >
       <Tab.Screen name="HomeTab" component={HomeScreen} />
@@ -63,6 +67,9 @@ function MainTabs() {
 }
 
 export function MainNavigator() {
+  const { themeName } = useTheme();
+  const isDynamicTheme = themeName === 'dynamic';
+
   return (
     <View style={{ flex: 1 }}>
       <Stack.Navigator
@@ -70,6 +77,7 @@ export function MainNavigator() {
           headerShown: false,
           freezeOnBlur: true,
           animation: 'slide_from_right',
+          contentStyle: isDynamicTheme ? { backgroundColor: 'transparent' } : undefined,
         }}
       >
         <Stack.Screen name="MainTabs" component={MainTabs} />

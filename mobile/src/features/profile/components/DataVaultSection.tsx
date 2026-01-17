@@ -17,6 +17,8 @@ import { teardownAutoSync, setupAutoSync, isSyncInProgress } from '@/database/sy
 import { pullChanges } from '@/database/sync';
 import { useSpineColorStore } from '@/stores/spineColorStore';
 import { useQuoteStore } from '@/stores/quoteStore';
+import { useCelebrationStore } from '@/stores/celebrationStore';
+import { useRecentSearchesStore } from '@/stores/recentSearchesStore';
 
 const ENRICHMENT_POLL_INTERVAL = 3000;
 
@@ -210,6 +212,8 @@ export function DataVaultSection() {
       console.log('[Reset] Clearing stores...');
       useSpineColorStore.getState().clearAllColors();
       useQuoteStore.getState().clearAllQuotes();
+      useRecentSearchesStore.getState().clearSearches();
+      useCelebrationStore.setState({ recentlyCompletedGoalIds: new Set() });
       console.log('[Reset] Stores cleared');
 
       console.log('[Reset] Pulling fresh data from server...');

@@ -7,13 +7,12 @@ namespace App\Services\Discovery;
 use App\Contracts\Discovery\RecommendationServiceInterface;
 use App\Contracts\Discovery\UserSignalServiceInterface;
 use App\Http\Resources\CatalogBookResource;
+use App\Models\Book;
 use App\Models\CatalogBook;
 use App\Models\User;
 use App\Models\UserEmbedding;
 use Illuminate\Support\Collection;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
-use App\Models\Book;
 
 /**
  * Service for generating personalized book recommendations.
@@ -231,7 +230,7 @@ class RecommendationService implements RecommendationServiceInterface
             $authorFirstPart = explode(',', $book->author)[0];
             $query->orWhere(function ($q) use ($book, $authorFirstPart) {
                 $q->where('id', '!=', $book->id)
-                    ->where('author', 'ILIKE', '%' . $authorFirstPart . '%');
+                    ->where('author', 'ILIKE', '%'.$authorFirstPart.'%');
             });
         }
 
@@ -455,7 +454,7 @@ class RecommendationService implements RecommendationServiceInterface
         }
 
         return CatalogBook::whereIn('id', $bookIds)
-            ->orderByRaw('array_position(ARRAY[' . implode(',', $bookIds) . ']::int[], id)')
+            ->orderByRaw('array_position(ARRAY['.implode(',', $bookIds).']::int[], id)')
             ->pluck('title')
             ->toArray();
     }
@@ -790,7 +789,7 @@ class RecommendationService implements RecommendationServiceInterface
 
         if (! empty($excludedGenres)) {
             foreach ($excludedGenres as $genre) {
-                $query->whereRaw("NOT (genres @> ?)", [json_encode([$genre])]);
+                $query->whereRaw('NOT (genres @> ?)', [json_encode([$genre])]);
             }
         }
 
@@ -800,11 +799,11 @@ class RecommendationService implements RecommendationServiceInterface
                     ->orWhere('isbn', '')
                     ->orWhereNotIn('isbn', $libraryIsbns);
             })
-            ->where(function ($q) use ($libraryIsbns) {
-                $q->whereNull('isbn13')
-                    ->orWhere('isbn13', '')
-                    ->orWhereNotIn('isbn13', $libraryIsbns);
-            });
+                ->where(function ($q) use ($libraryIsbns) {
+                    $q->whereNull('isbn13')
+                        ->orWhere('isbn13', '')
+                        ->orWhereNotIn('isbn13', $libraryIsbns);
+                });
         }
 
         if (! empty($dismissedBookIds)) {
@@ -854,7 +853,7 @@ class RecommendationService implements RecommendationServiceInterface
             $books = $query->limit($limit)->get();
 
             if ($books->isNotEmpty()) {
-                $reason = __("You love :author", ['author' => $authorName]);
+                $reason = __('You love :author', ['author' => $authorName]);
                 $books->each(fn ($book) => $book->recommendation_reason = $reason);
 
                 $sections[] = [
@@ -936,7 +935,7 @@ class RecommendationService implements RecommendationServiceInterface
         $limit = config('discovery.recommendation.genre_section_limit', 15);
 
         foreach ($genresToShow as $genre) {
-            $query = CatalogBook::whereRaw("genres @> ?", [json_encode([$genre])])
+            $query = CatalogBook::whereRaw('genres @> ?', [json_encode([$genre])])
                 ->popular();
 
             $this->applyExclusions($query, $preferences);
@@ -944,7 +943,7 @@ class RecommendationService implements RecommendationServiceInterface
             $books = $query->limit($limit)->get();
 
             if ($books->isNotEmpty()) {
-                $reason = __("You like :genre", ['genre' => strtolower($genre)]);
+                $reason = __('You like :genre', ['genre' => strtolower($genre)]);
                 $books->each(fn ($book) => $book->recommendation_reason = $reason);
 
                 $sections[] = [
@@ -975,11 +974,11 @@ class RecommendationService implements RecommendationServiceInterface
         $count = count($titles);
 
         if ($count === 1) {
-            return __("Based on :title", ['title' => $titles[0]]);
+            return __('Based on :title', ['title' => $titles[0]]);
         }
 
         if ($count === 2) {
-            return __("Based on :first and :second", [
+            return __('Based on :first and :second', [
                 'first' => $titles[0],
                 'second' => $titles[1],
             ]);
@@ -987,7 +986,7 @@ class RecommendationService implements RecommendationServiceInterface
 
         $othersCount = $count - 2;
 
-        return __("Based on :first, :second, and :count others", [
+        return __('Based on :first, :second, and :count others', [
             'first' => $titles[0],
             'second' => $titles[1],
             'count' => $othersCount,

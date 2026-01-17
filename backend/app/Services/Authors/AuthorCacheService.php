@@ -26,8 +26,8 @@ class AuthorCacheService
     /**
      * Ensure an author exists in the database, fetching from Open Library if needed.
      *
-     * @param string $name The author's name
-     * @param string|null $openLibraryKey Optional Open Library key if known
+     * @param  string  $name  The author's name
+     * @param  string|null  $openLibraryKey  Optional Open Library key if known
      * @return Author The cached author record
      */
     public function ensureAuthorCached(string $name, ?string $openLibraryKey = null): Author

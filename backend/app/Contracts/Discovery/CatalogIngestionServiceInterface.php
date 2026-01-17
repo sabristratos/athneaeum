@@ -30,7 +30,7 @@ interface CatalogIngestionServiceInterface
      *
      * @param  int  $reviewCount  Number of reviews
      * @param  float  $averageRating  Average rating (1-5)
-     * @return float  The computed popularity score
+     * @return float The computed popularity score
      */
     public function computePopularityScore(int $reviewCount, float $averageRating): float;
 

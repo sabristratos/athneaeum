@@ -16,6 +16,7 @@ const INTENSITY_COLORS: Record<ThemeName, string[]> = {
   dreamer: ['#f0ebe3', '#c5d5c0', '#9ec49b', '#7ab377', '#5a9e55'],
   wanderer: ['#2a2420', '#5c4a35', '#8b6b45', '#b8860b', '#d4a017'],
   midnight: ['#1e293b', '#3730a3', '#4f46e5', '#6366f1', '#818cf8'],
+  dynamic: ['#1e293b', '#3730a3', '#4f46e5', '#6366f1', '#818cf8'],
 };
 
 export const HeatmapCell = memo(function HeatmapCell({

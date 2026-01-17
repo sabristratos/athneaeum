@@ -10,6 +10,7 @@ export interface SyncCounts {
   user_books: number;
   read_throughs: number;
   reading_sessions: number;
+  series: number;
   tags: number;
   user_preferences: number;
   reading_goals: number;
@@ -42,6 +43,11 @@ export interface PushPayload {
   reading_sessions: {
     created: SessionPayload[];
     updated: SessionPayload[];
+    deleted: number[];
+  };
+  series: {
+    created: SeriesPayload[];
+    updated: SeriesPayload[];
     deleted: number[];
   };
   tags: {
@@ -79,6 +85,7 @@ export interface PushResponse {
     user_books: IdMapping[];
     read_throughs: IdMapping[];
     reading_sessions: IdMapping[];
+    series: IdMapping[];
     tags: IdMapping[];
     user_preferences: IdMapping[];
     reading_goals: IdMapping[];
@@ -230,6 +237,18 @@ export interface GoalPayload {
   week: number | null;
   is_active: boolean;
   completed_at: string | null;
+}
+
+export interface SeriesPayload {
+  local_id: string;
+  server_id?: number;
+  title: string;
+  author: string;
+  external_id: string | null;
+  external_provider: string | null;
+  total_volumes: number | null;
+  is_complete: boolean;
+  description: string | null;
 }
 
 export interface ServerBook {

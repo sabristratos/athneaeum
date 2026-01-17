@@ -9,6 +9,7 @@ export const themes: Record<ThemeName, Theme> = {
   dreamer: dreamerTheme,
   wanderer: wandererTheme,
   midnight: midnightTheme,
+  dynamic: midnightTheme,
 };
 
 export { scholarTheme, dreamerTheme, wandererTheme, midnightTheme };

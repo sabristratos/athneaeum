@@ -61,6 +61,28 @@ return new class extends Migration
             $table->boolean('is_classified')->default(false)->index();
             $table->timestamp('classified_at')->nullable();
 
+            // Vibe classification vectors (1.0-10.0 scale)
+            $table->decimal('mood_darkness', 3, 1)->nullable();
+            $table->decimal('pacing_speed', 3, 1)->nullable();
+            $table->decimal('complexity_score', 3, 1)->nullable();
+            $table->decimal('emotional_intensity', 3, 1)->nullable();
+
+            // Vibe categorical classifications
+            $table->string('plot_archetype', 30)->nullable();
+            $table->string('prose_style', 30)->nullable();
+            $table->string('setting_atmosphere', 30)->nullable();
+
+            // Vibe tracking
+            $table->decimal('vibe_confidence', 3, 2)->default(0);
+            $table->boolean('is_vibe_classified')->default(false)->index();
+
+            // NYT Bestseller tracking
+            $table->boolean('is_nyt_bestseller')->default(false)->index();
+            $table->string('nyt_list_category', 100)->nullable();
+            $table->integer('nyt_weeks_on_list')->nullable();
+            $table->integer('nyt_peak_rank')->nullable();
+            $table->date('nyt_first_seen_date')->nullable();
+
             // Discovery metrics
             $table->float('popularity_score')->default(0)->index();
             $table->integer('review_count')->default(0);

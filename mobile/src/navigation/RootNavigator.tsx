@@ -17,7 +17,9 @@ export function RootNavigator() {
   const hasCompletedOnboarding = useHasCompletedOnboarding();
   const authHydrated = useAuthHydrated();
   const themeHydrated = useThemeHydrated();
-  const { theme } = useTheme();
+  const { theme, themeName } = useTheme();
+
+  const isDynamicTheme = themeName === 'dynamic';
 
   const linking = useMemo(
     () => ({
@@ -32,12 +34,13 @@ export function RootNavigator() {
   );
 
   // Memoize navigation theme to prevent recreation on every render
+  // Use transparent background for dynamic theme to show DynamicSky
   const navigationTheme = useMemo(
     () => ({
       ...(theme.isDark ? DarkTheme : DefaultTheme),
       colors: {
         ...(theme.isDark ? DarkTheme : DefaultTheme).colors,
-        background: theme.colors.canvas,
+        background: isDynamicTheme ? 'transparent' : theme.colors.canvas,
         card: theme.colors.surface,
         text: theme.colors.foreground,
         border: theme.colors.border,
@@ -52,6 +55,7 @@ export function RootNavigator() {
       theme.colors.foreground,
       theme.colors.border,
       theme.colors.primary,
+      isDynamicTheme,
     ]
   );
 

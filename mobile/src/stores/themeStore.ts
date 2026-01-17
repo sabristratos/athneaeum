@@ -3,21 +3,88 @@ import { createJSONStorage, persist } from 'zustand/middleware';
 import { useShallow } from 'zustand/react/shallow';
 import { mmkvStorage } from '@/lib/storage';
 import { useToastStore } from '@/stores/toastStore';
-import type { ThemeName } from '@/types/theme';
+import type { ThemeName, Theme } from '@/types/theme';
+import { themes } from '@/themes/themes';
 
-export const EDITION_LABELS: Record<ThemeName, string> = {
-  scholar: 'Scholar Edition',
-  dreamer: 'Dreamer Edition',
-  wanderer: 'Wanderer Edition',
-  midnight: 'Midnight Edition',
+export interface ThemeMetadata {
+  name: ThemeName;
+  label: string;
+  editionLabel: string;
+  description: string;
+  fonts: string;
+  corners: string;
+  ratingLabel: string;
+  ratingIcon: 'star' | 'heart' | 'compass' | 'moon';
+  theme: Theme;
+}
+
+export const THEME_CONFIG: Record<ThemeName, ThemeMetadata> = {
+  scholar: {
+    name: 'scholar',
+    label: 'Scholar',
+    editionLabel: 'Scholar Edition',
+    description: 'Dark Academia',
+    fonts: 'Classic Serif',
+    corners: 'Sharp',
+    ratingLabel: 'Stars',
+    ratingIcon: 'star',
+    theme: themes.scholar,
+  },
+  dreamer: {
+    name: 'dreamer',
+    label: 'Dreamer',
+    editionLabel: 'Dreamer Edition',
+    description: 'Cozy Cottagecore',
+    fonts: 'Friendly Sans',
+    corners: 'Soft',
+    ratingLabel: 'Hearts',
+    ratingIcon: 'heart',
+    theme: themes.dreamer,
+  },
+  wanderer: {
+    name: 'wanderer',
+    label: 'Wanderer',
+    editionLabel: 'Wanderer Edition',
+    description: 'Desert Explorer',
+    fonts: 'Warm Serif',
+    corners: 'Medium',
+    ratingLabel: 'Compass',
+    ratingIcon: 'compass',
+    theme: themes.wanderer,
+  },
+  midnight: {
+    name: 'midnight',
+    label: 'Midnight',
+    editionLabel: 'Midnight Edition',
+    description: 'Celestial Library',
+    fonts: 'Elegant Serif',
+    corners: 'Medium',
+    ratingLabel: 'Moons',
+    ratingIcon: 'moon',
+    theme: themes.midnight,
+  },
+  dynamic: {
+    name: 'dynamic',
+    label: 'Horizon',
+    editionLabel: 'Horizon Edition',
+    description: 'Living Sky',
+    fonts: 'Modern Sans',
+    corners: 'Smooth',
+    ratingLabel: 'Stars',
+    ratingIcon: 'star',
+    theme: themes.dynamic,
+  },
 };
 
-export const EDITION_DESCRIPTIONS: Record<ThemeName, string> = {
-  scholar: 'Dark Academia',
-  dreamer: 'Cozy Cottagecore',
-  wanderer: 'Desert Explorer',
-  midnight: 'Celestial Library',
-};
+export const SELECTABLE_THEMES: ThemeMetadata[] = Object.values(THEME_CONFIG);
+
+export const EDITION_LABELS: Record<ThemeName, string> = Object.fromEntries(
+  Object.entries(THEME_CONFIG).map(([key, value]) => [key, value.editionLabel])
+) as Record<ThemeName, string>;
+
+export const EDITION_DESCRIPTIONS: Record<ThemeName, string> = Object.fromEntries(
+  Object.entries(THEME_CONFIG).map(([key, value]) => [key, value.description])
+) as Record<ThemeName, string>;
 
 interface ThemeStore {
   themeName: ThemeName;

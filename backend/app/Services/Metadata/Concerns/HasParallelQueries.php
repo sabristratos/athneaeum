@@ -19,7 +19,6 @@ trait HasParallelQueries
     /**
      * Execute queries to multiple sources in parallel.
      *
-     * @param  MetadataQueryDTO  $query
      * @param  array<MetadataSourceInterface>  $sources
      * @return array<MetadataResultDTO>
      */
@@ -75,7 +74,7 @@ trait HasParallelQueries
         $results = [];
 
         foreach ($responses as $sourceName => $response) {
-            if (!isset($sourceMap[$sourceName])) {
+            if (! isset($sourceMap[$sourceName])) {
                 continue;
             }
 

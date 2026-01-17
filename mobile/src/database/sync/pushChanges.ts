@@ -6,6 +6,7 @@ import type { Book } from '@/database/models/Book';
 import type { UserBook } from '@/database/models/UserBook';
 import type { ReadThrough } from '@/database/models/ReadThrough';
 import type { ReadingSession } from '@/database/models/ReadingSession';
+import type { Series } from '@/database/models/Series';
 import type { Tag } from '@/database/models/Tag';
 import type { UserPreference } from '@/database/models/UserPreference';
 import type { ReadingGoal } from '@/database/models/ReadingGoal';
@@ -17,6 +18,7 @@ import type {
   UserBookPayload,
   ReadThroughPayload,
   SessionPayload,
+  SeriesPayload,
   TagPayload,
   PreferencePayload,
   GoalPayload,
@@ -148,11 +150,26 @@ function transformGoalForPush(goal: ReadingGoal): GoalPayload {
   };
 }
 
+function transformSeriesForPush(series: Series): SeriesPayload {
+  return {
+    local_id: series.id,
+    server_id: series.serverId ?? undefined,
+    title: series.title,
+    author: series.author,
+    external_id: series.externalId,
+    external_provider: series.externalProvider,
+    total_volumes: series.totalVolumes,
+    is_complete: series.isComplete,
+    description: series.description,
+  };
+}
+
 export async function pushChanges(): Promise<PushResponse> {
   const booksCollection = database.get<Book>('books');
   const userBooksCollection = database.get<UserBook>('user_books');
   const readThroughsCollection = database.get<ReadThrough>('read_throughs');
   const sessionsCollection = database.get<ReadingSession>('reading_sessions');
+  const seriesCollection = database.get<Series>('series');
   const tagsCollection = database.get<Tag>('tags');
   const preferencesCollection = database.get<UserPreference>('user_preferences');
   const goalsCollection = database.get<ReadingGoal>('reading_goals');
@@ -191,6 +208,10 @@ export async function pushChanges(): Promise<PushResponse> {
     .query(Q.where('is_pending_sync', true), Q.where('is_deleted', false))
     .fetch();
 
+  const pendingSeries = await seriesCollection
+    .query(Q.where('is_pending_sync', true), Q.where('is_deleted', false))
+    .fetch();
+
   const pendingTags = await tagsCollection
     .query(
       Q.where('is_pending_sync', true),
@@ -216,6 +237,10 @@ export async function pushChanges(): Promise<PushResponse> {
     .fetch();
 
   const deletedSessions = await sessionsCollection
+    .query(Q.where('is_deleted', true), Q.where('is_pending_sync', true))
+    .fetch();
+
+  const deletedSeries = await seriesCollection
     .query(Q.where('is_deleted', true), Q.where('is_pending_sync', true))
     .fetch();
 
@@ -276,6 +301,17 @@ export async function pushChanges(): Promise<PushResponse> {
         .filter((s) => s.serverId)
         .map((s) => s.serverId!),
     },
+    series: {
+      created: pendingSeries
+        .filter((s) => !s.serverId)
+        .map(transformSeriesForPush),
+      updated: pendingSeries
+        .filter((s) => s.serverId)
+        .map(transformSeriesForPush),
+      deleted: deletedSeries
+        .filter((s) => s.serverId)
+        .map((s) => s.serverId!),
+    },
     tags: {
       created: pendingTags
         .filter((t) => !t.serverId)
@@ -323,6 +359,9 @@ export async function pushChanges(): Promise<PushResponse> {
     payload.reading_sessions.created.length > 0 ||
     payload.reading_sessions.updated.length > 0 ||
     payload.reading_sessions.deleted.length > 0 ||
+    payload.series.created.length > 0 ||
+    payload.series.updated.length > 0 ||
+    payload.series.deleted.length > 0 ||
     payload.tags.created.length > 0 ||
     payload.tags.updated.length > 0 ||
     payload.tags.deleted.length > 0 ||
@@ -341,6 +380,7 @@ export async function pushChanges(): Promise<PushResponse> {
         user_books: [],
         read_throughs: [],
         reading_sessions: [],
+        series: [],
         tags: [],
         user_preferences: [],
         reading_goals: [],
@@ -350,6 +390,7 @@ export async function pushChanges(): Promise<PushResponse> {
         user_books: 0,
         read_throughs: 0,
         reading_sessions: 0,
+        series: 0,
         tags: 0,
         user_preferences: 0,
         reading_goals: 0,
@@ -421,6 +462,16 @@ export async function pushChanges(): Promise<PushResponse> {
       }
     }
 
+    for (const mapping of response.id_mappings.series ?? []) {
+      const series = pendingSeries.find((s) => s.id === mapping.local_id);
+      if (series) {
+        await series.update((record) => {
+          record.serverId = mapping.server_id;
+          record.isPendingSync = false;
+        });
+      }
+    }
+
     for (const mapping of response.id_mappings.tags ?? []) {
       const tag = pendingTags.find((t) => t.id === mapping.local_id);
       if (tag) {
@@ -458,6 +509,9 @@ export async function pushChanges(): Promise<PushResponse> {
       await rt.destroyPermanently();
     }
     for (const s of deletedSessions.filter((s) => s.serverId)) {
+      await s.destroyPermanently();
+    }
+    for (const s of deletedSeries.filter((s) => s.serverId)) {
       await s.destroyPermanently();
     }
     for (const t of deletedTags.filter((t) => t.serverId)) {

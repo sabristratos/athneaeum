@@ -6,13 +6,13 @@ namespace App\Providers;
 
 use App\Contracts\BookSearchServiceInterface;
 use App\Services\BookSearch\GoogleBooksService;
-use App\Services\BookSearch\OpenLibraryService;
 use Illuminate\Support\ServiceProvider;
 
 /**
  * Service provider for binding book search service implementations.
  *
  * The active provider is determined by the BOOK_SEARCH_PROVIDER env variable.
+ * Currently only Google Books is supported. OPDS is configured per-user.
  */
 class BookSearchServiceProvider extends ServiceProvider
 {
@@ -20,10 +20,7 @@ class BookSearchServiceProvider extends ServiceProvider
     {
         $this->app->bind(
             BookSearchServiceInterface::class,
-            fn () => match (config('services.book_search.provider')) {
-                'open_library' => new OpenLibraryService,
-                default => new GoogleBooksService,
-            }
+            fn () => new GoogleBooksService
         );
     }
 }

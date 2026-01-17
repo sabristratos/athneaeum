@@ -57,7 +57,7 @@ class ClassifyCatalogCommand extends Command
         }
 
         $this->newLine();
-        $this->info("Processing up to ".($maxBooks > 0 ? $maxBooks : 'all')." books...");
+        $this->info('Processing up to '.($maxBooks > 0 ? $maxBooks : 'all').' books...');
         $this->newLine();
 
         $progressBar = $this->output->createProgressBar($maxBooks > 0 ? min($maxBooks, $stats['pending']) : $stats['pending']);

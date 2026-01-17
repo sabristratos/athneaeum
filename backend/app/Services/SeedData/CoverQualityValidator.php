@@ -83,8 +83,6 @@ class CoverQualityValidator
 
     /**
      * Fully validate a cover by downloading and checking dimensions.
-     *
-     * @return CoverValidationResultDTO
      */
     public function validate(string $url): CoverValidationResultDTO
     {
@@ -290,7 +288,7 @@ class CoverQualityValidator
         $i = 2;
 
         while ($i < $len - 9) {
-            if (ord($data[$i]) !== 0xff) {
+            if (ord($data[$i]) !== 0xFF) {
                 $i++;
 
                 continue;
@@ -298,7 +296,7 @@ class CoverQualityValidator
 
             $marker = ord($data[$i + 1]);
 
-            if ($marker >= 0xc0 && $marker <= 0xcf && $marker !== 0xc4 && $marker !== 0xc8 && $marker !== 0xcc) {
+            if ($marker >= 0xC0 && $marker <= 0xCF && $marker !== 0xC4 && $marker !== 0xC8 && $marker !== 0xCC) {
                 $height = unpack('n', substr($data, $i + 5, 2))[1];
                 $width = unpack('n', substr($data, $i + 7, 2))[1];
 
@@ -329,16 +327,16 @@ class CoverQualityValidator
             if (substr($data, 23, 3) !== "\x9d\x01\x2a") {
                 return null;
             }
-            $width = unpack('v', substr($data, 26, 2))[1] & 0x3fff;
-            $height = unpack('v', substr($data, 28, 2))[1] & 0x3fff;
+            $width = unpack('v', substr($data, 26, 2))[1] & 0x3FFF;
+            $height = unpack('v', substr($data, 28, 2))[1] & 0x3FFF;
 
             return [$width, $height];
         }
 
         if ($chunk === 'VP8L') {
             $bits = unpack('V', substr($data, 21, 4))[1];
-            $width = ($bits & 0x3fff) + 1;
-            $height = (($bits >> 14) & 0x3fff) + 1;
+            $width = ($bits & 0x3FFF) + 1;
+            $height = (($bits >> 14) & 0x3FFF) + 1;
 
             return [$width, $height];
         }

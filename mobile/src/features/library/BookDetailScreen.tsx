@@ -1542,6 +1542,16 @@ export const BookDetailScreen = memo(function BookDetailScreen() {
     handleAnalyzeContent,
   } = controller;
 
+  if (!book) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: theme.colors.background }}>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <Text variant="body">Loading book details...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   const { color: coverColor } = useCoverColor(book.id, book.cover_url);
 
   const gradientColors = useMemo(() => {

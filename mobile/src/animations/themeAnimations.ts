@@ -109,6 +109,27 @@ export const THEME_ANIMATIONS: Record<ThemeName, ThemeAnimationConfig> = {
       maxSkewAngle: 0,
     },
   },
+  dynamic: {
+    spring: {
+      press: SPRINGS.dramatic,
+      emphasis: SPRINGS.responsive,
+      scroll: SPRINGS.gentle,
+    },
+    timing: {
+      fade: TIMING.normal,
+      slide: TIMING.normal,
+    },
+    scales: {
+      pressed: SCALES.pressed,
+      emphasis: SCALES.emphasis,
+    },
+    scroll: {
+      enableTilt: true,
+      enableSkew: false,
+      maxTiltAngle: TRANSFORMS.maxTiltAngle * 0.8,
+      maxSkewAngle: 0,
+    },
+  },
 };
 
 export function getThemeAnimation(themeName: ThemeName): ThemeAnimationConfig {

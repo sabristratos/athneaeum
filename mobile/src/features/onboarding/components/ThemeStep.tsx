@@ -8,9 +8,8 @@ import { useTheme } from '@/themes';
 import { Text, Button, Icon } from '@/components';
 import { Tick02Icon, ArrowLeft02Icon } from '@hugeicons/core-free-icons';
 import { SPRINGS } from '@/animations/constants';
-import { EDITION_LABELS, EDITION_DESCRIPTIONS } from '@/stores/themeStore';
-import type { ThemeName } from '@/types/theme';
-import { scholarTheme, dreamerTheme, wandererTheme, midnightTheme } from '@/themes/themes';
+import { SELECTABLE_THEMES } from '@/stores/themeStore';
+import type { ThemeName, Theme } from '@/types/theme';
 
 interface ThemeStepProps {
   selectedTheme: ThemeName;
@@ -18,13 +17,6 @@ interface ThemeStepProps {
   onNext: () => void;
   onBack: () => void;
 }
-
-const THEMES: { name: ThemeName; theme: typeof scholarTheme }[] = [
-  { name: 'scholar', theme: scholarTheme },
-  { name: 'dreamer', theme: dreamerTheme },
-  { name: 'wanderer', theme: wandererTheme },
-  { name: 'midnight', theme: midnightTheme },
-];
 
 export function ThemeStep({
   selectedTheme,
@@ -82,13 +74,15 @@ export function ThemeStep({
         </Text>
 
         <View style={styles.themesGrid}>
-          {THEMES.map(({ name, theme: themeData }) => (
+          {SELECTABLE_THEMES.map((themeConfig) => (
             <ThemeCard
-              key={name}
-              themeName={name}
-              themeData={themeData}
-              isSelected={selectedTheme === name}
-              onSelect={() => onSelectTheme(name)}
+              key={themeConfig.name}
+              themeName={themeConfig.name}
+              label={themeConfig.label}
+              description={themeConfig.description}
+              themeData={themeConfig.theme}
+              isSelected={selectedTheme === themeConfig.name}
+              onSelect={() => onSelectTheme(themeConfig.name)}
               currentTheme={theme}
             />
           ))}
@@ -115,14 +109,17 @@ export function ThemeStep({
 
 interface ThemeCardProps {
   themeName: ThemeName;
-  themeData: typeof scholarTheme;
+  label: string;
+  description: string;
+  themeData: Theme;
   isSelected: boolean;
   onSelect: () => void;
-  currentTheme: typeof scholarTheme;
+  currentTheme: Theme;
 }
 
 function ThemeCard({
-  themeName,
+  label,
+  description,
   themeData,
   isSelected,
   onSelect,
@@ -193,7 +190,7 @@ function ThemeCard({
             },
           ]}
         >
-          {EDITION_LABELS[themeName].replace(' Edition', '')}
+          {label}
         </Text>
 
         <Text
@@ -205,7 +202,7 @@ function ThemeCard({
             },
           ]}
         >
-          {EDITION_DESCRIPTIONS[themeName]}
+          {description}
         </Text>
       </Animated.View>
     </RNPressable>

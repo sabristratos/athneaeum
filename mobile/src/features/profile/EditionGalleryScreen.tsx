@@ -8,24 +8,11 @@ import { Text, IconButton } from '@/components/atoms';
 import { EditionTile } from './components/EditionTile';
 import { EditionPreviewModal } from './components/EditionPreviewModal';
 import { useTheme } from '@/themes';
-import { themes } from '@/themes/themes';
+import { SELECTABLE_THEMES, type ThemeMetadata } from '@/stores/themeStore';
 import type { ThemeName } from '@/types/theme';
 
 const PADDING = 16;
 const CARD_GAP = 16;
-
-interface EditionData {
-  name: ThemeName;
-  label: string;
-  description: string;
-}
-
-const EDITIONS: EditionData[] = [
-  { name: 'scholar', label: 'Scholar', description: 'Dark Academia' },
-  { name: 'dreamer', label: 'Dreamer', description: 'Cozy Cottagecore' },
-  { name: 'wanderer', label: 'Wanderer', description: 'Desert Explorer' },
-  { name: 'midnight', label: 'Midnight', description: 'Celestial Library' },
-];
 
 export function EditionGalleryScreen() {
   const { theme, themeName, setTheme } = useTheme();
@@ -58,8 +45,7 @@ export function EditionGalleryScreen() {
   );
 
   const renderItem = useCallback(
-    ({ item }: { item: EditionData }) => {
-      const previewTheme = themes[item.name];
+    ({ item }: { item: ThemeMetadata }) => {
       const isActive = themeName === item.name;
 
       return (
@@ -67,7 +53,7 @@ export function EditionGalleryScreen() {
           name={item.name}
           label={item.label}
           description={item.description}
-          previewTheme={previewTheme}
+          previewTheme={item.theme}
           isActive={isActive}
           onPress={() => handleTilePress(item.name)}
         />
@@ -76,7 +62,7 @@ export function EditionGalleryScreen() {
     [themeName, handleTilePress]
   );
 
-  const keyExtractor = useCallback((item: EditionData) => item.name, []);
+  const keyExtractor = useCallback((item: ThemeMetadata) => item.name, []);
 
   return (
     <SafeAreaView
@@ -115,7 +101,7 @@ export function EditionGalleryScreen() {
       </Text>
 
       <FlatList
-        data={EDITIONS}
+        data={SELECTABLE_THEMES}
         renderItem={renderItem}
         keyExtractor={keyExtractor}
         contentContainerStyle={{

@@ -21,6 +21,4 @@ export { ProgressModeToggle, type ProgressMode } from './ProgressModeToggle';
 export { ChipGroup } from './ChipGroup';
 export { MoodSelector } from './MoodSelector';
 export { SmartEstimation, type SmartEstimationProps } from './SmartEstimation';
-export { QuickLogKeypad, type QuickLogKeypadProps } from './QuickLogKeypad';
-export { PulseStrip, type PulseStripProps } from './PulseStrip';
 export { ClassificationBadges, type ClassificationBadgesProps } from './ClassificationBadges';

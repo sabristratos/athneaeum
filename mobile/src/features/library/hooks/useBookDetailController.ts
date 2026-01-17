@@ -101,7 +101,7 @@ interface AuthorSheetState {
 
 export interface BookDetailControllerState {
   userBook: UserBook;
-  book: Book;
+  book: Book | undefined;
   updating: boolean;
   showQuoteModal: boolean;
   showSessionModal: boolean;

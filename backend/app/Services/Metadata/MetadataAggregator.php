@@ -91,7 +91,7 @@ class MetadataAggregator implements MetadataAggregatorInterface
         $active = [];
 
         foreach ($this->sources as $name => $source) {
-            if ($sourceNames !== null && !in_array($name, $sourceNames, true)) {
+            if ($sourceNames !== null && ! in_array($name, $sourceNames, true)) {
                 continue;
             }
 
@@ -108,7 +108,6 @@ class MetadataAggregator implements MetadataAggregatorInterface
     /**
      * Query all sources in parallel using Http::pool.
      *
-     * @param  MetadataQueryDTO  $query
      * @param  array<MetadataSourceInterface>  $sources
      * @return array<MetadataResultDTO>
      */
@@ -129,7 +128,7 @@ class MetadataAggregator implements MetadataAggregatorInterface
 
         $results = [];
 
-        if (!empty($asyncSources) && config('metadata.parallel.enabled', true)) {
+        if (! empty($asyncSources) && config('metadata.parallel.enabled', true)) {
             $asyncResults = $this->executeParallelQueries($query, $asyncSources);
             $results = array_merge($results, $asyncResults);
         } else {
@@ -158,7 +157,6 @@ class MetadataAggregator implements MetadataAggregatorInterface
      * Score all results for relevance to the query.
      *
      * @param  array<MetadataResultDTO>  $results
-     * @param  MetadataQueryDTO  $query
      * @return array<ScoredResultDTO>
      */
     private function scoreResults(array $results, MetadataQueryDTO $query): array

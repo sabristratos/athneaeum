@@ -236,7 +236,7 @@ export function useOnboardingController() {
   ]);
 
   const getThemeCopy = useCallback(() => {
-    const copy = {
+    const copy: Record<ThemeName, { welcome: string; completion: string }> = {
       scholar: {
         welcome: 'Your scholarly pursuits await',
         completion: 'Your academic sanctuary is ready',
@@ -252,6 +252,10 @@ export function useOnboardingController() {
       midnight: {
         welcome: 'Discover stories under the stars',
         completion: 'Your celestial library is ready',
+      },
+      dynamic: {
+        welcome: 'Watch the world transform as you read',
+        completion: 'Your living library awaits',
       },
     };
     return copy[state.selectedTheme];

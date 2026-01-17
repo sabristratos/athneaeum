@@ -22,11 +22,17 @@ use App\DTOs\Metadata\ScoredResultDTO;
 class ResultScorer
 {
     private const SCORE_IDENTIFIER_MATCH = 1000;
+
     private const SCORE_EXACT_TITLE = 100;
+
     private const SCORE_AUTHOR_MATCH = 50;
+
     private const SCORE_HAS_COVER = 25;
+
     private const SCORE_HAS_DESCRIPTION = 15;
+
     private const SCORE_PER_FIELD = 5;
+
     private const MAX_COMPLETENESS_SCORE = 50;
 
     public function score(MetadataResultDTO $result, MetadataQueryDTO $query): ScoredResultDTO

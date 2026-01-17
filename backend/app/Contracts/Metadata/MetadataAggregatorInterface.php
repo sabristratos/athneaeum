@@ -20,7 +20,7 @@ interface MetadataAggregatorInterface
      *
      * @param  MetadataQueryDTO  $query  The search query
      * @param  array<string>|null  $sources  Limit to specific sources (null = all)
-     * @return MergedMetadataDTO  The merged result with field provenance
+     * @return MergedMetadataDTO The merged result with field provenance
      */
     public function aggregate(
         MetadataQueryDTO $query,
